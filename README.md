@@ -164,4 +164,6 @@ docs/                   Documentation
 
 ## License
 
-See [LICENSE](LICENSE) for details.
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+
+Please contact us at hello@marginlab.ai for questions
