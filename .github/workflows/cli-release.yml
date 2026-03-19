@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*.*.*"
+      - "v*.*.*-beta.*"
 
 permissions:
   contents: write
@@ -23,8 +24,8 @@ jobs:
           set -euo pipefail
 
           tag="${GITHUB_REF_NAME}"
-          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Release tag must match v<major>.<minor>.<patch>; got: ${tag}" >&2
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$ ]]; then
+            echo "Release tag must match v<major>.<minor>.<patch> or v<major>.<minor>.<patch>-beta.<n>; got: ${tag}" >&2
             exit 1
           fi
 
@@ -85,9 +86,14 @@ jobs:
 
           tag="${GITHUB_REF_NAME}"
           dist_dir="${{ steps.build.outputs.dist_dir }}"
+          release_flags=()
+
+          if [[ "$tag" == *-beta.* ]]; then
+            release_flags+=(--prerelease)
+          fi
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "${dist_dir}"/* --clobber
           else
-            gh release create "$tag" "${dist_dir}"/* --generate-notes
+            gh release create "$tag" "${dist_dir}"/* "${release_flags[@]}" --generate-notes
           fi
