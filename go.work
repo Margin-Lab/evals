@@ -1,0 +1,9 @@
+go 1.23
+
+use (
+	./agent-server
+	./cli
+	./runner/runner-core
+	./runner/runner-local
+	./tools/fake-agent-server
+)

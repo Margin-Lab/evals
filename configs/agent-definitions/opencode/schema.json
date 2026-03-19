@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "required": ["opencode_version", "startup_args", "run_args", "config_jsonc"],
+  "additionalProperties": false,
+  "properties": {
+    "opencode_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "startup_args": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "run_args": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "config_jsonc": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

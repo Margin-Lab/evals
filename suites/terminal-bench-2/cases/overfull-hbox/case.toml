@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "overfull-hbox"
+description = "Translated from Terminal-Bench 2.0 task overfull-hbox"
+test_cwd = "/"
+test_timeout_seconds = 750
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "ca36CXF7yAdWnRdpyfoihT/overfull-hbox"
+author_name = "Sam Buchanan"
+author_email = "sdbuchanan@berkeley.edu"
+difficulty = "easy"
+category = "debugging"
+tags = ["latex", "document-processing", "combinatorial-optimization"]
+agent_timeout_sec = 750
+verifier_timeout_sec = 360
+build_timeout_sec = 600
+docker_image = "alexgshaw/overfull-hbox:20251031"
+cpus = 2
+memory = "4G"
+storage = "10G"
+container_workdir = "/app"

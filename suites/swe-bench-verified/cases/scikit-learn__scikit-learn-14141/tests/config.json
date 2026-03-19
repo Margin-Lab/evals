@@ -1,0 +1,15 @@
+{
+  "repo": "scikit-learn/scikit-learn",
+  "instance_id": "scikit-learn__scikit-learn-14141",
+  "base_commit": "3d997697fdd166eff428ea9fd35734b6a8ba113e",
+  "patch": "diff --git a/sklearn/utils/_show_versions.py b/sklearn/utils/_show_versions.py\n--- a/sklearn/utils/_show_versions.py\n+++ b/sklearn/utils/_show_versions.py\n@@ -48,6 +48,7 @@ def _get_deps_info():\n         \"Cython\",\n         \"pandas\",\n         \"matplotlib\",\n+        \"joblib\",\n     ]\n \n     def get_version(module):\n",
+  "test_patch": "diff --git a/sklearn/utils/tests/test_show_versions.py b/sklearn/utils/tests/test_show_versions.py\n--- a/sklearn/utils/tests/test_show_versions.py\n+++ b/sklearn/utils/tests/test_show_versions.py\n@@ -23,6 +23,7 @@ def test_get_deps_info():\n     assert 'Cython' in deps_info\n     assert 'pandas' in deps_info\n     assert 'matplotlib' in deps_info\n+    assert 'joblib' in deps_info\n \n \n def test_show_versions_with_blas(capsys):\n",
+  "problem_statement": "Add joblib in show_versions\njoblib should be added to the dependencies listed in show_versions or added to the issue template when sklearn version is > 0.20.\n",
+  "hints_text": "",
+  "created_at": "2019-06-21T20:53:37Z",
+  "version": "0.22",
+  "FAIL_TO_PASS": "[\"sklearn/utils/tests/test_show_versions.py::test_get_deps_info\"]",
+  "PASS_TO_PASS": "[\"sklearn/utils/tests/test_show_versions.py::test_get_sys_info\", \"sklearn/utils/tests/test_show_versions.py::test_show_versions_with_blas\"]",
+  "environment_setup_commit": "7e85a6d1f038bbb932b36f18d75df6be937ed00d",
+  "difficulty": "<15 min fix"
+}

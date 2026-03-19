@@ -1,0 +1,102 @@
+package app
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"io"
+	"strings"
+)
+
+type App struct {
+	stdout io.Writer
+	stderr io.Writer
+}
+
+func New(stdout, stderr io.Writer) *App {
+	return &App{stdout: stdout, stderr: stderr}
+}
+
+func (a *App) Run(ctx context.Context, args []string) error {
+	if len(args) == 0 {
+		a.printUsage()
+		return nil
+	}
+
+	switch args[0] {
+	case "help", "-h", "--help":
+		a.printUsage()
+		return nil
+	case "init":
+		return a.runInit(args[1:])
+	case "run":
+		return a.runRun(ctx, args[1:])
+	default:
+		return fmt.Errorf("unknown command %q", args[0])
+	}
+}
+
+func (a *App) runInit(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("missing init subcommand; expected suite|case|agent-definition|agent-config|eval-config")
+	}
+	switch args[0] {
+	case "suite":
+		return a.runInitSuite(args[1:])
+	case "case":
+		return a.runInitCase(args[1:])
+	case "agent-definition":
+		return a.runInitAgentDefinition(args[1:])
+	case "agent-config":
+		return a.runInitAgentConfig(args[1:])
+	case "eval-config":
+		return a.runInitEvalConfig(args[1:])
+	default:
+		return fmt.Errorf("unknown init subcommand %q", args[0])
+	}
+}
+
+func (a *App) printUsage() {
+	fmt.Fprintln(a.stdout, strings.TrimSpace(`margin - Robust, easy agent evals
+
+Commands:
+Eval run command:
+  margin run --suite <path> --agent-config <path> --eval <path-to-eval.toml> [options]
+  margin run --resume-from <run-id> [options]
+
+  Run options:
+    --root <path>                 Local runner root directory (default .)
+    --name <name>                 Run name (default compiled bundle name)
+    --resume-from <run-id>        Resume from source run id using saved progress
+    --resume-mode <mode>          Resume behavior: resume|retry-failed (default resume; resume reruns infra_failed only)
+    --non-interactive             Skip Mission Control TUI and print plain progress logs
+    --agent-server-binary <path>  exact agent-server binary path on host (default embedded in margin)
+    --docker-binary <path>        Docker CLI binary (default docker)
+    --auth-file-path <path>       Override local OAuth credential file path for the selected agent
+    --prune-built-image <count>   Enable lazy-built cleanup and globally prune all unused Docker images from the selected daemon every N completed executed instances
+    --dry-run                     Skip agent execution after prelaunch setup
+    --agent-env KEY=VALUE         agent-server container env var; repeatable
+    --agent-bind HOST=CONTAINER   agent-server bind mount; repeatable
+    --run-timeout <duration>      Wait timeout for run completion (default none)
+
+Other commands:
+  margin init suite --suite <path> [--name <name>]
+  margin init case --suite <suite-path> [--case <case-name>]
+  margin init agent-config --agent-config <path> --definition <path> [--name <name>]
+  margin init eval-config --eval <path> [--name <name>]
+  margin init agent-definition --definition <path> [--name <name>]
+
+Mission-control TUI keys:
+  tab              Switch focus between instance list and detail pane
+  up/down          Move instances when left focused; scroll logs when right focused
+  left/right       Change selected state when right focused
+  g/G              Jump to top/bottom in logs
+  q                Quit (prompts before terminal state)
+`))
+}
+
+func newFlagSet(name string, out io.Writer) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(out)
+	return fs
+}

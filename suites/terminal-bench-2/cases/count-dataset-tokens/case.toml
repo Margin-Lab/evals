@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "count-dataset-tokens"
+description = "Translated from Terminal-Bench 2.0 task count-dataset-tokens"
+test_cwd = "/"
+test_timeout_seconds = 900
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "V8M9GUmT67TmSKo9FQTdoC/count-dataset-tokens"
+author_name = "Ryan Marten"
+author_email = "ryanmarten2000@gmail.com"
+difficulty = "medium"
+category = "model-training"
+tags = ["machine-learning", "data", "datasets", "tokenization", "huggingface"]
+agent_timeout_sec = 900
+verifier_timeout_sec = 900
+build_timeout_sec = 600
+docker_image = "alexgshaw/count-dataset-tokens:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

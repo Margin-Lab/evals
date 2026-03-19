@@ -1,0 +1,93 @@
+name: CLI Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GOFLAGS: -mod=readonly
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must match v<major>.<minor>.<patch>; got: ${tag}" >&2
+            exit 1
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: |
+            agent-server/go.sum
+            cli/go.sum
+            runner/runner-core/go.sum
+            runner/runner-local/go.sum
+
+      - name: Prepare embedded agent-server payloads
+        run: bash scripts/prepare-embedded-agent-server.sh
+
+      - name: Build release archives
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          dist_dir="${RUNNER_TEMP}/cli-release"
+          rm -rf "$dist_dir"
+          mkdir -p "$dist_dir"
+
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            IFS=/ read -r goos goarch <<<"$target"
+            stage_dir="${RUNNER_TEMP}/stage-${goos}-${goarch}"
+            archive_name="margin_${tag}_${goos}_${goarch}.tar.gz"
+
+            rm -rf "$stage_dir"
+            mkdir -p "$stage_dir"
+
+            echo "Building ${goos}/${goarch} -> ${archive_name}"
+            (
+              cd cli
+              CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -o "${stage_dir}/margin" ./cmd/margin
+            )
+
+            tar -C "$stage_dir" -czf "${dist_dir}/${archive_name}" margin
+          done
+
+          (
+            cd "$dist_dir"
+            sha256sum ./*.tar.gz > "margin_${tag}_SHA256SUMS.txt"
+          )
+
+          echo "dist_dir=${dist_dir}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          dist_dir="${{ steps.build.outputs.dist_dir }}"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${dist_dir}"/* --clobber
+          else
+            gh release create "$tag" "${dist_dir}"/* --generate-notes
+          fi

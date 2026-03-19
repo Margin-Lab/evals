@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "install-windows-3.11"
+description = "Translated from Terminal-Bench 2.0 task install-windows-3.11"
+test_cwd = "/"
+test_timeout_seconds = 3600
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "7s8y623XYuDhmBG6ERABwC/install-windows-3.11"
+author_name = "Ivan Bercovich"
+author_email = "ibercovich@gmail.com"
+difficulty = "hard"
+category = "system-administration"
+tags = ["virtualization", "qemu", "windows-3.11", "vnc", "sys-admin", "retro-computing"]
+agent_timeout_sec = 3600
+verifier_timeout_sec = 3600
+build_timeout_sec = 600
+docker_image = "alexgshaw/install-windows-3.11:20251031"
+cpus = 2
+memory = "4G"
+storage = "10G"
+container_workdir = "/app"

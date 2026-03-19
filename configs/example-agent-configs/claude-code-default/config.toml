@@ -1,0 +1,15 @@
+kind = "agent_config"
+name = "claude-code-default"
+definition = "../../agent-definitions/claude-code"
+mode = "direct"
+
+[input]
+claude_version = "latest"
+startup_args = ["--model", "sonnet", "--effort", "medium"]
+run_args = []
+settings_json = """
+{
+  "model": "sonnet",
+  "permissionMode": "acceptEdits"
+}
+"""

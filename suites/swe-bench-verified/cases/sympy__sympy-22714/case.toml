@@ -1,0 +1,16 @@
+kind = "test_case"
+name = "sympy__sympy-22714"
+description = "Translated from SWE-bench Verified task sympy__sympy-22714"
+test_cwd = "/"
+test_timeout_seconds = 3000
+
+[metadata]
+author_name = "unknown"
+author_email = "unknown"
+difficulty = "<15 min fix"
+category = "debugging"
+tags = [
+  "debugging",
+  "swe-bench",
+  "swe-bench-verified",
+]

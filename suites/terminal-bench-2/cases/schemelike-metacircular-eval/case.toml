@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "schemelike-metacircular-eval"
+description = "Translated from Terminal-Bench 2.0 task schemelike-metacircular-eval"
+test_cwd = "/"
+test_timeout_seconds = 2400
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "YkDjArg6hKdFYEmdiPrztY/schemelike-metacircular-eval"
+author_name = "Nicholas Carlini"
+author_email = "nicholas@carlini.com"
+difficulty = "medium"
+category = "software-engineering"
+tags = ["software-engineering"]
+agent_timeout_sec = 2400
+verifier_timeout_sec = 2400
+build_timeout_sec = 600
+docker_image = "alexgshaw/schemelike-metacircular-eval:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

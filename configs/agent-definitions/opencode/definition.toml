@@ -1,0 +1,34 @@
+kind = "agent_definition"
+name = "opencode"
+description = "Repo-owned Opencode agent definition"
+
+[auth]
+required_env = ["OPENAI_API_KEY"]
+
+[toolchains.node]
+minimum = "18"
+preferred = "24"
+
+[config]
+schema = "schema.json"
+
+[skills]
+home_rel_dir = ".config/opencode/skills"
+
+[agents_md]
+filename = "AGENTS.md"
+
+[config.unified]
+translate = "hooks/translate-unified.js"
+allowed_models = ["*"]
+allowed_reasoning_levels = ["low", "medium", "high"]
+
+[install]
+check = "hooks/install-check.js"
+run = "hooks/install-run.js"
+
+[run]
+prepare = "hooks/run-prepare.js"
+
+[trajectory]
+collect = "hooks/trajectory-collect.js"

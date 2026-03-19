@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "kv-store-grpc"
+description = "Translated from Terminal-Bench 2.0 task kv-store-grpc"
+test_cwd = "/"
+test_timeout_seconds = 900
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "JGX6wXigbfSgX6m298mcKW/kv-store-grpc"
+author_name = "Minghao Yan"
+author_email = "minghaoyan2@gmail.com"
+difficulty = "medium"
+category = "software-engineering"
+tags = ["coding", "file-operations", "system"]
+agent_timeout_sec = 900
+verifier_timeout_sec = 900
+build_timeout_sec = 600
+docker_image = "alexgshaw/kv-store-grpc:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

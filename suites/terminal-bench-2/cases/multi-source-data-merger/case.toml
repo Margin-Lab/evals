@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "multi-source-data-merger"
+description = "Translated from Terminal-Bench 2.0 task multi-source-data-merger"
+test_cwd = "/"
+test_timeout_seconds = 900
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "cMPqfgxjNH2qnnDVdWSFb8/multi-source-data-merger"
+author_name = "Xin Lan"
+author_email = "xl2681@columbia.edu"
+difficulty = "medium"
+category = "data-processing"
+tags = ["data-processing", "etl", "schema-mapping", "conflict-resolution", "pandas", "parquet"]
+agent_timeout_sec = 900
+verifier_timeout_sec = 900
+build_timeout_sec = 600
+docker_image = "alexgshaw/multi-source-data-merger:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

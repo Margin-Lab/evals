@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "dna-assembly"
+description = "Translated from Terminal-Bench 2.0 task dna-assembly"
+test_cwd = "/"
+test_timeout_seconds = 1800
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "ArEmuSGC435pAkSA7cv8qw/dna-assembly"
+author_name = "Karl Krauth"
+author_email = "kkt@stanford.edu"
+difficulty = "hard"
+category = "scientific-computing"
+tags = ["biology", "cloning"]
+agent_timeout_sec = 1800
+verifier_timeout_sec = 1800
+build_timeout_sec = 600
+docker_image = "alexgshaw/dna-assembly:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

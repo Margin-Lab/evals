@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "largest-eigenval"
+description = "Translated from Terminal-Bench 2.0 task largest-eigenval"
+test_cwd = "/"
+test_timeout_seconds = 900
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "GZXTJdXif2uoqEMrNXfNyB/largest-eigenval"
+author_name = "Zizhao Chen"
+author_email = "czz@cs.cornell.edu"
+difficulty = "medium"
+category = "mathematics"
+tags = ["coding", "optimization", "constraint", "numerical-approximation"]
+agent_timeout_sec = 900
+verifier_timeout_sec = 900
+build_timeout_sec = 600
+docker_image = "alexgshaw/largest-eigenval:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

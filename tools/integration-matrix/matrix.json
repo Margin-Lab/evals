@@ -1,0 +1,10 @@
+{
+  "cases": [
+    { "definition_name": "codex", "config_name": "codex-default" },
+    { "definition_name": "codex", "config_name": "codex-unified" },
+    { "definition_name": "claude-code", "config_name": "claude-code-default" },
+    { "definition_name": "claude-code", "config_name": "claude-code-unified" },
+    { "definition_name": "opencode", "config_name": "opencode-default" },
+    { "definition_name": "opencode", "config_name": "opencode-unified" }
+  ]
+}

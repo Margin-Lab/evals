@@ -1,0 +1,8 @@
+kind = "agent_config"
+name = "claude-code-unified"
+definition = "../../agent-definitions/claude-code"
+mode = "unified"
+
+[unified]
+model = "sonnet"
+reasoning_level = "medium"

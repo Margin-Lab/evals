@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "polyglot-rust-c"
+description = "Translated from Terminal-Bench 2.0 task polyglot-rust-c"
+test_cwd = "/"
+test_timeout_seconds = 900
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "hf6AShq4ZZHdwGTt8JGpEG/polyglot-rust-c"
+author_name = "Nicholas Carlini"
+author_email = "nicholas@carlini.com"
+difficulty = "hard"
+category = "software-engineering"
+tags = ["coding", "no-verified-solution"]
+agent_timeout_sec = 900
+verifier_timeout_sec = 900
+build_timeout_sec = 600
+docker_image = "alexgshaw/polyglot-rust-c:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

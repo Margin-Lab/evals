@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "qemu-alpine-ssh"
+description = "Translated from Terminal-Bench 2.0 task qemu-alpine-ssh"
+test_cwd = "/"
+test_timeout_seconds = 900
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "YiQMoSRPZzKeHRDhZkwmyd/qemu-alpine-ssh"
+author_name = "Nicholas Carlini"
+author_email = "nicholas@carlini.com"
+difficulty = "medium"
+category = "system-administration"
+tags = ["sys-admin"]
+agent_timeout_sec = 900
+verifier_timeout_sec = 900
+build_timeout_sec = 600
+docker_image = "alexgshaw/qemu-alpine-ssh:20251031"
+cpus = 1
+memory = "4G"
+storage = "10G"
+container_workdir = "/app"

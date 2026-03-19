@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "rstan-to-pystan"
+description = "Translated from Terminal-Bench 2.0 task rstan-to-pystan"
+test_cwd = "/"
+test_timeout_seconds = 1800
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "869oU8dUyJHL4uUFPzhKJM/rstan-to-pystan"
+author_name = "Zhiwei Xu"
+author_email = "zhiweixu@umich.edu"
+difficulty = "medium"
+category = "data-science"
+tags = ["pystan", "rstan", "gaussian-process"]
+agent_timeout_sec = 1800
+verifier_timeout_sec = 1800
+build_timeout_sec = 600
+docker_image = "alexgshaw/rstan-to-pystan:20251031"
+cpus = 4
+memory = "8G"
+storage = "10G"
+container_workdir = "/app"

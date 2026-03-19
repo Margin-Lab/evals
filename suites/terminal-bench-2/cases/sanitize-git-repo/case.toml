@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "sanitize-git-repo"
+description = "Translated from Terminal-Bench 2.0 task sanitize-git-repo"
+test_cwd = "/"
+test_timeout_seconds = 900
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "WNjEws4zKtRNWJABpoU892/sanitize-git-repo"
+author_name = "jeffreywpli"
+author_email = "unknown"
+difficulty = "medium"
+category = "security"
+tags = ["security", "system", "version-control"]
+agent_timeout_sec = 900
+verifier_timeout_sec = 900
+build_timeout_sec = 600
+docker_image = "alexgshaw/sanitize-git-repo:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app/dclm"

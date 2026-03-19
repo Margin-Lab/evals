@@ -1,0 +1,42 @@
+# Environment and secrets
+.env
+.env.*
+.envrc
+*.env
+!.env.example
+!.env.sample
+!.env.template
+
+# Current hidden local tool directories
+.superset/
+.lovelace/
+.tmp/
+
+# JS dependencies
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Go build/cache outputs
+.gocache/
+.gomodcache/
+go-build/
+.cache/go-build/
+
+# Build artifacts
+bin/
+configs/*
+!configs/agent-definitions/
+!configs/agent-definitions/**
+!configs/example-agent-configs/
+!configs/example-agent-configs/**
+configs/agent-definitions/**/__pycache__/
+configs/agent-definitions/**/*.pyc
+configs/example-agent-configs/**/__pycache__/
+configs/example-agent-configs/**/*.pyc
+
+.marginlab-local/
+.marginlab-swebenchpro-oauth/
+cli/internal/agentserverembed/generated/

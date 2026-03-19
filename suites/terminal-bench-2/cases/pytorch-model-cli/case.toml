@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "pytorch-model-cli"
+description = "Translated from Terminal-Bench 2.0 task pytorch-model-cli"
+test_cwd = "/"
+test_timeout_seconds = 900
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "cEZY7Ut37eqdNnYKPebgYq/pytorch-model-cli"
+author_name = "Jan-Lucas Uslu"
+author_email = "uslu@stanford.edu"
+difficulty = "medium"
+category = "model-training"
+tags = ["coding", "C", "pytorch"]
+agent_timeout_sec = 900
+verifier_timeout_sec = 900
+build_timeout_sec = 600
+docker_image = "alexgshaw/pytorch-model-cli:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

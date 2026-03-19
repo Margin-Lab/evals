@@ -1,0 +1,77 @@
+name: CLI CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/cli-ci.yml"
+      - ".github/workflows/cli-release.yml"
+      - "agent-server/**"
+      - "cli/**"
+      - "runner/runner-core/**"
+      - "runner/runner-local/**"
+      - "scripts/build-cli-agent-server.sh"
+      - "scripts/prepare-embedded-agent-server.sh"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cli-ci.yml"
+      - ".github/workflows/cli-release.yml"
+      - "agent-server/**"
+      - "cli/**"
+      - "runner/runner-core/**"
+      - "runner/runner-local/**"
+      - "scripts/build-cli-agent-server.sh"
+      - "scripts/prepare-embedded-agent-server.sh"
+
+concurrency:
+  group: cli-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    env:
+      GOFLAGS: -mod=readonly
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: |
+            agent-server/go.sum
+            cli/go.sum
+            runner/runner-core/go.sum
+            runner/runner-local/go.sum
+
+      - name: Prepare embedded agent-server payloads
+        run: bash scripts/prepare-embedded-agent-server.sh
+
+      - name: Run CLI unit tests
+        working-directory: cli
+        run: go test ./...
+
+      - name: Cross-compile CLI release targets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf dist/cli-ci
+          mkdir -p dist/cli-ci
+
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            IFS=/ read -r goos goarch <<<"$target"
+            output="${GITHUB_WORKSPACE}/dist/cli-ci/margin_${goos}_${goarch}"
+            echo "Building ${goos}/${goarch} -> ${output}"
+            (
+              cd cli
+              CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -o "$output" ./cmd/margin
+            )
+            test -x "$output"
+          done

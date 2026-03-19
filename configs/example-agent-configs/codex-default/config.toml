@@ -1,0 +1,13 @@
+kind = "agent_config"
+name = "codex-default"
+definition = "../../agent-definitions/codex"
+mode = "direct"
+
+[input]
+codex_version = "latest"
+startup_args = []
+run_args = []
+config_toml = """
+model = "gpt-5-codex"
+approval_policy = "never"
+"""

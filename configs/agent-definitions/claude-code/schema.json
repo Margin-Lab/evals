@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "required": ["claude_version", "startup_args", "run_args", "settings_json"],
+  "additionalProperties": false,
+  "properties": {
+    "claude_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "startup_args": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "run_args": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "settings_json": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mcp_json": {
+      "type": "string"
+    }
+  }
+}

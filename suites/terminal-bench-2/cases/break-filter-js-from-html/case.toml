@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "break-filter-js-from-html"
+description = "Translated from Terminal-Bench 2.0 task break-filter-js-from-html"
+test_cwd = "/"
+test_timeout_seconds = 1200
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "JQfDtvG4qqL3QfwErWynWU/break-filter-js-from-html"
+author_name = "Nicholas Carlini"
+author_email = "nicholas@carlini.com"
+difficulty = "medium"
+category = "security"
+tags = ["security"]
+agent_timeout_sec = 1200
+verifier_timeout_sec = 1200
+build_timeout_sec = 600
+docker_image = "alexgshaw/break-filter-js-from-html:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

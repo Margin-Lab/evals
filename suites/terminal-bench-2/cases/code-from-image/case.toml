@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "code-from-image"
+description = "Translated from Terminal-Bench 2.0 task code-from-image"
+test_cwd = "/"
+test_timeout_seconds = 1200
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "KRPXswDf2LBuozQgKhCqnG/code-from-image"
+author_name = "Guanghao Ye"
+author_email = "ghye@mit.edu"
+difficulty = "medium"
+category = "software-engineering"
+tags = ["ocr"]
+agent_timeout_sec = 1200
+verifier_timeout_sec = 1200
+build_timeout_sec = 600
+docker_image = "alexgshaw/code-from-image:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

@@ -1,0 +1,8 @@
+kind = "agent_config"
+name = "codex-unified"
+definition = "../../agent-definitions/codex"
+mode = "unified"
+
+[unified]
+model = "gpt-5"
+reasoning_level = "medium"

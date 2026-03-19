@@ -1,0 +1,42 @@
+kind = "agent_definition"
+name = "claude-code"
+description = "Repo-owned Claude Code agent definition"
+
+[auth]
+required_env = ["ANTHROPIC_API_KEY"]
+
+[[auth.local_files]]
+required_env = "ANTHROPIC_API_KEY"
+home_rel_path = ".claude/.credentials.json"
+run_home_rel_path = ".claude/.credentials.json"
+
+[toolchains.node]
+minimum = "18"
+preferred = "24"
+
+[config]
+schema = "schema.json"
+
+[skills]
+home_rel_dir = ".claude/skills"
+
+[agents_md]
+filename = "CLAUDE.md"
+
+[config.unified]
+translate = "hooks/translate-unified.js"
+allowed_models = ["opus", "sonnet", "haiku", "sonnet[1m]"]
+allowed_reasoning_levels = ["low", "medium", "high"]
+
+[install]
+check = "hooks/install-check.js"
+run = "hooks/install-run.js"
+
+[run]
+prepare = "hooks/run-prepare.js"
+
+[snapshot]
+prepare = "hooks/snapshot-prepare.js"
+
+[trajectory]
+collect = "hooks/trajectory-collect.js"

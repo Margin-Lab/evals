@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "extract-moves-from-video"
+description = "Translated from Terminal-Bench 2.0 task extract-moves-from-video"
+test_cwd = "/"
+test_timeout_seconds = 1800
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "bDZ3NNHZSFq2MH6CzCTykb/extract-moves-from-video"
+author_name = "Nicholas Carlini"
+author_email = "nicholas@carlini.com"
+difficulty = "hard"
+category = "file-operations"
+tags = ["file-operations", "web", "video-processing"]
+agent_timeout_sec = 1800
+verifier_timeout_sec = 1800
+build_timeout_sec = 600
+docker_image = "alexgshaw/extract-moves-from-video:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

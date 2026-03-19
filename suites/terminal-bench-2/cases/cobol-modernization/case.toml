@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "cobol-modernization"
+description = "Translated from Terminal-Bench 2.0 task cobol-modernization"
+test_cwd = "/"
+test_timeout_seconds = 900
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "SmKKTsxNnHaHqhzng8SrD2/cobol-modernization"
+author_name = "Akshay Anand"
+author_email = "akshay_anand@berkeley.edu"
+difficulty = "easy"
+category = "software-engineering"
+tags = ["coding"]
+agent_timeout_sec = 900
+verifier_timeout_sec = 900
+build_timeout_sec = 600
+docker_image = "alexgshaw/cobol-modernization:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

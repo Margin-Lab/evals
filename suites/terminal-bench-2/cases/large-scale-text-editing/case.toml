@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "large-scale-text-editing"
+description = "Translated from Terminal-Bench 2.0 task large-scale-text-editing"
+test_cwd = "/"
+test_timeout_seconds = 1200
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "S2VRUfRKCUQ2hWH9KJzsbK/large-scale-text-editing"
+author_name = "Robert Zhang"
+author_email = "robertz@cs.utexas.edu"
+difficulty = "medium"
+category = "file-operations"
+tags = ["text-editing", "large-scale-text-manipulation", "vim", "vim-macros"]
+agent_timeout_sec = 1200
+verifier_timeout_sec = 1200
+build_timeout_sec = 600
+docker_image = "alexgshaw/large-scale-text-editing:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

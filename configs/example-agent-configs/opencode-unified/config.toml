@@ -1,0 +1,8 @@
+kind = "agent_config"
+name = "opencode-unified"
+definition = "../../agent-definitions/opencode"
+mode = "unified"
+
+[unified]
+model = "openai/gpt-5"
+reasoning_level = "medium"

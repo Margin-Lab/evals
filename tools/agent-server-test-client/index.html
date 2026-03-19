@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Server Test Client</title>
+  <style>
+    body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; margin: 24px; background: #0f172a; color: #e2e8f0; }
+    h1, h2 { margin: 0 0 12px; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    .card { border: 1px solid #334155; border-radius: 10px; padding: 16px; background: #111827; }
+    label { display: block; margin: 10px 0 6px; font-size: 12px; color: #94a3b8; text-transform: uppercase; }
+    input, textarea, button { width: 100%; box-sizing: border-box; font: inherit; }
+    input, textarea { background: #020617; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px; padding: 10px; }
+    textarea { min-height: 180px; resize: vertical; }
+    button { margin-top: 10px; background: #2563eb; color: white; border: none; border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+    button.secondary { background: #475569; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #020617; border: 1px solid #334155; border-radius: 8px; padding: 12px; min-height: 160px; }
+  </style>
+</head>
+<body>
+  <h1>Agent Server Test Client</h1>
+  <div class="grid">
+    <div class="card">
+      <h2>Server</h2>
+      <label for="base-url">Base URL</label>
+      <input id="base-url" value="http://localhost:8080">
+      <button onclick="request('GET', '/healthz')">GET /healthz</button>
+      <button onclick="request('GET', '/readyz')">GET /readyz</button>
+      <button onclick="request('GET', '/v1/state')">GET /v1/state</button>
+    </div>
+
+    <div class="card">
+      <h2>Definition</h2>
+      <label for="definition-json">PUT /v1/agent-definition body</label>
+      <textarea id="definition-json">{
+  "definition": {
+    "manifest": {
+      "kind": "agent_definition",
+      "name": "codex",
+      "auth": { "required_env": ["OPENAI_API_KEY"] },
+      "config": { "schema_rel_path": "schema.json" },
+      "install": {
+        "check_hook": { "path": "hooks/install-check.py" },
+        "run_hook": { "path": "hooks/install-run.py" }
+      },
+      "run": { "prepare_hook": { "path": "hooks/run-prepare.py" } }
+    },
+    "package": {
+      "archive_tgz_base64": "...",
+      "archive_tgz_sha256": "...",
+      "archive_tgz_bytes": 0
+    }
+  }
+}</textarea>
+      <button onclick="requestWithBody('PUT', '/v1/agent-definition', 'definition-json')">PUT /v1/agent-definition</button>
+    </div>
+
+    <div class="card">
+      <h2>Config</h2>
+      <label for="config-json">PUT /v1/agent-config body</label>
+      <textarea id="config-json">{
+  "config": {
+    "name": "codex-default",
+    "input": {
+      "codex_version": "latest",
+      "startup_args": ["-p", "ci"],
+      "run_args": [],
+      "config_toml": "model = \"gpt-5-codex\"\napproval_policy = \"never\"\n"
+    }
+  }
+}</textarea>
+      <button onclick="requestWithBody('PUT', '/v1/agent-config', 'config-json')">PUT /v1/agent-config</button>
+      <button class="secondary" onclick="request('POST', '/v1/agent/install')">POST /v1/agent/install</button>
+    </div>
+
+    <div class="card">
+      <h2>Run</h2>
+      <label for="run-json">POST /v1/run body</label>
+      <textarea id="run-json">{
+  "cwd": "/marginlab/workspaces",
+  "initial_prompt": "Print hello and exit.",
+  "env": {
+    "TERM": "xterm-256color"
+  },
+  "pty": {
+    "cols": 120,
+    "rows": 40
+  }
+}</textarea>
+      <button onclick="requestWithBody('POST', '/v1/run', 'run-json')">POST /v1/run</button>
+      <button class="secondary" onclick="request('GET', '/v1/run')">GET /v1/run</button>
+      <button class="secondary" onclick="request('DELETE', '/v1/run')">DELETE /v1/run</button>
+    </div>
+
+    <div class="card" style="grid-column: 1 / -1;">
+      <h2>Response</h2>
+      <pre id="response"></pre>
+    </div>
+  </div>
+
+  <script>
+    async function request(method, path, body) {
+      const responseEl = document.getElementById('response');
+      const baseUrl = document.getElementById('base-url').value.replace(/\/+$/, '');
+      const options = { method, headers: {} };
+      if (body !== undefined) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(body);
+      }
+      try {
+        const res = await fetch(baseUrl + path, options);
+        const text = await res.text();
+        responseEl.textContent = `${method} ${path}\nstatus: ${res.status}\n\n${text}`;
+      } catch (error) {
+        responseEl.textContent = `${method} ${path}\n\n${String(error)}`;
+      }
+    }
+
+    function requestWithBody(method, path, textareaId) {
+      const value = document.getElementById(textareaId).value;
+      request(method, path, JSON.parse(value));
+    }
+  </script>
+</body>
+</html>

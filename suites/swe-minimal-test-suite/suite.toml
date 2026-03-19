@@ -1,0 +1,8 @@
+kind = "test_suite"
+name = "swe-minimal-test-suite"
+description = "Three-case SWE-Bench Verified subset for quickstart and local testing."
+cases = [
+  "astropy__astropy-12907",
+  "django__django-10097",
+  "sphinx-doc__sphinx-8459",
+]

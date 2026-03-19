@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "bn-fit-modify"
+description = "Translated from Terminal-Bench 2.0 task bn-fit-modify"
+test_cwd = "/"
+test_timeout_seconds = 3600
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "XX65orYkXVMqTQu7C3JUZY/bn-fit-modify"
+author_name = "Gabriel Dreiman"
+author_email = "gdreiman1@gmail.com"
+difficulty = "hard"
+category = "scientific-computing"
+tags = ["bayesian-network", "stats"]
+agent_timeout_sec = 3600
+verifier_timeout_sec = 3600
+build_timeout_sec = 600
+docker_image = "alexgshaw/bn-fit-modify:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

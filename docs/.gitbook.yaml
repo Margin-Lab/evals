@@ -1,0 +1,4 @@
+root: ./cli/
+
+structure:
+  summary: ./SUMMARY.md

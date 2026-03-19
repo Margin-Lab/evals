@@ -1,0 +1,16 @@
+kind = "test_case"
+name = "django__django-12708"
+description = "Translated from SWE-bench Verified task django__django-12708"
+test_cwd = "/"
+test_timeout_seconds = 3000
+
+[metadata]
+author_name = "unknown"
+author_email = "unknown"
+difficulty = "1-4 hours"
+category = "debugging"
+tags = [
+  "debugging",
+  "swe-bench",
+  "swe-bench-verified",
+]

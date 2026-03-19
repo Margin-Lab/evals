@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "log-summary-date-ranges"
+description = "Translated from Terminal-Bench 2.0 task log-summary-date-ranges"
+test_cwd = "/"
+test_timeout_seconds = 900
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "fqGNZJec57abmbsxYbQAz5/log-summary-date-ranges"
+author_name = "Orfeas Menis Mastromichalakis"
+author_email = "menisorfeas@gmail.com"
+difficulty = "medium"
+category = "data-processing"
+tags = ["log-analysis", "report-generation", "data-processing"]
+agent_timeout_sec = 900
+verifier_timeout_sec = 900
+build_timeout_sec = 600
+docker_image = "alexgshaw/log-summary-date-ranges:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

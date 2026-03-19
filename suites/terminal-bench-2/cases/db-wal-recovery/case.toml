@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "db-wal-recovery"
+description = "Translated from Terminal-Bench 2.0 task db-wal-recovery"
+test_cwd = "/"
+test_timeout_seconds = 900
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "X4QTPPGhjzjJSVbTTETRUK/db-wal-recovery"
+author_name = "Xiangning Lin"
+author_email = "xiangnlin@alumni.cmu.edu"
+difficulty = "medium"
+category = "file-operations"
+tags = ["database", "encryption", "recovery"]
+agent_timeout_sec = 900
+verifier_timeout_sec = 900
+build_timeout_sec = 600
+docker_image = "alexgshaw/db-wal-recovery:20251031"
+cpus = 1
+memory = "2G"
+storage = "10G"
+container_workdir = "/app"

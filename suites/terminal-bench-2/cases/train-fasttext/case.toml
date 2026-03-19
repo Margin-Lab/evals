@@ -1,0 +1,22 @@
+kind = "test_case"
+name = "train-fasttext"
+description = "Translated from Terminal-Bench 2.0 task train-fasttext"
+test_cwd = "/"
+test_timeout_seconds = 3600
+
+[metadata]
+source_dataset = "terminal-bench@2.0"
+source_task_ref = "QUdXqzZFwRrgRZ7SPHyxto/train-fasttext"
+author_name = "jeffreywpli"
+author_email = "unknown"
+difficulty = "hard"
+category = "model-training"
+tags = ["data-processing", "data-science"]
+agent_timeout_sec = 3600
+verifier_timeout_sec = 3600
+build_timeout_sec = 600
+docker_image = "alexgshaw/train-fasttext:20251031"
+cpus = 1
+memory = "4G"
+storage = "10G"
+container_workdir = "/app"

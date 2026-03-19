@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "required": ["codex_version", "startup_args", "run_args", "config_toml"],
+  "additionalProperties": false,
+  "properties": {
+    "codex_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "startup_args": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "run_args": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "config_toml": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
