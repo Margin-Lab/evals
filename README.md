@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Margin Eval" width="400">
+  <img src="assets/logo.png" alt="Margin Eval" width="600">
 </p>
 
 <p align="center">
   Open-source eval runtime for coding agents.
-  <br />
-  <a href="https://marginlab.ai">marginlab.ai</a> · <a href="docs/cli/SUMMARY.md">Documentation</a>
+  <br /><br />
+  <a href="https://marginlab.ai">marginlab.ai</a> · <a href="docs/cli/SUMMARY.md">Documentation</a> · <a href="https://x.com/themarginguy"><img src="https://img.shields.io/twitter/follow/themarginguy?style=social" alt="Follow on X"></a>
 </p>
 
 ---
