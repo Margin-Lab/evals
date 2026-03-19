@@ -1,11 +1,13 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Margin Eval" width="600">
+  <a href="https://marginlab.ai"><img src="assets/logo.png" alt="Margin Eval" width="600"></a>
 </p>
 
 <p align="center">
   Open-source eval runtime for coding agents.
   <br /><br />
-  <a href="https://marginlab.ai">marginlab.ai</a> · <a href="docs/cli/SUMMARY.md">Documentation</a> · <a href="https://x.com/themarginguy"><img src="https://img.shields.io/twitter/follow/themarginguy?style=social" alt="Follow on X"></a>
+  <a href="https://marginlab.ai">marginlab.ai</a> · <a href="https://docs.marginlab.ai">Documentation</a>
+  <br />
+  <a href="https://x.com/themarginguy"><img src="https://img.shields.io/twitter/follow/themarginguy?style=social" alt="Follow on X"></a>
 </p>
 
 ---
@@ -152,13 +154,13 @@ docs/                   Documentation
 
 ## Documentation
 
-- [What is Margin?](docs/cli/welcome/01-what-is-margin.md)
-- [Installation](docs/cli/quickstart/01-install.md)
-- [Running Your First Eval](docs/cli/quickstart/02-running-your-first-eval.md)
-- [Configuring Your Agent](docs/cli/configuration/01-configuring-your-agent.md)
-- [Configuring Your Eval](docs/cli/configuration/02-configuring-your-eval.md)
-- [Creating Your Own Eval](docs/cli/creating-your-own-eval/01-quickstart.md)
-- [Adding a New Agent](docs/cli/add-support-for-a-new-agent/01-overview.md)
+- [What is Margin?](https://docs.marginlab.ai/welcome/01-what-is-margin)
+- [Installation](https://docs.marginlab.ai/quickstart/01-install)
+- [Running Your First Eval](https://docs.marginlab.ai/quickstart/02-running-your-first-eval)
+- [Configuring Your Agent](https://docs.marginlab.ai/configuration/01-configuring-your-agent)
+- [Configuring Your Eval](https://docs.marginlab.ai/configuration/02-configuring-your-eval)
+- [Creating Your Own Eval](https://docs.marginlab.ai/creating-your-own-eval/01-quickstart)
+- [Adding a New Agent](https://docs.marginlab.ai/add-support-for-a-new-agent/01-overview)
 
 ## License
 
