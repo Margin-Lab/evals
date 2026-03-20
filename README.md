@@ -28,11 +28,29 @@ Margin Eval runs containerized evaluations against coding agents like **Claude C
 
 ### Install
 
-Build from source:
+Install the latest stable release:
 
 ```bash
-git clone https://github.com/marginlab/eval.git
-cd eval
+curl -fsSL https://raw.githubusercontent.com/Margin-Lab/evals/main/scripts/install.sh | bash
+```
+
+Install a specific beta release:
+
+```bash
+MARGIN_VERSION=v0.1.0-beta.1 curl -fsSL https://raw.githubusercontent.com/Margin-Lab/evals/main/scripts/install.sh | bash
+```
+
+Update an installer-managed binary later:
+
+```bash
+margin update
+```
+
+Build from source instead:
+
+```bash
+git clone https://github.com/Margin-Lab/evals.git
+cd evals
 scripts/build-cli-agent-server.sh
 ```
 
@@ -41,6 +59,8 @@ This produces a self-contained binary at `./bin/margin`. Verify it works:
 ```bash
 ./bin/margin help
 ```
+
+`margin update` is available only for binaries installed by the official installer. Source-built binaries stay on the `dev` channel.
 
 ### Set credentials
 

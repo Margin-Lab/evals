@@ -50,6 +50,7 @@ jobs:
 
           tag="${GITHUB_REF_NAME}"
           dist_dir="${RUNNER_TEMP}/cli-release"
+          ldflags="-X github.com/marginlab/margin-eval/cli/internal/buildinfo.Version=${tag}"
           rm -rf "$dist_dir"
           mkdir -p "$dist_dir"
 
@@ -64,7 +65,7 @@ jobs:
             echo "Building ${goos}/${goarch} -> ${archive_name}"
             (
               cd cli
-              CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -o "${stage_dir}/margin" ./cmd/margin
+              CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -ldflags "$ldflags" -o "${stage_dir}/margin" ./cmd/margin
             )
 
             tar -C "$stage_dir" -czf "${dist_dir}/${archive_name}" margin
