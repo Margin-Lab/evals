@@ -27,6 +27,8 @@ func (a *App) Run(ctx context.Context, args []string) error {
 	case "help", "-h", "--help":
 		a.printUsage()
 		return nil
+	case "check":
+		return a.runCheck(ctx, args[1:])
 	case "init":
 		return a.runInit(args[1:])
 	case "run":
@@ -62,6 +64,9 @@ func (a *App) printUsage() {
 	fmt.Fprintln(a.stdout, strings.TrimSpace(`margin - Robust, easy agent evals
 
 Commands:
+Preflight command:
+  margin check
+
 Eval run command:
   margin run --suite <path> --agent-config <path> --eval <path-to-eval.toml> [options]
   margin run --resume-from <run-id> [options]

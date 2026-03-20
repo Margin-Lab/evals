@@ -60,6 +60,12 @@ This produces a self-contained binary at `./bin/margin`. Verify it works:
 ./bin/margin help
 ```
 
+Check that Docker is installed and working before your first eval:
+
+```bash
+./bin/margin check
+```
+
 `margin update` is available only for binaries installed by the official installer. Source-built binaries stay on the `dev` channel.
 
 ### Set credentials
