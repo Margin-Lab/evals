@@ -31,6 +31,8 @@ func (a *App) Run(ctx context.Context, args []string) error {
 		return a.runInit(args[1:])
 	case "run":
 		return a.runRun(ctx, args[1:])
+	case "update":
+		return a.runUpdate(ctx, args[1:])
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
@@ -80,6 +82,7 @@ Eval run command:
     --run-timeout <duration>      Wait timeout for run completion (default none)
 
 Other commands:
+  margin update
   margin init suite --suite <path> [--name <name>]
   margin init case --suite <suite-path> [--case <case-name>]
   margin init agent-config --agent-config <path> --definition <path> [--name <name>]

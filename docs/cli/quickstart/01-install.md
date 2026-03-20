@@ -6,9 +6,11 @@
 
 ## Install Margin
 
-Build or download the `margin` binary.
+Install Margin:
 
-If you build from this repo, `scripts/build-cli-agent-server.sh` prepares the embedded `agent-server` payloads and writes a self-contained `./bin/margin`.
+```bash
+curl -fsSL https://raw.githubusercontent.com/Margin-Lab/evals/main/scripts/install.sh | bash
+```
 
 Verify the installation:
 
