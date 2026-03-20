@@ -21,6 +21,14 @@ margin run \
   --eval ./configs/evals/local.toml
 ```
 
+Before the first run, verify Docker is installed and usable:
+
+```bash
+margin check
+```
+
+`margin check` verifies that the `docker` binary is on `PATH`, that the Docker daemon responds, and that a `hello-world` container can be started successfully.
+
 Resume an existing local run with its saved bundle:
 
 ```bash
