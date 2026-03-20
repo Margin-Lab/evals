@@ -12,12 +12,12 @@
 
 ---
 
-Margin Eval runs containerized evaluations against coding agents like **Claude Code**, **Codex**, and **OpenCode**. It measures accuracy, token usage, runtime, and captures full execution traces — all in a standardized, reproducible local format.
+Margin Eval is the most robust orchestrator for running evals against CLI agents like **Claude Code**, **Codex**, and **OpenCode**. It measures accuracy, token usage, runtime, and captures full execution traces, all in a standardized, reproducible local format.
 
-- **Test any configuration** — agents, models, MCPs, skills, prompting strategies
-- **Compare side-by-side** — unified CLI, config format, and output across all agents
-- **Reproduce any run** — every run is compiled into an immutable, self-contained bundle
-- **Resume on failure** — automatically retry infra failures without re-running completed cases
+- **Test any configuration**: agents, models, MCPs, skills, prompting strategies
+- **Compare side-by-side**: unified CLI, config format, and output across all agents
+- **Reproduce any run**: every run is compiled into an immutable, self-contained bundle
+- **Resume on failure**: automatically retry infra failures without re-running completed cases
 
 ## Quickstart
 
@@ -34,83 +34,54 @@ Install the latest stable release:
 curl -fsSL https://raw.githubusercontent.com/Margin-Lab/evals/main/scripts/install.sh | bash
 ```
 
-Install a specific beta release:
+Check your installation is ready to run an eval
 
 ```bash
-MARGIN_VERSION=v0.1.0-beta.1 curl -fsSL https://raw.githubusercontent.com/Margin-Lab/evals/main/scripts/install.sh | bash
+margin check
 ```
 
-Update an installer-managed binary later:
+Update an installer-managed binary:
 
 ```bash
 margin update
 ```
 
-Build from source instead:
+### Run first evals
 
-```bash
-git clone https://github.com/Margin-Lab/evals.git
-cd evals
-scripts/build-cli-agent-server.sh
-```
-
-This produces a self-contained binary at `./bin/margin`. Verify it works:
-
-```bash
-./bin/margin help
-```
-
-Check that Docker is installed and working before your first eval:
-
-```bash
-./bin/margin check
-```
-
-`margin update` is available only for binaries installed by the official installer. Source-built binaries stay on the `dev` channel.
-
-### Set credentials
-
-**API key:**
-
-```bash
-export ANTHROPIC_API_KEY=<your-key>
-```
-
-**OAuth (Claude Code Pro/Max, Codex Pro, etc.):** Margin automatically detects valid OAuth credentials at their standard paths. To use a specific credential file:
-
-```bash
-margin run ... --auth-file-path /path/to/credentials.json
-```
-
-### Create an eval config
-
-Scaffold a default eval config to control concurrency and timeouts:
-
-```bash
-margin init eval-config --eval ./my-eval.toml
-```
-
-This creates a TOML file you can customize:
-
-```toml
-kind = "eval_config"
-name = "my-eval"
-max_concurrency = 2
-fail_fast = false
-retry_count = 1
-instance_timeout_seconds = 1800
-```
-
-### Run your first eval
-
+Dry-run your first eval (no token usage)
 ```bash
 margin run \
   --suite ./suites/swe-minimal-test-suite \
-  --agent-config ./configs/example-agent-configs/claude-code-default \
-  --eval ./my-eval.toml
+  --agent-config ./configs/example-agent-configs/codex-unified/ \
+  --eval ./configs/example-eval-configs/default.toml \
+  --dry-run
 ```
 
-This runs `swe-minimal-test-suite`, a 3-case subset of SWE-Bench Verified designed for quick local testing. Results are saved to `runs/<run-id>/`.
+Run your first eval using an API key (minimal test suite, will use small amount of tokens)
+```bash
+export ANTHROPIC_API_KEY=<API_KEY>
+margin run \
+  --suite ./suites/swe-minimal-test-suite \
+  --agent-config ./configs/example-agent-configs/claude-code-default \
+  --eval ./configs/example-eval-configs/default.toml \
+```
+
+Run your first eval using your agents OAuth, margin will auto-detect your OAuth file (minimal test suite, will use small amount of tokens)
+```bash
+margin run \
+  --suite ./suites/swe-minimal-test-suite \
+  --agent-config ./configs/example-agent-configs/codex-unified/ \
+  --eval ./configs/example-eval-configs/default.toml \
+```
+
+Or, run with a specific OAuth file (minimal test suite, will use small amount of tokens)
+```bash
+margin run \
+  --suite ./suites/swe-minimal-test-suite \
+  --agent-config ./configs/example-agent-configs/codex-unified/ \
+  --eval ./configs/example-eval-configs/default.toml \
+  --auth-file-path /path/to/credentials.json
+```
 
 ### More examples
 
@@ -120,7 +91,7 @@ This runs `swe-minimal-test-suite`, a 3-case subset of SWE-Bench Verified design
 margin run \
   --suite ./suites/swe-bench-pro \
   --agent-config ./configs/example-agent-configs/claude-code-default \
-  --eval ./my-eval.toml
+  --eval ./configs/example-eval-configs/default.toml \
 ```
 
 **Run Codex with unified config:**
@@ -129,10 +100,10 @@ margin run \
 margin run \
   --suite ./suites/terminal-bench-2 \
   --agent-config ./configs/example-agent-configs/codex-unified \
-  --eval ./my-eval.toml
+  --eval ./configs/example-eval-configs/default.toml \
 ```
 
-**Resume a failed run:**
+**Resume a run:**
 
 ```bash
 margin run --resume-from <run-id>
@@ -156,6 +127,8 @@ margin init agent-config \
 | `swe-bench-pro-curated-50` | Curated 50-case subset of SWE-Bench Pro |
 | `terminal-bench-2` | 30+ terminal task cases |
 
+Many more evals coming soon.
+
 ## Supported agents
 
 | Agent | Config examples |
@@ -164,7 +137,9 @@ margin init agent-config \
 | **Codex** | `codex-default`, `codex-unified` |
 | **OpenCode** | `opencode-default`, `opencode-unified` |
 
-Agent configs support two modes: **direct** (full agent-specific control) and **unified** (model + reasoning level for apples-to-apples comparison across agents).
+Agent configs support two modes: **direct** (full agent-specific control) and **unified** (one config format that works across all supported agents).
+
+Many more agents coming soon.
 
 ## Project structure
 
