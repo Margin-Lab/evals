@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "pypi-server"
 description = "Translated from Terminal-Bench 2.0 task pypi-server"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/pypi-server@sha256:085e9a82ffb509fa3d78ed0e15e7471c7ca054e5448200d8cb2e46cfd2fab65f"
 test_cwd = "/"
 test_timeout_seconds = 900
 

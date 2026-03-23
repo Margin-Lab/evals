@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "build-cython-ext"
 description = "Translated from Terminal-Bench 2.0 task build-cython-ext"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/build-cython-ext@sha256:bc42d07fcc34669238a3ae4b50d4ef4322a77a426c92647bdd2e3baf73a71f3d"
 test_cwd = "/"
 test_timeout_seconds = 900
 

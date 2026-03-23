@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "astropy__astropy-13453"
 description = "Translated from SWE-bench Verified task astropy__astropy-13453"
+image = "ghcr.io/margin-lab/evals/swe-bench-verified/astropy-astropy-13453@sha256:919f6c4ffd9cb58c1fb0f17bed05933aefaaa739aa1675056c3402b7156c855f"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "regex-chess"
 description = "Translated from Terminal-Bench 2.0 task regex-chess"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/regex-chess@sha256:8ff95a06acf8d1a08a87f458d8c72ccb043102b3fe1a8f43be91d691b5af3d36"
 test_cwd = "/"
 test_timeout_seconds = 3600
 

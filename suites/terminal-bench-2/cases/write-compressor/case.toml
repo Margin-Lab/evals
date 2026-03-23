@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "write-compressor"
 description = "Translated from Terminal-Bench 2.0 task write-compressor"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/write-compressor@sha256:bd537ced11971a606f84c1682b99e9b7c7ac4dd7e00ca63a20e20d5aef84a0a2"
 test_cwd = "/"
 test_timeout_seconds = 900
 

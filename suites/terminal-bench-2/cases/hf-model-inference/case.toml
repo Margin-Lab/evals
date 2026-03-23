@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "hf-model-inference"
 description = "Translated from Terminal-Bench 2.0 task hf-model-inference"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/hf-model-inference@sha256:7b69ae0c4839e9fcefc00c0901cec2ef2afcf89d75aa7affc765e2462c72b2f5"
 test_cwd = "/"
 test_timeout_seconds = 900
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "reshard-c4-data"
 description = "Translated from Terminal-Bench 2.0 task reshard-c4-data"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/reshard-c4-data@sha256:5bb6c8d54af3ad5a29f96927c070093af09258f4bd8ab9df484f738e41bbe41a"
 test_cwd = "/"
 test_timeout_seconds = 3600
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "sqlite-db-truncate"
 description = "Translated from Terminal-Bench 2.0 task sqlite-db-truncate"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/sqlite-db-truncate@sha256:2560b15dfb4904570bc50d1589e745671569e0e08e2fcdecc88706dd3e458290"
 test_cwd = "/"
 test_timeout_seconds = 900
 

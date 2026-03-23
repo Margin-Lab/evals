@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "log-summary-date-ranges"
 description = "Translated from Terminal-Bench 2.0 task log-summary-date-ranges"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/log-summary-date-ranges@sha256:51d1422f3edd9618b54c10653e3279e43217b3c05830fe94e4dde43289dd80e1"
 test_cwd = "/"
 test_timeout_seconds = 900
 

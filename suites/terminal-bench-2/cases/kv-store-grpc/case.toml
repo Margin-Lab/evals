@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "kv-store-grpc"
 description = "Translated from Terminal-Bench 2.0 task kv-store-grpc"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/kv-store-grpc@sha256:607e2c84b925a7ceb174243ae3dfa78dadb44e5fe7959b6ef114bebd6a56ef97"
 test_cwd = "/"
 test_timeout_seconds = 900
 

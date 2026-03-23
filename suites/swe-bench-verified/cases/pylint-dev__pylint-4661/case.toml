@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "pylint-dev__pylint-4661"
 description = "Translated from SWE-bench Verified task pylint-dev__pylint-4661"
+image = "ghcr.io/margin-lab/evals/swe-bench-verified/pylint-dev-pylint-4661@sha256:7b78cfec0b0ec733781a43dbf32497685116253ceb94857b0b7fdb2357486e44"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "scikit-learn__scikit-learn-25102"
 description = "Translated from SWE-bench Verified task scikit-learn__scikit-learn-25102"
+image = "ghcr.io/margin-lab/evals/swe-bench-verified/scikit-learn-scikit-learn-25102@sha256:46c10726f579442637faff94302f12cd6e8b60073aaa02113af9501eb26afed0"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

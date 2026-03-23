@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "build-pov-ray"
 description = "Translated from Terminal-Bench 2.0 task build-pov-ray"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/build-pov-ray@sha256:7b24c966b780484238381f29c38e6938ca27f32ffeb946d6dfa08925e1c28067"
 test_cwd = "/"
 test_timeout_seconds = 12000
 

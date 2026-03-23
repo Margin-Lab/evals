@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "multi-source-data-merger"
 description = "Translated from Terminal-Bench 2.0 task multi-source-data-merger"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/multi-source-data-merger@sha256:4f5de198aeaa6b68841ea4e1c1ea60bf5e8015b7d613fa18526bdf1899fd9d8b"
 test_cwd = "/"
 test_timeout_seconds = 900
 

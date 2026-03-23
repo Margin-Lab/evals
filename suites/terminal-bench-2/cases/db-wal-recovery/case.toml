@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "db-wal-recovery"
 description = "Translated from Terminal-Bench 2.0 task db-wal-recovery"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/db-wal-recovery@sha256:ac4593f80bae657d559e91d71035ea1e80a169bf73d3b11a583ea403a43d05db"
 test_cwd = "/"
 test_timeout_seconds = 900
 

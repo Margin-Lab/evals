@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "code-from-image"
 description = "Translated from Terminal-Bench 2.0 task code-from-image"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/code-from-image@sha256:3974192bd6b9d4cd77f7f4c34b4ade1acf86a2918a4d80f6264cca3acd2af0a0"
 test_cwd = "/"
 test_timeout_seconds = 1200
 

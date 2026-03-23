@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "mwaskom__seaborn-3187"
 description = "Translated from SWE-bench Verified task mwaskom__seaborn-3187"
+image = "ghcr.io/margin-lab/evals/swe-bench-verified/mwaskom-seaborn-3187@sha256:ec426dfad1c1a3579c9c9944324c4af00f72050f38eb137e723fecbb8780a753"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

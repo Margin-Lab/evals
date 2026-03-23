@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "winning-avg-corewars"
 description = "Translated from Terminal-Bench 2.0 task winning-avg-corewars"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/winning-avg-corewars@sha256:ceacecb0f56c199b354b90681cd764c1d7bed3fdcf1d75c0d9f869f612149cb5"
 test_cwd = "/"
 test_timeout_seconds = 3600
 

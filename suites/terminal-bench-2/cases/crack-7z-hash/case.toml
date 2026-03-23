@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "crack-7z-hash"
 description = "Translated from Terminal-Bench 2.0 task crack-7z-hash"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/crack-7z-hash@sha256:8047f6bc8a61e9c204a93379578f7bc40cd8a49416b86cdd3311f9ec95dd1c1e"
 test_cwd = "/"
 test_timeout_seconds = 900
 

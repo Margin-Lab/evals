@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "extract-elf"
 description = "Translated from Terminal-Bench 2.0 task extract-elf"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/extract-elf@sha256:6dbb0b32c0c9731a82b4670422bd070320a4ae2c495acbf147a0b934b4cf0969"
 test_cwd = "/"
 test_timeout_seconds = 900
 

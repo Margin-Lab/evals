@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "make-doom-for-mips"
 description = "Translated from Terminal-Bench 2.0 task make-doom-for-mips"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/make-doom-for-mips@sha256:79ebd1aac1c619bc1445c7f90b2e4d257df8fdd9c64c2bf255ea8fd35527a1d5"
 test_cwd = "/"
 test_timeout_seconds = 900
 

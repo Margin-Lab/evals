@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "path-tracing-reverse"
 description = "Translated from Terminal-Bench 2.0 task path-tracing-reverse"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/path-tracing-reverse@sha256:0fa7e11a5a6b4676641836dc81cd718e77179930a018cc24177b78d78a500143"
 test_cwd = "/"
 test_timeout_seconds = 1800
 

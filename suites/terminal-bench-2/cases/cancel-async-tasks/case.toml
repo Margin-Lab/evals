@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "cancel-async-tasks"
 description = "Translated from Terminal-Bench 2.0 task cancel-async-tasks"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/cancel-async-tasks@sha256:e97e7386e365d39006b17b54b0815fdf669e6ce59a4376759218657c3ba0b326"
 test_cwd = "/"
 test_timeout_seconds = 900
 

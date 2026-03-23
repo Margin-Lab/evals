@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "break-filter-js-from-html"
 description = "Translated from Terminal-Bench 2.0 task break-filter-js-from-html"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/break-filter-js-from-html@sha256:6ad146c5e2c43ce6263a5428bea408b1ef533c968e82bc35d697bf4ed502955c"
 test_cwd = "/"
 test_timeout_seconds = 1200
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "model-extraction-relu-logits"
 description = "Translated from Terminal-Bench 2.0 task model-extraction-relu-logits"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/model-extraction-relu-logits@sha256:9af2b5e0a1d89c0a59a51ed9c96c09a69b75e2c7407a9dbf54de13103bec45de"
 test_cwd = "/"
 test_timeout_seconds = 900
 

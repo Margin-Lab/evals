@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "make-mips-interpreter"
 description = "Translated from Terminal-Bench 2.0 task make-mips-interpreter"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/make-mips-interpreter@sha256:f0ff233c96602e42e69e67126ce2d5e8c1a95ba04dd3eeae774d4d4e8b76fad5"
 test_cwd = "/"
 test_timeout_seconds = 1800
 

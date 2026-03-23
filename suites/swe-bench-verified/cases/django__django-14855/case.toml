@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "django__django-14855"
 description = "Translated from SWE-bench Verified task django__django-14855"
+image = "ghcr.io/margin-lab/evals/swe-bench-verified/django-django-14855@sha256:be266e0201107da2ebace31076755f7d0c9c17c35ea2d0b1252a04a4275542fb"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

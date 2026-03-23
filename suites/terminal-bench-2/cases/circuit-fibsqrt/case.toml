@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "circuit-fibsqrt"
 description = "Translated from Terminal-Bench 2.0 task circuit-fibsqrt"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/circuit-fibsqrt@sha256:dfa2fc326b269e20490526c65e0937237ff4e6b5b9cd9d1bc62dd163a44e6b14"
 test_cwd = "/"
 test_timeout_seconds = 3600
 

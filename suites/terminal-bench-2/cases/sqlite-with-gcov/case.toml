@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "sqlite-with-gcov"
 description = "Translated from Terminal-Bench 2.0 task sqlite-with-gcov"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/sqlite-with-gcov@sha256:4f7cf732dd1f3b08ed7a27195ced4b7f9b07066002914e1785d31a5ade949541"
 test_cwd = "/"
 test_timeout_seconds = 900
 

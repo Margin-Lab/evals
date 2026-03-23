@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "git-multibranch"
 description = "Translated from Terminal-Bench 2.0 task git-multibranch"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/git-multibranch@sha256:a28f31dcb598c29d3a22bafd26d8cc3c446860646f13b4f3f519354d3436a050"
 test_cwd = "/"
 test_timeout_seconds = 900
 
