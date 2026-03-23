@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "chess-best-move"
 description = "Translated from Terminal-Bench 2.0 task chess-best-move"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/chess-best-move@sha256:b3eb922a2505eb0daf294843b1b31c9702a7bb4aa8c1a54220d7927724010ce6"
 test_cwd = "/"
 test_timeout_seconds = 900
 

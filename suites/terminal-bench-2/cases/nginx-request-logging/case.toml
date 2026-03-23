@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "nginx-request-logging"
 description = "Translated from Terminal-Bench 2.0 task nginx-request-logging"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/nginx-request-logging@sha256:dbb22e203598db8205b8f9a19da08cf83ff7bd729dce28cde5bf85dc3016e8c4"
 test_cwd = "/"
 test_timeout_seconds = 900
 

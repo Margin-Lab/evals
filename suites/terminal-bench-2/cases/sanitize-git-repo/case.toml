@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "sanitize-git-repo"
 description = "Translated from Terminal-Bench 2.0 task sanitize-git-repo"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/sanitize-git-repo@sha256:a5e7fc3a3cb07061e9e802e3fad8a8fc13c593ebe84ffd1c1d290a27e997b038"
 test_cwd = "/"
 test_timeout_seconds = 900
 

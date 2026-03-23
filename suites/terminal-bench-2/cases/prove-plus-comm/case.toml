@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "prove-plus-comm"
 description = "Translated from Terminal-Bench 2.0 task prove-plus-comm"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/prove-plus-comm@sha256:3444b7ce574fb927a6f0c99b557d3dcce8d7ed350a9a2e3cc691f073037b1f40"
 test_cwd = "/"
 test_timeout_seconds = 900
 

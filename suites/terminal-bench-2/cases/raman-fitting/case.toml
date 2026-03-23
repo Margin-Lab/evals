@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "raman-fitting"
 description = "Translated from Terminal-Bench 2.0 task raman-fitting"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/raman-fitting@sha256:beac429caccb594055690850367a330476cf73884fd2b3029e9e0e605b503640"
 test_cwd = "/"
 test_timeout_seconds = 900
 

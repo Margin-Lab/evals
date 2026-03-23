@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "pytest-dev__pytest-6202"
 description = "Translated from SWE-bench Verified task pytest-dev__pytest-6202"
+image = "ghcr.io/margin-lab/evals/swe-bench-verified/pytest-dev-pytest-6202@sha256:85a99e3ef66545373635007f3217587ad3e1e9b1e6bbd02d6d4626218233c7a1"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

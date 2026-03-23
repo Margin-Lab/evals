@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "count-dataset-tokens"
 description = "Translated from Terminal-Bench 2.0 task count-dataset-tokens"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/count-dataset-tokens@sha256:8507cfedc75acfeb32a9bd9bcef9eb653a692f3fa72d94f79199774c5d4c00a1"
 test_cwd = "/"
 test_timeout_seconds = 900
 

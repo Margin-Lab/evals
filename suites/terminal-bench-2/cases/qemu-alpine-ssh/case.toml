@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "qemu-alpine-ssh"
 description = "Translated from Terminal-Bench 2.0 task qemu-alpine-ssh"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/qemu-alpine-ssh@sha256:16d3b713560e3bf4ed6ec0cf0c5273c329c370461ac4e15ea8eaae351e2c9158"
 test_cwd = "/"
 test_timeout_seconds = 900
 

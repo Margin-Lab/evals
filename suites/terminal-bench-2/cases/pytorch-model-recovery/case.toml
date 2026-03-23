@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "pytorch-model-recovery"
 description = "Translated from Terminal-Bench 2.0 task pytorch-model-recovery"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/pytorch-model-recovery@sha256:282188d5fc35de8186d112a98a91645c96bbc429cd5480fc3f9853ec55628d6a"
 test_cwd = "/"
 test_timeout_seconds = 900
 

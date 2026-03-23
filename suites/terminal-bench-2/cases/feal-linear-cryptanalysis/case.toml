@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "feal-linear-cryptanalysis"
 description = "Translated from Terminal-Bench 2.0 task feal-linear-cryptanalysis"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/feal-linear-cryptanalysis@sha256:acf5aa679a084673ced82aae76ea42d63ce0d8eb449c68b0c4527f89939187ba"
 test_cwd = "/"
 test_timeout_seconds = 1800
 

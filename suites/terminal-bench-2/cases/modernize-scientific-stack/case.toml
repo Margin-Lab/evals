@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "modernize-scientific-stack"
 description = "Translated from Terminal-Bench 2.0 task modernize-scientific-stack"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/modernize-scientific-stack@sha256:e00d44f86cfdef79a99ccc879892b39327c25348995cac994d6feef5e2ca4f27"
 test_cwd = "/"
 test_timeout_seconds = 600
 

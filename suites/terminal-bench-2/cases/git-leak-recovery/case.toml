@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "git-leak-recovery"
 description = "Translated from Terminal-Bench 2.0 task git-leak-recovery"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/git-leak-recovery@sha256:fb1a154211e68e281af7ce38d9b69aeefe2b346617e82b113abf6af0c2eef4fd"
 test_cwd = "/"
 test_timeout_seconds = 900
 

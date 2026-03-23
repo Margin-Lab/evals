@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "schemelike-metacircular-eval"
 description = "Translated from Terminal-Bench 2.0 task schemelike-metacircular-eval"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/schemelike-metacircular-eval@sha256:3aa9b92f06828dcc76a653f03cc4199bc1cbf65d08d37bc3f56fe7a45ccd118e"
 test_cwd = "/"
 test_timeout_seconds = 2400
 

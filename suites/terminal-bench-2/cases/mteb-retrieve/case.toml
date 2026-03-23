@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "mteb-retrieve"
 description = "Translated from Terminal-Bench 2.0 task mteb-retrieve"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/mteb-retrieve@sha256:ca1a11fe2bd075dcc77aae0c31575dca2d8eb5d5190619e37eea044ebcafe589"
 test_cwd = "/"
 test_timeout_seconds = 1800
 

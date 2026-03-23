@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "pydata__xarray-6744"
 description = "Translated from SWE-bench Verified task pydata__xarray-6744"
+image = "ghcr.io/margin-lab/evals/swe-bench-verified/pydata-xarray-6744@sha256:167c1417dfbe38cc2903e5b4c53f7ff1691c6b3a1c6de25b9b1ee913c26f54e6"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

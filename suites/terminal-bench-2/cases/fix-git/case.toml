@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "fix-git"
 description = "Translated from Terminal-Bench 2.0 task fix-git"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/fix-git@sha256:dd572fdd88e1463e21e915deee84e838d731c51440a1b39e6c1893979aaa476f"
 test_cwd = "/"
 test_timeout_seconds = 900
 

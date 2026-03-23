@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "build-pmars"
 description = "Translated from Terminal-Bench 2.0 task build-pmars"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/build-pmars@sha256:479498a40acab164b15212834bee70f5715bdf60d6a65b766e9789dc8ad94d67"
 test_cwd = "/"
 test_timeout_seconds = 900
 

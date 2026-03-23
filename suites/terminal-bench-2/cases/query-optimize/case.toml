@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "query-optimize"
 description = "Translated from Terminal-Bench 2.0 task query-optimize"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/query-optimize@sha256:c58b0e7ccdc6a60bd4d2cc741b0226c90e936310d107886f3671f540d539cd31"
 test_cwd = "/"
 test_timeout_seconds = 900
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "custom-memory-heap-crash"
 description = "Translated from Terminal-Bench 2.0 task custom-memory-heap-crash"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/custom-memory-heap-crash@sha256:037f0f800562c75b72a809e7870d7d305baec76f75ebd60c4b998e8231beb6bf"
 test_cwd = "/"
 test_timeout_seconds = 1800
 

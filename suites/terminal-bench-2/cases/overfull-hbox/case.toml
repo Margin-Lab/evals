@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "overfull-hbox"
 description = "Translated from Terminal-Bench 2.0 task overfull-hbox"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/overfull-hbox@sha256:b88a050cd48a62ac080c869d625e5a247a3b7a6f0ff1a054682ae1e198f6bc29"
 test_cwd = "/"
 test_timeout_seconds = 750
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "mcmc-sampling-stan"
 description = "Translated from Terminal-Bench 2.0 task mcmc-sampling-stan"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/mcmc-sampling-stan@sha256:b2b3b56e256f43601044fb1f6cc88f9255a10e60416f7f43826e11efed1dd14b"
 test_cwd = "/"
 test_timeout_seconds = 1800
 

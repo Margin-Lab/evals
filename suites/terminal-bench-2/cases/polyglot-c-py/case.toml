@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "polyglot-c-py"
 description = "Translated from Terminal-Bench 2.0 task polyglot-c-py"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/polyglot-c-py@sha256:5ed9e385009472b137617c36f4ff696c3b95b1219bf1b4067982b443331c3ba2"
 test_cwd = "/"
 test_timeout_seconds = 900
 

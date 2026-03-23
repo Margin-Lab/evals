@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "merge-diff-arc-agi-task"
 description = "Translated from Terminal-Bench 2.0 task merge-diff-arc-agi-task"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/merge-diff-arc-agi-task@sha256:16f0a160d68ed434baa318490a79b9cfafd1ee67b51bd85f60c717b276b2ebfa"
 test_cwd = "/"
 test_timeout_seconds = 900
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "train-fasttext"
 description = "Translated from Terminal-Bench 2.0 task train-fasttext"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/train-fasttext@sha256:7560af1fb6c37b27bdea3522c73c30e8937fb21b1aa4afaf51bd08a4753c91ca"
 test_cwd = "/"
 test_timeout_seconds = 3600
 

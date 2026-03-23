@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "matplotlib__matplotlib-24970"
 description = "Translated from SWE-bench Verified task matplotlib__matplotlib-24970"
+image = "ghcr.io/margin-lab/evals/swe-bench-verified/matplotlib-matplotlib-24970@sha256:740f8c53a29bd4daf204116f5c65814dc32bb973d1458168550acb603394972e"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

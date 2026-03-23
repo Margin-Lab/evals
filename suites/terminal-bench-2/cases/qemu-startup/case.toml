@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "qemu-startup"
 description = "Translated from Terminal-Bench 2.0 task qemu-startup"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/qemu-startup@sha256:45f14faeb8e4c2b365e0ffb8c83929711629af63da8dba88429068824548e347"
 test_cwd = "/"
 test_timeout_seconds = 900
 

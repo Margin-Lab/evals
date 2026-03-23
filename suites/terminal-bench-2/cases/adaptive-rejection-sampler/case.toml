@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "adaptive-rejection-sampler"
 description = "Translated from Terminal-Bench 2.0 task adaptive-rejection-sampler"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/adaptive-rejection-sampler@sha256:3b04d743629bc11e134eab15f187c87ecdff4305e3820ccc46cbc84f7dae5c30"
 test_cwd = "/"
 test_timeout_seconds = 900
 

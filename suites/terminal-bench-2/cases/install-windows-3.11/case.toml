@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "install-windows-3.11"
 description = "Translated from Terminal-Bench 2.0 task install-windows-3.11"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/install-windows-3.11@sha256:d6a72f21626461e92f1f52d01a888f45a7705457ad2f6d7e19f75aad90eb38e6"
 test_cwd = "/"
 test_timeout_seconds = 3600
 

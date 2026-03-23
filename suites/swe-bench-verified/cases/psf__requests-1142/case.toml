@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "psf__requests-1142"
 description = "Translated from SWE-bench Verified task psf__requests-1142"
+image = "ghcr.io/margin-lab/evals/swe-bench-verified/psf-requests-1142@sha256:e11d95ddb36c9ac830896d722aaf2a7231ab03e27f5dfbfcf9906327c867b26d"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

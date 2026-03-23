@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "video-processing"
 description = "Translated from Terminal-Bench 2.0 task video-processing"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/video-processing@sha256:28763b636b7c27400e811488f55ccfc8260a0e368fbc9765af3e1e8839ae1641"
 test_cwd = "/"
 test_timeout_seconds = 3600
 

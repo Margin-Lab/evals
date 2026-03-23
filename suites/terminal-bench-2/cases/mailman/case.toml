@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "mailman"
 description = "Translated from Terminal-Bench 2.0 task mailman"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/mailman@sha256:67060ee84aa3bda00485f9358ecce84d7a892ecf51a69ac97f5f285f4c16fa44"
 test_cwd = "/"
 test_timeout_seconds = 1800
 

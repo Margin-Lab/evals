@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "cobol-modernization"
 description = "Translated from Terminal-Bench 2.0 task cobol-modernization"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/cobol-modernization@sha256:517a9f24b93c2ba5856be5919489d5787163de7954ac307aa28a7fa9e8737398"
 test_cwd = "/"
 test_timeout_seconds = 900
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "password-recovery"
 description = "Translated from Terminal-Bench 2.0 task password-recovery"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/password-recovery@sha256:ea4abd5aa9eda0afdf7d89d2453dbb825bc00846b604b67a681890adb3ce837f"
 test_cwd = "/"
 test_timeout_seconds = 900
 

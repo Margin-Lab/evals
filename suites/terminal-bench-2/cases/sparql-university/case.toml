@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "sparql-university"
 description = "Translated from Terminal-Bench 2.0 task sparql-university"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/sparql-university@sha256:9762fb56f2a7ef776088bc9eb3d233781cad6c79c0631107263ca71cf940008b"
 test_cwd = "/"
 test_timeout_seconds = 900
 

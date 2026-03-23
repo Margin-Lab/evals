@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "portfolio-optimization"
 description = "Translated from Terminal-Bench 2.0 task portfolio-optimization"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/portfolio-optimization@sha256:57225c5e90a7db9011a98bd6948c669cda987bd16f2a5724395bb778baeb08fc"
 test_cwd = "/"
 test_timeout_seconds = 3600
 

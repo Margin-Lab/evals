@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "pytorch-model-cli"
 description = "Translated from Terminal-Bench 2.0 task pytorch-model-cli"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/pytorch-model-cli@sha256:637aeac273641f5978d844f3323a8c1c7b745dc8baf70ee1c0c8094749febae0"
 test_cwd = "/"
 test_timeout_seconds = 900
 

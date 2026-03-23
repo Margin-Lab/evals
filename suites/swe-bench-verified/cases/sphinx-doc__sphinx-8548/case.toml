@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "sphinx-doc__sphinx-8548"
 description = "Translated from SWE-bench Verified task sphinx-doc__sphinx-8548"
+image = "ghcr.io/margin-lab/evals/swe-bench-verified/sphinx-doc-sphinx-8548@sha256:b596d9224e24ace2cbc6e24ed091cac782de8fc87cbac56ac59b082f10fbf8bf"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

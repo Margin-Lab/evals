@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "large-scale-text-editing"
 description = "Translated from Terminal-Bench 2.0 task large-scale-text-editing"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/large-scale-text-editing@sha256:104218f6c49ee7abd289b5e58334574a60b45f3c78f5e1a41a5033266dc1c3ac"
 test_cwd = "/"
 test_timeout_seconds = 1200
 

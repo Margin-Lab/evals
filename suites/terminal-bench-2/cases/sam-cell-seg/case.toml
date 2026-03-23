@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "sam-cell-seg"
 description = "Translated from Terminal-Bench 2.0 task sam-cell-seg"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/sam-cell-seg@sha256:cc5acd5d485dbe415bc24ba27df3236531c92848e6af54d9bcee5fdbb368aa9e"
 test_cwd = "/"
 test_timeout_seconds = 7200
 

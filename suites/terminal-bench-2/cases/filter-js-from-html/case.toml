@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "filter-js-from-html"
 description = "Translated from Terminal-Bench 2.0 task filter-js-from-html"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/filter-js-from-html@sha256:79686d2403e09b7f557561d099037025632d3c524330dba77b76467bd6d9e5a4"
 test_cwd = "/"
 test_timeout_seconds = 1800
 

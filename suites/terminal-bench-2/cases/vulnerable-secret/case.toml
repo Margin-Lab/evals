@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "vulnerable-secret"
 description = "Translated from Terminal-Bench 2.0 task vulnerable-secret"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/vulnerable-secret@sha256:806f824d39bf5296dd334435425b5d237d06f36156321219b64a86ae1eee26d7"
 test_cwd = "/"
 test_timeout_seconds = 900
 

@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "dna-assembly"
 description = "Translated from Terminal-Bench 2.0 task dna-assembly"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/dna-assembly@sha256:7b75612bae50e4b873bc8cc98a96c260efbc8c87dddac0670a5f5860451d49ea"
 test_cwd = "/"
 test_timeout_seconds = 1800
 

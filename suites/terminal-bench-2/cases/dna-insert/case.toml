@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "dna-insert"
 description = "Translated from Terminal-Bench 2.0 task dna-insert"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/dna-insert@sha256:c0964f7b36c3c2eabd283b47653bf30ca61d78bba5101ffbd6db2064084c84dd"
 test_cwd = "/"
 test_timeout_seconds = 1800
 

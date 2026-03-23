@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "protein-assembly"
 description = "Translated from Terminal-Bench 2.0 task protein-assembly"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/protein-assembly@sha256:f3acabb54647d7b42555cd90991e72402c180f54697cb83c5ee1630fd39324ed"
 test_cwd = "/"
 test_timeout_seconds = 1800
 

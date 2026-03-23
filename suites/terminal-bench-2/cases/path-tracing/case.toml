@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "path-tracing"
 description = "Translated from Terminal-Bench 2.0 task path-tracing"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/path-tracing@sha256:3859e33ddf0eef38ab4abd1ee5f3d905510b4eda7dc327624042af803fab7c5f"
 test_cwd = "/"
 test_timeout_seconds = 1800
 

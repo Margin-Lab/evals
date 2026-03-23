@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "tune-mjcf"
 description = "Translated from Terminal-Bench 2.0 task tune-mjcf"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/tune-mjcf@sha256:a3e8267e2afb9d2bd86756c5fe27a9ad1c2ad8fb14ccd7fee2390f071c7a0d6c"
 test_cwd = "/"
 test_timeout_seconds = 900
 

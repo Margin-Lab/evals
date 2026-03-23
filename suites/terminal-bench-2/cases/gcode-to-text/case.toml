@@ -1,6 +1,7 @@
 kind = "test_case"
 name = "gcode-to-text"
 description = "Translated from Terminal-Bench 2.0 task gcode-to-text"
+image = "ghcr.io/margin-lab/evals/terminal-bench-2/gcode-to-text@sha256:0921a6502c1b2d468584fff4d78680c5f634fa40a7eafa3c94a3658765fa117b"
 test_cwd = "/"
 test_timeout_seconds = 900
 
