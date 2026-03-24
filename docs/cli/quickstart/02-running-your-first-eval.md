@@ -63,6 +63,8 @@ margin suite pull \
   --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite
 ```
 
+For the full list of official hosted benchmark suites and how the remote suite registry works, see [Official Suite Registry](./03-official-suite-registry.md).
+
 ## Mission Control
 
 The mission control TUI shows live status for each test instance with detailed logs on environment setup, agent output trace, and test results.
@@ -91,4 +93,5 @@ Resume uses the saved bundle from `runs/<run-id>/bundle.json`, so you don't need
 
 - [Configuring Your Agent](../configuration/01-configuring-your-agent.md)
 - [Configuring Your Eval](../configuration/02-configuring-your-eval.md)
+- [Official Suite Registry](./03-official-suite-registry.md)
 - [Creating Your Own Eval](../creating-your-own-eval/01-quickstart.md)

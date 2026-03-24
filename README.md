@@ -39,32 +39,6 @@ Check your installation is ready to run an eval
 ```bash
 margin check
 ```
-
-Installer-managed starter assets are placed at:
-
-- `~/.margin/configs`
-
-Installed starter configs can be referenced either by full path or by shorthand:
-
-- `--agent-config example-agent-configs/codex-unified`
-- `--eval example-eval-configs/default.toml`
-
-Small example suites live in `https://github.com/Margin-Lab/test-suites.git`:
-
-```bash
-margin run \
-  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
-  --agent-config example-agent-configs/codex-unified \
-  --eval example-eval-configs/default.toml
-```
-
-Remote suite fetches are cached under `~/.margin/suites/.remote/` and stay pinned to the resolved commit until you refresh them:
-
-```bash
-margin suite pull \
-  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite
-```
-
 Update an installer-managed binary:
 
 ```bash
@@ -91,7 +65,7 @@ margin run \
   --eval example-eval-configs/default.toml \
 ```
 
-Run your first eval using your agents OAuth, margin will auto-detect your OAuth file
+Run your first eval using your agents OAuth, Margin will auto-detect your OAuth file
 ```bash
 margin run \
   --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
