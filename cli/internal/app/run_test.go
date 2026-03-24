@@ -14,6 +14,7 @@ import (
 	"github.com/marginlab/margin-eval/cli/internal/compiler"
 	"github.com/marginlab/margin-eval/cli/internal/missioncontrol"
 	"github.com/marginlab/margin-eval/cli/internal/plaincontrol"
+	"github.com/marginlab/margin-eval/cli/internal/remotesuite"
 
 	"github.com/marginlab/margin-eval/runner/runner-core/agentdef"
 	"github.com/marginlab/margin-eval/runner/runner-core/domain"
@@ -21,6 +22,7 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
 	"github.com/marginlab/margin-eval/runner/runner-core/runnerapi"
 	"github.com/marginlab/margin-eval/runner/runner-core/store"
+	"github.com/marginlab/margin-eval/runner/runner-core/testassets"
 	"github.com/marginlab/margin-eval/runner/runner-local/localexecutor"
 	"github.com/marginlab/margin-eval/runner/runner-local/localrunner"
 )
@@ -292,6 +294,78 @@ func TestRunResolvesInstalledShorthandPathsBeforeCompile(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("runRun returned error: %v", err)
+	}
+}
+
+func TestRunResolvesRemoteSuiteBeforeCompile(t *testing.T) {
+	origCompile := compileBundle
+	origResolveRemoteSuite := resolveRemoteSuite
+	origNewExecutor := newLocalExecutor
+	origNewService := newLocalRunnerService
+	origLaunchMissionControl := launchMissionControl
+	defer func() {
+		compileBundle = origCompile
+		resolveRemoteSuite = origResolveRemoteSuite
+		newLocalExecutor = origNewExecutor
+		newLocalRunnerService = origNewService
+		launchMissionControl = origLaunchMissionControl
+	}()
+
+	resolveRemoteSuite = func(_ context.Context, in remotesuite.ResolveInput) (remotesuite.Result, error) {
+		if in.Suite != "git::https://github.com/example/suites.git//suites/remote" {
+			t.Fatalf("Suite = %q", in.Suite)
+		}
+		if in.Refresh {
+			t.Fatalf("expected run path to avoid forced refresh")
+		}
+		return remotesuite.Result{
+			LocalPath: "/tmp/remote-suite-cache/suite",
+			SuiteGit: &runbundle.SuiteGitRef{
+				RepoURL:        "https://github.com/example/suites",
+				ResolvedCommit: "0123456789abcdef0123456789abcdef01234567",
+				Subdir:         "suites/remote",
+			},
+		}, nil
+	}
+
+	var gotCompileInput compiler.CompileInput
+	compileBundle = func(in compiler.CompileInput) (runbundle.Bundle, error) {
+		gotCompileInput = in
+		return validRemoteSuiteRunBundle(t), nil
+	}
+	newLocalExecutor = func(_ localexecutor.Config) (engine.Executor, error) {
+		return fakeExecutor{}, nil
+	}
+	svc := &capturingRunnerService{}
+	newLocalRunnerService = func(_ localrunner.Config) (runnerapi.Service, error) {
+		return svc, nil
+	}
+	launchMissionControl = func(_ context.Context, cfg missioncontrol.Config) (missioncontrol.Outcome, error) {
+		return missioncontrol.Outcome{
+			FinalRun: store.Run{RunID: cfg.RunID, State: domain.RunStateCompleted},
+		}, nil
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	a := New(&stdout, &stderr)
+	err := a.runRun(context.Background(), []string{
+		"--suite", "git::https://github.com/example/suites.git//suites/remote",
+		"--agent-config", "agent-config",
+		"--eval", "eval",
+		"--agent-server-binary", "agent-server",
+	})
+	if err != nil {
+		t.Fatalf("runRun returned error: %v", err)
+	}
+	if gotCompileInput.SuitePath != "/tmp/remote-suite-cache/suite" {
+		t.Fatalf("SuitePath = %q", gotCompileInput.SuitePath)
+	}
+	if svc.submitInput.Bundle.Source.SuiteGit == nil {
+		t.Fatal("expected remote suite metadata in submitted bundle")
+	}
+	if svc.submitInput.Bundle.Source.SuiteGit.ResolvedCommit != "0123456789abcdef0123456789abcdef01234567" {
+		t.Fatalf("ResolvedCommit = %q", svc.submitInput.Bundle.Source.SuiteGit.ResolvedCommit)
 	}
 }
 
@@ -905,6 +979,21 @@ func TestRunRejectsSourceFlagsWhenResumeFromIsSet(t *testing.T) {
 	}
 }
 
+func TestRunRejectsMalformedGitSuiteSpecifier(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	a := New(&stdout, &stderr)
+
+	err := a.runRun(context.Background(), []string{
+		"--suite", "git::https://github.com/example/suites.git",
+		"--agent-config", "agent-config",
+		"--eval", "eval",
+	})
+	if err == nil || !strings.Contains(err.Error(), "git remote suites must use") {
+		t.Fatalf("expected malformed git suite validation error, got %v", err)
+	}
+}
+
 func TestRunResumeWithoutSavedBundleReturnsLoadError(t *testing.T) {
 	origCompile := compileBundle
 	defer func() {
@@ -1426,4 +1515,75 @@ func TestRunUsesNonInteractiveMonitorWhenFlagPresent(t *testing.T) {
 			t.Fatalf("expected stdout to contain %q, got:\n%s", want, text)
 		}
 	}
+}
+
+func validRemoteSuiteRunBundle(t *testing.T) runbundle.Bundle {
+	t.Helper()
+	return runbundle.Bundle{
+		SchemaVersion: runbundle.SchemaVersionV1,
+		BundleID:      "bun_test",
+		CreatedAt:     time.Date(2026, 3, 24, 12, 0, 0, 0, time.UTC),
+		Source: runbundle.Source{
+			Kind:            runbundle.SourceKindLocalFiles,
+			SubmitProjectID: defaultLocalProjectID,
+		},
+		ResolvedSnapshot: runbundle.ResolvedSnapshot{
+			Name: "smoke",
+			Execution: runbundle.Execution{
+				Mode:                  runbundle.ExecutionModeFull,
+				MaxConcurrency:        1,
+				InstanceTimeoutSecond: 1,
+			},
+			Agent: runbundle.Agent{
+				Definition: agentdef.DefinitionSnapshot{
+					Manifest: agentdef.Manifest{
+						Kind: "agent_definition",
+						Name: "fixture-agent",
+						Run: agentdef.RunSpec{
+							PrepareHook: agentdef.HookRef{Path: "hooks/run-prepare.sh"},
+						},
+					},
+					Package: remoteSuiteTestAgentPackage(t),
+				},
+				Config: agentdef.ConfigSpec{
+					Name:  "fixture-agent-default",
+					Mode:  agentdef.ConfigModeDirect,
+					Input: map[string]any{"command": []any{"bash", "-lc", "echo hi"}},
+				},
+			},
+			RunDefaults: runbundle.RunDefault{
+				Cwd: "/work",
+			},
+			Cases: []runbundle.Case{{
+				CaseID:            "case-1",
+				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+				InitialPrompt:     "prompt",
+				TestCommand:       []string{"bash", "-lc", "tests/test.sh"},
+				TestCwd:           "/work",
+				TestTimeoutSecond: 1,
+				TestAssets: runbundle.TestAssets{
+					ArchiveTGZBase64: "H4sIAAAAAAAC/+3NQQrCMBSE4axziohrTVRiz5PCkwaklrzE8xu6KbhXBP9vM8NsporWo07mk0I3xLhm954hxMvW1304X0/GBfMFTWsq/dL8p/3ONy1+zLOX+enGpJNVqe4g7eGWvMgt5butpYk1AAAAAAAAAAAAAAAAAIDf8QLX6+4FACgAAA==",
+					ArchiveTGZSHA256: "32e2807f93a86a87c24cd79cfde22b62adb1861c1778c1d6218a13baa38c285c",
+					ArchiveTGZBytes:  136,
+				},
+			}},
+		},
+	}
+}
+
+func remoteSuiteTestAgentPackage(t *testing.T) testassets.Descriptor {
+	t.Helper()
+	root := t.TempDir()
+	hookPath := filepath.Join(root, "hooks", "run-prepare.sh")
+	if err := os.MkdirAll(filepath.Dir(hookPath), 0o755); err != nil {
+		t.Fatalf("mkdir hook dir: %v", err)
+	}
+	if err := os.WriteFile(hookPath, []byte("#!/usr/bin/env bash\nset -euo pipefail\n"), 0o755); err != nil {
+		t.Fatalf("write hook: %v", err)
+	}
+	desc, err := testassets.PackDir(root)
+	if err != nil {
+		t.Fatalf("pack agent definition: %v", err)
+	}
+	return desc
 }

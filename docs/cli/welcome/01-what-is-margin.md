@@ -4,7 +4,7 @@ Margin is a production-grade local eval runtime for coding agents. It runs conta
 
 ## What can Margin do?
 
-Agents are complicated, and can be configured in many different ways. Margin allows you to test any agent configuration against a large library of built-in test suites, or against your own custom test suites. This could include:
+Agents are complicated, and can be configured in many different ways. Margin allows you to test any agent configuration against the official remote suite collection in `https://github.com/Margin-Lab/swe-suites.git`, or against your own custom test suites. This could include:
 
 - **Impact of MCPs and skills on agent accuracy** — Attach different MCP servers or skill sets to the same agent and measure how they affect task completion rates across a benchmark.
 - **Impact of prompting strategies on agent accuracy** — Swap project instructions, system prompts, or task descriptions and compare results to find the most effective prompting approach.
@@ -16,7 +16,7 @@ Run the latest Claude Code version against the full SWE-Bench-Pro benchmark:
 
 ```bash
 margin run \
-  --suite swe-bench-pro \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//swe-bench-pro \
   --agent-config example-agent-configs/claude-code-default \
   --eval example-eval-configs/default.toml
 ```

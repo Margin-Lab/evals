@@ -33,6 +33,8 @@ func (a *App) Run(ctx context.Context, args []string) error {
 		return a.runInit(args[1:])
 	case "run":
 		return a.runRun(ctx, args[1:])
+	case "suite":
+		return a.runSuite(ctx, args[1:])
 	case "update":
 		return a.runUpdate(ctx, args[1:])
 	default:
@@ -68,7 +70,7 @@ Preflight command:
   margin check
 
 Eval run command:
-  margin run --suite <path> --agent-config <path> --eval <path-to-eval.toml> [options]
+  margin run --suite <path-or-remote> --agent-config <path> --eval <path-to-eval.toml> [options]
   margin run --resume-from <run-id> [options]
 
   Run options:
@@ -88,6 +90,7 @@ Eval run command:
 
 Other commands:
   margin update
+  margin suite pull --suite <https-git-url|git::https-git-url//subdir>
   margin init suite --suite <path> [--name <name>]
   margin init case --suite <suite-path> [--case <case-name>]
   margin init agent-config --agent-config <path> --definition <path> [--name <name>]

@@ -25,26 +25,43 @@ margin run ... --auth-file-path /path/to/credentials.json
 Installer-managed starter assets live at:
 
 - `~/.margin/configs`
-- `~/.margin/suites/swe-minimal-test-suite`
 
-You can reference those installed starter assets by shorthand instead of the full `~/.margin/...` path.
+You can reference those installed starter configs by shorthand instead of the full `~/.margin/...` path.
 
 Run the following command to start your first eval:
 
 ```bash
 margin run \
-  --suite swe-minimal-test-suite \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
   --agent-config example-agent-configs/codex-unified \
   --eval example-eval-configs/default.toml \
 ```
 
-Note: Token usage for this example will be minimal, but not zero.
+Official suites are hosted in `https://github.com/Margin-Lab/swe-suites.git` and fetched on demand.
 
-The pre-run confirmation screen shows which credentials (OAuth or API key) will be used. This example runs `swe-minimal-test-suite`, a tiny 3-case subset of SWE-Bench Verified intended for local testing.
+The pre-run confirmation screen shows which credentials (OAuth or API key) will be used. This example runs `terminal-bench-2` from the official remote suite collection.
 
 Press enter on the pre-run confirmation screen to start the eval. By default, run output is saved to `runs/<run-id>/` under your current working directory.
 
 By default, `margin` uses its embedded `agent-server` payloads and does not require any adjacent binaries. Use `--agent-server-binary` only to override the exact host-side binary path.
+
+## Remote suites
+
+`--suite` can also point at a public HTTPS Git repo. Use plain HTTPS when the suite is at repo root, or `git::https://...//subdir` when it lives under a repo subdirectory:
+
+```bash
+margin run \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
+  --agent-config example-agent-configs/codex-unified \
+  --eval example-eval-configs/default.toml
+```
+
+The first run fetches the suite into `~/.margin/suites/.remote/` and pins it to the resolved commit. Refresh it explicitly with:
+
+```bash
+margin suite pull \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2
+```
 
 ## Mission Control
 
