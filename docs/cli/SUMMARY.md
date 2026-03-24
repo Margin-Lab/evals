@@ -8,6 +8,7 @@
 
 * [Install](quickstart/01-install.md)
 * [Running Your First Eval](quickstart/02-running-your-first-eval.md)
+* [Official Suite Registry](quickstart/03-official-suite-registry.md)
 
 ## Configuration
 
