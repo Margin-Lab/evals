@@ -11,6 +11,7 @@ import (
 )
 
 var digestImagePattern = regexp.MustCompile(`^[^\s@]+@sha256:[a-f0-9]{64}$`)
+var gitCommitPattern = regexp.MustCompile(`^[a-f0-9]{40}$`)
 
 func Validate(b Bundle) error {
 	if strings.TrimSpace(b.SchemaVersion) != SchemaVersionV1 {
@@ -43,6 +44,14 @@ func validateSource(src Source) error {
 		}
 		if err := validateCatalogRefs(*src.CatalogRefs); err != nil {
 			return err
+		}
+	}
+	if src.SuiteGit != nil {
+		if src.Kind != SourceKindLocalFiles && src.Kind != SourceKindRunSnapshot {
+			return fmt.Errorf("source.suite_git requires source.kind=%q or %q", SourceKindLocalFiles, SourceKindRunSnapshot)
+		}
+		if err := validateSuiteGitRef(*src.SuiteGit); err != nil {
+			return fmt.Errorf("source.suite_git: %w", err)
 		}
 	}
 	return nil
@@ -81,6 +90,36 @@ func validateCatalogRef(ref CatalogRef) error {
 	}
 	if ref.Visibility != "" && ref.Visibility != VisibilityPrivate && ref.Visibility != VisibilityPublic {
 		return fmt.Errorf("visibility must be %q or %q", VisibilityPrivate, VisibilityPublic)
+	}
+	return nil
+}
+
+func validateSuiteGitRef(ref SuiteGitRef) error {
+	if strings.TrimSpace(ref.RepoURL) == "" {
+		return fmt.Errorf("repo_url is required")
+	}
+	if strings.TrimSpace(ref.ResolvedCommit) == "" {
+		return fmt.Errorf("resolved_commit is required")
+	}
+	if !gitCommitPattern.MatchString(strings.TrimSpace(ref.ResolvedCommit)) {
+		return fmt.Errorf("resolved_commit must be a 40-character lowercase hex sha")
+	}
+	subdir := strings.TrimSpace(ref.Subdir)
+	if subdir == "" {
+		return nil
+	}
+	if strings.Contains(subdir, "\\") {
+		return fmt.Errorf("subdir must use slash-separated relative paths")
+	}
+	normalized := path.Clean(subdir)
+	if normalized == "." {
+		return nil
+	}
+	if strings.HasPrefix(normalized, "/") {
+		return fmt.Errorf("subdir must be relative")
+	}
+	if normalized == ".." || strings.HasPrefix(normalized, "../") {
+		return fmt.Errorf("subdir must not escape the repository")
 	}
 	return nil
 }

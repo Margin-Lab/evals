@@ -38,6 +38,7 @@ type Source struct {
 	SubmitProjectID string       `json:"submit_project_id,omitempty"`
 	CatalogRefs     *CatalogRefs `json:"catalog_refs,omitempty"`
 	OriginRunID     string       `json:"origin_run_id,omitempty"`
+	SuiteGit        *SuiteGitRef `json:"suite_git,omitempty"`
 }
 
 type CatalogRefs struct {
@@ -52,6 +53,12 @@ type CatalogRef struct {
 	Version    int        `json:"version"`
 	ProjectID  string     `json:"project_id"`
 	Visibility Visibility `json:"visibility,omitempty"`
+}
+
+type SuiteGitRef struct {
+	RepoURL        string `json:"repo_url"`
+	ResolvedCommit string `json:"resolved_commit"`
+	Subdir         string `json:"subdir,omitempty"`
 }
 
 type ResolvedSnapshot struct {

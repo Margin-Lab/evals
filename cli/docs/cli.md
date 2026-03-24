@@ -21,6 +21,22 @@ margin run \
   --eval ./configs/evals/local.toml
 ```
 
+`--suite` also accepts a public HTTPS Git repo URL. Use plain HTTPS for a suite at repo root, or `git::https://...//subdir` when the suite lives below repo root:
+
+```bash
+margin run \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
+  --agent-config ./configs/agent-configs/my-agent-default \
+  --eval ./configs/evals/local.toml
+```
+
+Remote suites are fetched once into `~/.margin/suites/.remote/` and stay pinned to the resolved commit until you explicitly refresh them:
+
+```bash
+margin suite pull \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2
+```
+
 Before the first run, verify Docker is installed and usable:
 
 ```bash
@@ -32,13 +48,18 @@ margin check
 Installer-managed starter assets are installed at:
 
 - `~/.margin/configs`
-- `~/.margin/suites/swe-minimal-test-suite`
 
-When those starter assets are installed, `margin run` also accepts shorthand references:
+When those starter assets are installed, `margin run` accepts shorthand references for configs:
 
-- `--suite swe-minimal-test-suite`
 - `--agent-config example-agent-configs/codex-unified`
 - `--eval example-eval-configs/default.toml`
+
+Official suites are hosted in `https://github.com/Margin-Lab/swe-suites.git` and are referenced directly through `--suite`, for example:
+
+- `git::https://github.com/Margin-Lab/swe-suites.git//swe-bench-verified`
+- `git::https://github.com/Margin-Lab/swe-suites.git//swe-bench-pro`
+- `git::https://github.com/Margin-Lab/swe-suites.git//swe-bench-pro-curated-50`
+- `git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2`
 
 Resume an existing local run with its saved bundle:
 

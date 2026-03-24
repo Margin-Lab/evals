@@ -43,13 +43,27 @@ margin check
 Installer-managed starter assets are placed at:
 
 - `~/.margin/configs`
-- `~/.margin/suites/swe-minimal-test-suite`
 
-Installed starter assets can be referenced either by full path or by shorthand:
+Installed starter configs can be referenced either by full path or by shorthand:
 
-- `--suite swe-minimal-test-suite`
 - `--agent-config example-agent-configs/codex-unified`
 - `--eval example-eval-configs/default.toml`
+
+Official suites live in `https://github.com/Margin-Lab/swe-suites.git`:
+
+```bash
+margin run \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
+  --agent-config example-agent-configs/codex-unified \
+  --eval example-eval-configs/default.toml
+```
+
+Remote suite fetches are cached under `~/.margin/suites/.remote/` and stay pinned to the resolved commit until you refresh them:
+
+```bash
+margin suite pull \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2
+```
 
 Update an installer-managed binary:
 
@@ -62,33 +76,33 @@ margin update
 Dry-run your first eval (no token usage)
 ```bash
 margin run \
-  --suite swe-minimal-test-suite \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
   --agent-config example-agent-configs/codex-unified \
   --eval example-eval-configs/default.toml \
   --dry-run
 ```
 
-Run your first eval using an API key (minimal test suite, will use small amount of tokens)
+Run your first eval using an API key
 ```bash
 export ANTHROPIC_API_KEY=<API_KEY>
 margin run \
-  --suite swe-minimal-test-suite \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
   --agent-config example-agent-configs/claude-code-default \
   --eval example-eval-configs/default.toml \
 ```
 
-Run your first eval using your agents OAuth, margin will auto-detect your OAuth file (minimal test suite, will use small amount of tokens)
+Run your first eval using your agents OAuth, margin will auto-detect your OAuth file
 ```bash
 margin run \
-  --suite swe-minimal-test-suite \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
   --agent-config example-agent-configs/codex-unified \
   --eval example-eval-configs/default.toml \
 ```
 
-Or, run with a specific OAuth file (minimal test suite, will use small amount of tokens)
+Or, run with a specific OAuth file
 ```bash
 margin run \
-  --suite swe-minimal-test-suite \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
   --agent-config example-agent-configs/codex-unified \
   --eval example-eval-configs/default.toml \
   --auth-file-path /path/to/credentials.json
@@ -100,7 +114,7 @@ margin run \
 
 ```bash
 margin run \
-  --suite swe-bench-pro \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//swe-bench-pro \
   --agent-config example-agent-configs/claude-code-default \
   --eval example-eval-configs/default.toml \
 ```
@@ -109,7 +123,7 @@ margin run \
 
 ```bash
 margin run \
-  --suite terminal-bench-2 \
+  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
   --agent-config example-agent-configs/codex-unified \
   --eval example-eval-configs/default.toml \
 ```
@@ -128,15 +142,16 @@ margin init agent-config \
   --definition ./configs/agent-definitions/claude-code
 ```
 
-## Built-in eval suites
+## Official eval suites
 
-| Suite | Description |
-|-------|-------------|
-| `swe-minimal-test-suite` | 3-case smoke test (astropy, django, sphinx) |
-| `swe-bench-verified` | Full SWE-Bench Verified benchmark |
-| `swe-bench-pro` | SWE-Bench Pro benchmark |
-| `swe-bench-pro-curated-50` | Curated 50-case subset of SWE-Bench Pro |
-| `terminal-bench-2` | 30+ terminal task cases |
+Hosted in `https://github.com/Margin-Lab/swe-suites.git`
+
+| Suite | Example `--suite` value |
+|-------|--------------------------|
+| `swe-bench-verified` | `git::https://github.com/Margin-Lab/swe-suites.git//swe-bench-verified` |
+| `swe-bench-pro` | `git::https://github.com/Margin-Lab/swe-suites.git//swe-bench-pro` |
+| `swe-bench-pro-curated-50` | `git::https://github.com/Margin-Lab/swe-suites.git//swe-bench-pro-curated-50` |
+| `terminal-bench-2` | `git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2` |
 
 Many more evals coming soon.
 
@@ -160,7 +175,7 @@ runner/runner-core/     Shared engine — state machine, worker pool, run store
 runner/runner-local/    Local runner — Docker executor, filesystem persistence
 agent-server/           In-container runtime — agent lifecycle, trajectory capture
 configs/                Agent definitions and example configs
-suites/                 Built-in eval suites
+suites/                 Local custom suites during development
 docs/                   Documentation
 ```
 
