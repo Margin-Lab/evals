@@ -32,14 +32,14 @@ Run the following command to start your first eval:
 
 ```bash
 margin run \
-  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
+  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
   --agent-config example-agent-configs/codex-unified \
   --eval example-eval-configs/default.toml \
 ```
 
-Official suites are hosted in `https://github.com/Margin-Lab/swe-suites.git` and fetched on demand.
+Small example suites are hosted in `https://github.com/Margin-Lab/test-suites.git` and fetched on demand.
 
-The pre-run confirmation screen shows which credentials (OAuth or API key) will be used. This example runs `terminal-bench-2` from the official remote suite collection.
+The pre-run confirmation screen shows which credentials (OAuth or API key) will be used. This example runs `swe-minimal-test-suite` from the small remote suite collection.
 
 Press enter on the pre-run confirmation screen to start the eval. By default, run output is saved to `runs/<run-id>/` under your current working directory.
 
@@ -51,7 +51,7 @@ By default, `margin` uses its embedded `agent-server` payloads and does not requ
 
 ```bash
 margin run \
-  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
+  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
   --agent-config example-agent-configs/codex-unified \
   --eval example-eval-configs/default.toml
 ```
@@ -60,7 +60,7 @@ The first run fetches the suite into `~/.margin/suites/.remote/` and pins it to 
 
 ```bash
 margin suite pull \
-  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2
+  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite
 ```
 
 ## Mission Control

@@ -49,11 +49,11 @@ Installed starter configs can be referenced either by full path or by shorthand:
 - `--agent-config example-agent-configs/codex-unified`
 - `--eval example-eval-configs/default.toml`
 
-Official suites live in `https://github.com/Margin-Lab/swe-suites.git`:
+Small example suites live in `https://github.com/Margin-Lab/test-suites.git`:
 
 ```bash
 margin run \
-  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
+  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
   --agent-config example-agent-configs/codex-unified \
   --eval example-eval-configs/default.toml
 ```
@@ -62,7 +62,7 @@ Remote suite fetches are cached under `~/.margin/suites/.remote/` and stay pinne
 
 ```bash
 margin suite pull \
-  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2
+  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite
 ```
 
 Update an installer-managed binary:
@@ -76,7 +76,7 @@ margin update
 Dry-run your first eval (no token usage)
 ```bash
 margin run \
-  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
+  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
   --agent-config example-agent-configs/codex-unified \
   --eval example-eval-configs/default.toml \
   --dry-run
@@ -86,7 +86,7 @@ Run your first eval using an API key
 ```bash
 export ANTHROPIC_API_KEY=<API_KEY>
 margin run \
-  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
+  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
   --agent-config example-agent-configs/claude-code-default \
   --eval example-eval-configs/default.toml \
 ```
@@ -94,7 +94,7 @@ margin run \
 Run your first eval using your agents OAuth, margin will auto-detect your OAuth file
 ```bash
 margin run \
-  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
+  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
   --agent-config example-agent-configs/codex-unified \
   --eval example-eval-configs/default.toml \
 ```
@@ -102,7 +102,7 @@ margin run \
 Or, run with a specific OAuth file
 ```bash
 margin run \
-  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
+  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
   --agent-config example-agent-configs/codex-unified \
   --eval example-eval-configs/default.toml \
   --auth-file-path /path/to/credentials.json

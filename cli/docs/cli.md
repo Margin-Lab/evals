@@ -25,7 +25,7 @@ margin run \
 
 ```bash
 margin run \
-  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
+  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
   --agent-config ./configs/agent-configs/my-agent-default \
   --eval ./configs/evals/local.toml
 ```
@@ -34,7 +34,7 @@ Remote suites are fetched once into `~/.margin/suites/.remote/` and stay pinned 
 
 ```bash
 margin suite pull \
-  --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2
+  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite
 ```
 
 Before the first run, verify Docker is installed and usable:
