@@ -25,6 +25,7 @@ type runConfirmationSpec struct {
 }
 
 func runConfirmationTUI(out io.Writer, spec runConfirmationSpec) (bool, error) {
+	configureTUIRenderer(out)
 	model := newRunConfirmationModel(spec)
 	program := tea.NewProgram(
 		model,

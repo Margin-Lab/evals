@@ -262,6 +262,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 		if err != nil {
 			return fmt.Errorf("create mission-control local source: %w", err)
 		}
+		configureTUIRenderer(a.stdout)
 		outcome, err = launchMissionControl(missionControlCtx, missioncontrol.Config{
 			RunID:            run.RunID,
 			Source:           localSource,
