@@ -111,3 +111,44 @@ func TestValidateRejectsMissingAgentConfigInput(t *testing.T) {
 		t.Fatalf("expected config.input error, got %v", err)
 	}
 }
+
+func TestValidateAcceptsSuiteGitRef(t *testing.T) {
+	b := validBundle()
+	b.Source.SuiteGit = &SuiteGitRef{
+		RepoURL:        "https://github.com/example/suites",
+		ResolvedCommit: "0123456789abcdef0123456789abcdef01234567",
+		Subdir:         "suites/smoke",
+	}
+	if err := Validate(b); err != nil {
+		t.Fatalf("expected suite git ref to validate, got %v", err)
+	}
+}
+
+func TestValidateRejectsSuiteGitRefOnCatalogSource(t *testing.T) {
+	b := validBundle()
+	b.Source.Kind = SourceKindCatalogRefs
+	b.Source.CatalogRefs = &CatalogRefs{
+		Suite:       &CatalogRef{ResourceID: "suite", Version: 1, ProjectID: "proj"},
+		AgentConfig: &CatalogRef{ResourceID: "agent", Version: 1, ProjectID: "proj"},
+		EvalConfig:  &CatalogRef{ResourceID: "eval", Version: 1, ProjectID: "proj"},
+	}
+	b.Source.SuiteGit = &SuiteGitRef{
+		RepoURL:        "https://github.com/example/suites",
+		ResolvedCommit: "0123456789abcdef0123456789abcdef01234567",
+	}
+	if err := Validate(b); err == nil || !strings.Contains(err.Error(), "suite_git") {
+		t.Fatalf("expected suite_git error, got %v", err)
+	}
+}
+
+func TestValidateRejectsInvalidSuiteGitSubdir(t *testing.T) {
+	b := validBundle()
+	b.Source.SuiteGit = &SuiteGitRef{
+		RepoURL:        "https://github.com/example/suites",
+		ResolvedCommit: "0123456789abcdef0123456789abcdef01234567",
+		Subdir:         "../escape",
+	}
+	if err := Validate(b); err == nil || !strings.Contains(err.Error(), "subdir") {
+		t.Fatalf("expected subdir validation error, got %v", err)
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"github.com/marginlab/margin-eval/cli/internal/datasource"
 	"github.com/marginlab/margin-eval/cli/internal/missioncontrol"
 	"github.com/marginlab/margin-eval/cli/internal/plaincontrol"
+	"github.com/marginlab/margin-eval/cli/internal/remotesuite"
 
 	"github.com/marginlab/margin-eval/runner/runner-core/engine"
 	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
@@ -67,7 +68,7 @@ const (
 func (a *App) runRun(ctx context.Context, args []string) error {
 	fs := newFlagSet("run", a.stderr)
 
-	suitePath := fs.String("suite", "", "suite directory path")
+	suitePath := fs.String("suite", "", "suite path or remote spec")
 	agentConfigPath := fs.String("agent-config", "", "agent config directory path")
 	evalPath := fs.String("eval", "", "eval config file path")
 
@@ -103,6 +104,10 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	resolvedSuite, err := a.resolveSuiteInput(ctx, resolvedRunPaths.SuitePath)
+	if err != nil {
+		return err
+	}
 	if strings.TrimSpace(*rootDir) == "" {
 		return fmt.Errorf("--root must not be empty")
 	}
@@ -135,7 +140,8 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 
 	bundle, err := a.loadBundleForRun(runBundleInput{
 		RootDir:         absRoot,
-		SuitePath:       resolvedRunPaths.SuitePath,
+		SuitePath:       resolvedSuite.LocalPath,
+		SuiteGit:        resolvedSuite.SuiteGit,
 		AgentConfigPath: resolvedRunPaths.AgentConfigPath,
 		EvalPath:        resolvedRunPaths.EvalPath,
 		ResumeFromRunID: strings.TrimSpace(*resumeFromRunID),
@@ -294,6 +300,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 type runBundleInput struct {
 	RootDir         string
 	SuitePath       string
+	SuiteGit        *runbundle.SuiteGitRef
 	AgentConfigPath string
 	EvalPath        string
 	ResumeFromRunID string
@@ -359,8 +366,42 @@ func (a *App) compileRunBundle(in runBundleInput) (runbundle.Bundle, error) {
 		compileProgress.Finish(false)
 		return runbundle.Bundle{}, fmt.Errorf("compile bundle: %w", err)
 	}
+	if in.SuiteGit != nil {
+		bundle.Source.SuiteGit = &runbundle.SuiteGitRef{
+			RepoURL:        in.SuiteGit.RepoURL,
+			ResolvedCommit: in.SuiteGit.ResolvedCommit,
+			Subdir:         in.SuiteGit.Subdir,
+		}
+		if err := runbundle.Validate(bundle); err != nil {
+			compileProgress.Finish(false)
+			return runbundle.Bundle{}, fmt.Errorf("compile bundle: bundle validation failed after applying remote suite metadata: %w", err)
+		}
+	}
 	compileProgress.Finish(true)
 	return bundle, nil
+}
+
+type resolvedSuiteInput struct {
+	LocalPath string
+	SuiteGit  *runbundle.SuiteGitRef
+}
+
+func (a *App) resolveSuiteInput(ctx context.Context, suitePath string) (resolvedSuiteInput, error) {
+	trimmedSuite := strings.TrimSpace(suitePath)
+	if !remotesuite.IsRemoteSuite(trimmedSuite) {
+		return resolvedSuiteInput{LocalPath: trimmedSuite}, nil
+	}
+
+	result, err := resolveRemoteSuite(ctx, remotesuite.ResolveInput{
+		Suite: trimmedSuite,
+	})
+	if err != nil {
+		return resolvedSuiteInput{}, err
+	}
+	return resolvedSuiteInput{
+		LocalPath: result.LocalPath,
+		SuiteGit:  result.SuiteGit,
+	}, nil
 }
 
 func (a *App) loadSavedResumeBundle(rootDir, runID string, nonInteractive bool) (runbundle.Bundle, error) {
