@@ -88,3 +88,30 @@ func TestHashSHA256ChangesWhenExecutionModeChanges(t *testing.T) {
 		t.Fatalf("expected different hashes for different execution modes")
 	}
 }
+
+func TestHashSHA256ChangesWhenSuiteGitRefChanges(t *testing.T) {
+	b1 := validBundle()
+	b1.Source.SuiteGit = &SuiteGitRef{
+		RepoURL:        "https://github.com/example/suites",
+		ResolvedCommit: "0123456789abcdef0123456789abcdef01234567",
+		Subdir:         "suites/smoke",
+	}
+	b2 := validBundle()
+	b2.Source.SuiteGit = &SuiteGitRef{
+		RepoURL:        "https://github.com/example/suites",
+		ResolvedCommit: "fedcba9876543210fedcba9876543210fedcba98",
+		Subdir:         "suites/smoke",
+	}
+
+	h1, err := HashSHA256(b1)
+	if err != nil {
+		t.Fatalf("hash b1: %v", err)
+	}
+	h2, err := HashSHA256(b2)
+	if err != nil {
+		t.Fatalf("hash b2: %v", err)
+	}
+	if h1 == h2 {
+		t.Fatalf("expected different hashes for different suite commits")
+	}
+}
