@@ -16,9 +16,9 @@ Run the latest Claude Code version against the full SWE-Bench-Pro benchmark:
 
 ```bash
 margin run \
-  --suite ./suites/swe-bench-pro \
-  --agent-config ./configs/example-agent-configs/claude-code-default \
-  --eval ./configs/example-eval-configs/default.toml
+  --suite swe-bench-pro \
+  --agent-config example-agent-configs/claude-code-default \
+  --eval example-eval-configs/default.toml
 ```
 
 ## Why Margin?

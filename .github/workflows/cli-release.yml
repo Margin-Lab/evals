@@ -68,7 +68,11 @@ jobs:
               CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -ldflags "$ldflags" -o "${stage_dir}/margin" ./cmd/margin
             )
 
-            tar -C "$stage_dir" -czf "${dist_dir}/${archive_name}" margin
+            cp -R configs "${stage_dir}/configs"
+            mkdir -p "${stage_dir}/suites"
+            cp -R suites/swe-minimal-test-suite "${stage_dir}/suites/swe-minimal-test-suite"
+
+            tar -C "$stage_dir" -czf "${dist_dir}/${archive_name}" margin configs suites
           done
 
           (

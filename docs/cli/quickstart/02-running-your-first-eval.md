@@ -22,13 +22,20 @@ margin run ... --auth-file-path /path/to/credentials.json
 
 ## Running your first eval
 
+Installer-managed starter assets live at:
+
+- `~/.margin/configs`
+- `~/.margin/suites/swe-minimal-test-suite`
+
+You can reference those installed starter assets by shorthand instead of the full `~/.margin/...` path.
+
 Run the following command to start your first eval:
 
 ```bash
 margin run \
-  --suite ./suites/swe-minimal-test-suite \
-  --agent-config ./configs/example-agent-configs/codex-unified/ \
-  --eval ./configs/example-eval-configs/default.toml \
+  --suite swe-minimal-test-suite \
+  --agent-config example-agent-configs/codex-unified \
+  --eval example-eval-configs/default.toml \
 ```
 
 Note: Token usage for this example will be minimal, but not zero.

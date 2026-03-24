@@ -40,6 +40,17 @@ Check your installation is ready to run an eval
 margin check
 ```
 
+Installer-managed starter assets are placed at:
+
+- `~/.margin/configs`
+- `~/.margin/suites/swe-minimal-test-suite`
+
+Installed starter assets can be referenced either by full path or by shorthand:
+
+- `--suite swe-minimal-test-suite`
+- `--agent-config example-agent-configs/codex-unified`
+- `--eval example-eval-configs/default.toml`
+
 Update an installer-managed binary:
 
 ```bash
@@ -51,9 +62,9 @@ margin update
 Dry-run your first eval (no token usage)
 ```bash
 margin run \
-  --suite ./suites/swe-minimal-test-suite \
-  --agent-config ./configs/example-agent-configs/codex-unified/ \
-  --eval ./configs/example-eval-configs/default.toml \
+  --suite swe-minimal-test-suite \
+  --agent-config example-agent-configs/codex-unified \
+  --eval example-eval-configs/default.toml \
   --dry-run
 ```
 
@@ -61,25 +72,25 @@ Run your first eval using an API key (minimal test suite, will use small amount 
 ```bash
 export ANTHROPIC_API_KEY=<API_KEY>
 margin run \
-  --suite ./suites/swe-minimal-test-suite \
-  --agent-config ./configs/example-agent-configs/claude-code-default \
-  --eval ./configs/example-eval-configs/default.toml \
+  --suite swe-minimal-test-suite \
+  --agent-config example-agent-configs/claude-code-default \
+  --eval example-eval-configs/default.toml \
 ```
 
 Run your first eval using your agents OAuth, margin will auto-detect your OAuth file (minimal test suite, will use small amount of tokens)
 ```bash
 margin run \
-  --suite ./suites/swe-minimal-test-suite \
-  --agent-config ./configs/example-agent-configs/codex-unified/ \
-  --eval ./configs/example-eval-configs/default.toml \
+  --suite swe-minimal-test-suite \
+  --agent-config example-agent-configs/codex-unified \
+  --eval example-eval-configs/default.toml \
 ```
 
 Or, run with a specific OAuth file (minimal test suite, will use small amount of tokens)
 ```bash
 margin run \
-  --suite ./suites/swe-minimal-test-suite \
-  --agent-config ./configs/example-agent-configs/codex-unified/ \
-  --eval ./configs/example-eval-configs/default.toml \
+  --suite swe-minimal-test-suite \
+  --agent-config example-agent-configs/codex-unified \
+  --eval example-eval-configs/default.toml \
   --auth-file-path /path/to/credentials.json
 ```
 
@@ -89,18 +100,18 @@ margin run \
 
 ```bash
 margin run \
-  --suite ./suites/swe-bench-pro \
-  --agent-config ./configs/example-agent-configs/claude-code-default \
-  --eval ./configs/example-eval-configs/default.toml \
+  --suite swe-bench-pro \
+  --agent-config example-agent-configs/claude-code-default \
+  --eval example-eval-configs/default.toml \
 ```
 
 **Run Codex with unified config:**
 
 ```bash
 margin run \
-  --suite ./suites/terminal-bench-2 \
-  --agent-config ./configs/example-agent-configs/codex-unified \
-  --eval ./configs/example-eval-configs/default.toml \
+  --suite terminal-bench-2 \
+  --agent-config example-agent-configs/codex-unified \
+  --eval example-eval-configs/default.toml \
 ```
 
 **Resume a run:**

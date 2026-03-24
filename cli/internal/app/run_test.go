@@ -133,6 +133,168 @@ func writeExecutableFile(t *testing.T, path string) {
 	}
 }
 
+func writeTestFile(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir file parent: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+}
+
+func chdirForTest(t *testing.T, dir string) {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(wd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	})
+}
+
+func TestResolveBuiltInRunPathsFallsBackToInstalledMarginAssets(t *testing.T) {
+	origCurrentUserHomeDir := currentUserHomeDir
+	defer func() { currentUserHomeDir = origCurrentUserHomeDir }()
+
+	homeDir := t.TempDir()
+	currentUserHomeDir = func() (string, error) { return homeDir, nil }
+
+	writeTestFile(t, filepath.Join(homeDir, ".margin", "configs", "example-agent-configs", "codex-unified", "config.toml"), "kind = \"agent_config\"\n")
+	writeTestFile(t, filepath.Join(homeDir, ".margin", "configs", "example-eval-configs", "default.toml"), "kind = \"eval_config\"\n")
+	writeTestFile(t, filepath.Join(homeDir, ".margin", "suites", "swe-minimal-test-suite", "suite.toml"), "kind = \"test_suite\"\n")
+
+	got, err := resolveBuiltInRunPaths(runPathInput{
+		SuitePath:       "swe-minimal-test-suite",
+		AgentConfigPath: "example-agent-configs/codex-unified",
+		EvalPath:        "example-eval-configs/default.toml",
+	})
+	if err != nil {
+		t.Fatalf("resolveBuiltInRunPaths() error = %v", err)
+	}
+	if want := filepath.Join(homeDir, ".margin", "suites", "swe-minimal-test-suite"); got.SuitePath != want {
+		t.Fatalf("SuitePath = %q, want %q", got.SuitePath, want)
+	}
+	if want := filepath.Join(homeDir, ".margin", "configs", "example-agent-configs", "codex-unified"); got.AgentConfigPath != want {
+		t.Fatalf("AgentConfigPath = %q, want %q", got.AgentConfigPath, want)
+	}
+	if want := filepath.Join(homeDir, ".margin", "configs", "example-eval-configs", "default.toml"); got.EvalPath != want {
+		t.Fatalf("EvalPath = %q, want %q", got.EvalPath, want)
+	}
+}
+
+func TestResolveBuiltInRunPathsPrefersExistingLocalPaths(t *testing.T) {
+	origCurrentUserHomeDir := currentUserHomeDir
+	defer func() { currentUserHomeDir = origCurrentUserHomeDir }()
+
+	homeDir := t.TempDir()
+	currentUserHomeDir = func() (string, error) { return homeDir, nil }
+
+	writeTestFile(t, filepath.Join(homeDir, ".margin", "configs", "example-agent-configs", "codex-unified", "config.toml"), "installed\n")
+	projectDir := t.TempDir()
+	chdirForTest(t, projectDir)
+	writeTestFile(t, filepath.Join(projectDir, "configs", "example-agent-configs", "codex-unified", "config.toml"), "local\n")
+
+	got, err := resolveBuiltInRunPaths(runPathInput{
+		AgentConfigPath: "configs/example-agent-configs/codex-unified",
+	})
+	if err != nil {
+		t.Fatalf("resolveBuiltInRunPaths() error = %v", err)
+	}
+	if got.AgentConfigPath != "configs/example-agent-configs/codex-unified" {
+		t.Fatalf("AgentConfigPath = %q, want local relative path", got.AgentConfigPath)
+	}
+}
+
+func TestResolveBuiltInRunPathsDoesNotRewriteMissingPrefixedRepoStylePaths(t *testing.T) {
+	origCurrentUserHomeDir := currentUserHomeDir
+	defer func() { currentUserHomeDir = origCurrentUserHomeDir }()
+
+	homeDir := t.TempDir()
+	currentUserHomeDir = func() (string, error) { return homeDir, nil }
+
+	writeTestFile(t, filepath.Join(homeDir, ".margin", "configs", "example-agent-configs", "codex-unified", "config.toml"), "installed\n")
+
+	got, err := resolveBuiltInRunPaths(runPathInput{
+		AgentConfigPath: "configs/example-agent-configs/codex-unified",
+	})
+	if err != nil {
+		t.Fatalf("resolveBuiltInRunPaths() error = %v", err)
+	}
+	if got.AgentConfigPath != "configs/example-agent-configs/codex-unified" {
+		t.Fatalf("AgentConfigPath = %q, want unchanged original path", got.AgentConfigPath)
+	}
+}
+
+func TestRunResolvesInstalledShorthandPathsBeforeCompile(t *testing.T) {
+	origCompile := compileBundle
+	origNewExecutor := newLocalExecutor
+	origNewService := newLocalRunnerService
+	origLaunchMissionControl := launchMissionControl
+	origCurrentUserHomeDir := currentUserHomeDir
+	defer func() {
+		compileBundle = origCompile
+		newLocalExecutor = origNewExecutor
+		newLocalRunnerService = origNewService
+		launchMissionControl = origLaunchMissionControl
+		currentUserHomeDir = origCurrentUserHomeDir
+	}()
+
+	homeDir := t.TempDir()
+	currentUserHomeDir = func() (string, error) { return homeDir, nil }
+	writeTestFile(t, filepath.Join(homeDir, ".margin", "configs", "example-agent-configs", "codex-unified", "config.toml"), "kind = \"agent_config\"\n")
+	writeTestFile(t, filepath.Join(homeDir, ".margin", "configs", "example-eval-configs", "default.toml"), "kind = \"eval_config\"\n")
+	writeTestFile(t, filepath.Join(homeDir, ".margin", "suites", "swe-minimal-test-suite", "suite.toml"), "kind = \"test_suite\"\n")
+
+	compileBundle = func(in compiler.CompileInput) (runbundle.Bundle, error) {
+		if want := filepath.Join(homeDir, ".margin", "suites", "swe-minimal-test-suite"); in.SuitePath != want {
+			t.Fatalf("SuitePath = %q, want %q", in.SuitePath, want)
+		}
+		if want := filepath.Join(homeDir, ".margin", "configs", "example-agent-configs", "codex-unified"); in.AgentConfigPath != want {
+			t.Fatalf("AgentConfigPath = %q, want %q", in.AgentConfigPath, want)
+		}
+		if want := filepath.Join(homeDir, ".margin", "configs", "example-eval-configs", "default.toml"); in.EvalPath != want {
+			t.Fatalf("EvalPath = %q, want %q", in.EvalPath, want)
+		}
+		return runbundle.Bundle{
+			ResolvedSnapshot: runbundle.ResolvedSnapshot{
+				Name:      "smoke",
+				Execution: runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1},
+			},
+		}, nil
+	}
+	newLocalExecutor = func(_ localexecutor.Config) (engine.Executor, error) {
+		return fakeExecutor{}, nil
+	}
+	newLocalRunnerService = func(_ localrunner.Config) (runnerapi.Service, error) {
+		return fakeRunnerService{}, nil
+	}
+	launchMissionControl = func(_ context.Context, cfg missioncontrol.Config) (missioncontrol.Outcome, error) {
+		return missioncontrol.Outcome{
+			FinalRun: store.Run{RunID: cfg.RunID, State: domain.RunStateCompleted},
+		}, nil
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	a := New(&stdout, &stderr)
+	err := a.runRun(context.Background(), []string{
+		"--suite", "swe-minimal-test-suite",
+		"--agent-config", "example-agent-configs/codex-unified",
+		"--eval", "example-eval-configs/default.toml",
+		"--agent-server-binary", "agent-server",
+	})
+	if err != nil {
+		t.Fatalf("runRun returned error: %v", err)
+	}
+}
+
 func TestRunUsesBundleMaxConcurrencyForWorkerCount(t *testing.T) {
 	origCompile := compileBundle
 	origNewExecutor := newLocalExecutor

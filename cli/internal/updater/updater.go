@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -31,6 +32,13 @@ const (
 	channelStable         = "stable"
 	channelBeta           = "beta"
 )
+
+var managedStarterSubtrees = []string{
+	filepath.Join("configs", "agent-definitions"),
+	filepath.Join("configs", "example-agent-configs"),
+	filepath.Join("configs", "example-eval-configs"),
+	filepath.Join("suites", "swe-minimal-test-suite"),
+}
 
 var betaTagPattern = regexp.MustCompile(`^v([0-9]+)\.([0-9]+)\.([0-9]+)-beta\.([0-9]+)$`)
 
@@ -179,8 +187,23 @@ func (m *Manager) Update(ctx context.Context, currentVersion string) (Result, er
 		return Result{}, err
 	}
 
+	extractDir := filepath.Join(tempDir, "release")
+	if err := extractReleaseArchive(archivePath, extractDir); err != nil {
+		return Result{}, err
+	}
+	if err := validateReleaseArchiveLayout(extractDir); err != nil {
+		return Result{}, err
+	}
+	marginHome, err := marginHomeDir()
+	if err != nil {
+		return Result{}, err
+	}
+	if err := installStarterAssets(extractDir, marginHome); err != nil {
+		return Result{}, err
+	}
+
 	replacementPath := filepath.Join(filepath.Dir(executablePath), ".margin-update-"+strconv.FormatInt(time.Now().UnixNano(), 10))
-	if err := extractMarginBinary(archivePath, replacementPath); err != nil {
+	if err := copyFile(filepath.Join(extractDir, "margin"), replacementPath, 0o755); err != nil {
 		return Result{}, err
 	}
 	if err := os.Rename(replacementPath, executablePath); err != nil {
@@ -431,7 +454,15 @@ func sha256File(path string) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-func extractMarginBinary(archivePath, destPath string) error {
+func marginHomeDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve user home: %w", err)
+	}
+	return filepath.Join(home, ".margin"), nil
+}
+
+func extractReleaseArchive(archivePath, destDir string) error {
 	file, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("open archive: %w", err)
@@ -443,40 +474,188 @@ func extractMarginBinary(archivePath, destPath string) error {
 	}
 	defer gzReader.Close()
 
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return fmt.Errorf("create release extract dir: %w", err)
+	}
 	tarReader := tar.NewReader(gzReader)
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
-			return fmt.Errorf("archive %s does not contain margin", archivePath)
+			return nil
 		}
 		if err != nil {
 			return fmt.Errorf("read tar archive: %w", err)
 		}
-		if header.Typeflag != tar.TypeReg {
-			continue
-		}
-		if filepath.Base(header.Name) != "margin" {
-			continue
-		}
-		out, err := os.OpenFile(destPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
+		targetPath, err := archiveTargetPath(destDir, header.Name)
 		if err != nil {
-			return fmt.Errorf("create replacement binary: %w", err)
+			return err
 		}
-		if _, err := io.Copy(out, tarReader); err != nil {
-			out.Close()
-			_ = os.Remove(destPath)
-			return fmt.Errorf("extract replacement binary: %w", err)
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(targetPath, header.FileInfo().Mode().Perm()); err != nil {
+				return fmt.Errorf("create extracted directory %s: %w", targetPath, err)
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+				return fmt.Errorf("create extracted parent %s: %w", filepath.Dir(targetPath), err)
+			}
+			out, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, header.FileInfo().Mode().Perm())
+			if err != nil {
+				return fmt.Errorf("create extracted file %s: %w", targetPath, err)
+			}
+			if _, err := io.Copy(out, tarReader); err != nil {
+				out.Close()
+				_ = os.Remove(targetPath)
+				return fmt.Errorf("extract %s: %w", targetPath, err)
+			}
+			if err := out.Close(); err != nil {
+				_ = os.Remove(targetPath)
+				return fmt.Errorf("close extracted file %s: %w", targetPath, err)
+			}
+		default:
+			return fmt.Errorf("unsupported tar entry %q with type %d", header.Name, header.Typeflag)
 		}
-		if err := out.Close(); err != nil {
-			_ = os.Remove(destPath)
-			return fmt.Errorf("close replacement binary: %w", err)
-		}
-		if err := os.Chmod(destPath, 0o755); err != nil {
-			_ = os.Remove(destPath)
-			return fmt.Errorf("chmod replacement binary: %w", err)
-		}
-		return nil
 	}
+}
+
+func archiveTargetPath(destDir, name string) (string, error) {
+	clean := filepath.Clean(name)
+	if clean == "." {
+		return "", fmt.Errorf("archive contains invalid empty path")
+	}
+	if filepath.IsAbs(clean) {
+		return "", fmt.Errorf("archive contains absolute path %q", name)
+	}
+	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("archive path %q escapes destination", name)
+	}
+	targetPath := filepath.Join(destDir, clean)
+	return targetPath, nil
+}
+
+func validateReleaseArchiveLayout(extractDir string) error {
+	requiredDirs := append([]string(nil), managedStarterSubtrees...)
+	requiredFiles := []string{"margin"}
+	for _, rel := range requiredFiles {
+		info, err := os.Stat(filepath.Join(extractDir, rel))
+		if err != nil {
+			return fmt.Errorf("release archive is missing required file %s: %w", rel, err)
+		}
+		if info.IsDir() {
+			return fmt.Errorf("release archive path %s must be a file", rel)
+		}
+	}
+	for _, rel := range requiredDirs {
+		info, err := os.Stat(filepath.Join(extractDir, rel))
+		if err != nil {
+			return fmt.Errorf("release archive is missing required directory %s: %w", rel, err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("release archive path %s must be a directory", rel)
+		}
+	}
+	return nil
+}
+
+func installStarterAssets(extractDir, marginHome string) error {
+	for _, rel := range managedStarterSubtrees {
+		sourcePath := filepath.Join(extractDir, rel)
+		targetPath := filepath.Join(marginHome, rel)
+		if err := replaceManagedTree(sourcePath, targetPath); err != nil {
+			return fmt.Errorf("install starter asset %s: %w", rel, err)
+		}
+	}
+	return nil
+}
+
+func replaceManagedTree(sourcePath, targetPath string) error {
+	info, err := os.Stat(sourcePath)
+	if err != nil {
+		return fmt.Errorf("stat source %s: %w", sourcePath, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("source %s must be a directory", sourcePath)
+	}
+
+	parentDir := filepath.Dir(targetPath)
+	if err := os.MkdirAll(parentDir, 0o755); err != nil {
+		return fmt.Errorf("create parent %s: %w", parentDir, err)
+	}
+
+	stagePath := filepath.Join(parentDir, "."+filepath.Base(targetPath)+".tmp-"+strconv.FormatInt(time.Now().UnixNano(), 10))
+	if err := copyTree(sourcePath, stagePath); err != nil {
+		_ = os.RemoveAll(stagePath)
+		return err
+	}
+	if err := os.RemoveAll(targetPath); err != nil {
+		_ = os.RemoveAll(stagePath)
+		return fmt.Errorf("remove existing %s: %w", targetPath, err)
+	}
+	if err := os.Rename(stagePath, targetPath); err != nil {
+		_ = os.RemoveAll(stagePath)
+		return fmt.Errorf("replace %s: %w", targetPath, err)
+	}
+	return nil
+}
+
+func copyTree(sourcePath, targetPath string) error {
+	return filepath.WalkDir(sourcePath, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(sourcePath, path)
+		if err != nil {
+			return fmt.Errorf("resolve relative path for %s: %w", path, err)
+		}
+		dest := targetPath
+		if rel != "." {
+			dest = filepath.Join(targetPath, rel)
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return fmt.Errorf("stat %s: %w", path, err)
+		}
+		if entry.IsDir() {
+			if err := os.MkdirAll(dest, info.Mode().Perm()); err != nil {
+				return fmt.Errorf("create directory %s: %w", dest, err)
+			}
+			return nil
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("unsupported file type at %s", path)
+		}
+		return copyFile(path, dest, info.Mode().Perm())
+	})
+}
+
+func copyFile(sourcePath, targetPath string, mode fs.FileMode) error {
+	source, err := os.Open(sourcePath)
+	if err != nil {
+		return fmt.Errorf("open %s: %w", sourcePath, err)
+	}
+	defer source.Close()
+
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return fmt.Errorf("create parent %s: %w", filepath.Dir(targetPath), err)
+	}
+	target, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+	if err != nil {
+		return fmt.Errorf("create %s: %w", targetPath, err)
+	}
+	if _, err := io.Copy(target, source); err != nil {
+		target.Close()
+		_ = os.Remove(targetPath)
+		return fmt.Errorf("copy %s to %s: %w", sourcePath, targetPath, err)
+	}
+	if err := target.Close(); err != nil {
+		_ = os.Remove(targetPath)
+		return fmt.Errorf("close %s: %w", targetPath, err)
+	}
+	if err := os.Chmod(targetPath, mode); err != nil {
+		_ = os.Remove(targetPath)
+		return fmt.Errorf("chmod %s: %w", targetPath, err)
+	}
+	return nil
 }
 
 func isStableTag(tag string) bool {
