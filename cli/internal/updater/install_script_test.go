@@ -55,6 +55,15 @@ func TestInstallScriptInstallsLatestStableRelease(t *testing.T) {
 	if got := strings.TrimSpace(readFile(t, binaryPath)); got != "script-installed" {
 		t.Fatalf("binary contents = %q", got)
 	}
+	if got := strings.TrimSpace(readFile(t, filepath.Join(tmpDir, ".margin", "configs", "example-agent-configs", "codex-unified", "config.toml"))); got != "starter-agent-config" {
+		t.Fatalf("starter agent config contents = %q", got)
+	}
+	if got := strings.TrimSpace(readFile(t, filepath.Join(tmpDir, ".margin", "configs", "example-eval-configs", "default.toml"))); got != "starter-eval-config" {
+		t.Fatalf("starter eval config contents = %q", got)
+	}
+	if got := strings.TrimSpace(readFile(t, filepath.Join(tmpDir, ".margin", "suites", "swe-minimal-test-suite", "suite.toml"))); got != "starter-suite" {
+		t.Fatalf("starter suite contents = %q", got)
+	}
 	body := readFile(t, metadataPath)
 	for _, want := range []string{
 		`"installed_via": "official-installer"`,
@@ -63,6 +72,15 @@ func TestInstallScriptInstallsLatestStableRelease(t *testing.T) {
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("metadata missing %q: %s", want, body)
+		}
+	}
+	for _, want := range []string{
+		"Installed starter configs to " + filepath.Join(tmpDir, ".margin", "configs"),
+		"Installed starter suites to " + filepath.Join(tmpDir, ".margin", "suites"),
+		filepath.Join(tmpDir, ".margin", "suites", "swe-minimal-test-suite"),
+	} {
+		if !strings.Contains(string(output), want) {
+			t.Fatalf("install output missing %q:\n%s", want, output)
 		}
 	}
 }

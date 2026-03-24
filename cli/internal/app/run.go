@@ -52,6 +52,11 @@ var (
 		return term.IsTerminal(fdWriter.Fd()) && term.IsTerminal(os.Stdin.Fd())
 	}
 	launchRunConfirmation = runConfirmationTUI
+	currentUserHomeDir    = os.UserHomeDir
+	pathExists            = func(path string) bool {
+		_, err := os.Stat(path)
+		return err == nil
+	}
 )
 
 const (
@@ -90,6 +95,14 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	if err := validateRunSourceFlags(*resumeFromRunID, *suitePath, *agentConfigPath, *evalPath); err != nil {
 		return err
 	}
+	resolvedRunPaths, err := resolveBuiltInRunPaths(runPathInput{
+		SuitePath:       *suitePath,
+		AgentConfigPath: *agentConfigPath,
+		EvalPath:        *evalPath,
+	})
+	if err != nil {
+		return err
+	}
 	if strings.TrimSpace(*rootDir) == "" {
 		return fmt.Errorf("--root must not be empty")
 	}
@@ -122,9 +135,9 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 
 	bundle, err := a.loadBundleForRun(runBundleInput{
 		RootDir:         absRoot,
-		SuitePath:       strings.TrimSpace(*suitePath),
-		AgentConfigPath: strings.TrimSpace(*agentConfigPath),
-		EvalPath:        strings.TrimSpace(*evalPath),
+		SuitePath:       resolvedRunPaths.SuitePath,
+		AgentConfigPath: resolvedRunPaths.AgentConfigPath,
+		EvalPath:        resolvedRunPaths.EvalPath,
 		ResumeFromRunID: strings.TrimSpace(*resumeFromRunID),
 		NonInteractive:  *nonInteractive,
 	})
@@ -284,6 +297,42 @@ type runBundleInput struct {
 	EvalPath        string
 	ResumeFromRunID string
 	NonInteractive  bool
+}
+
+type runPathInput struct {
+	SuitePath       string
+	AgentConfigPath string
+	EvalPath        string
+}
+
+func resolveBuiltInRunPaths(in runPathInput) (runPathInput, error) {
+	if strings.TrimSpace(in.SuitePath) == "" && strings.TrimSpace(in.AgentConfigPath) == "" && strings.TrimSpace(in.EvalPath) == "" {
+		return runPathInput{}, nil
+	}
+	homeDir, err := currentUserHomeDir()
+	if err != nil {
+		return runPathInput{}, fmt.Errorf("resolve user home directory: %w", err)
+	}
+	return runPathInput{
+		SuitePath:       resolveInstalledRunPath(strings.TrimSpace(in.SuitePath), filepath.Join(homeDir, ".margin", "suites")),
+		AgentConfigPath: resolveInstalledRunPath(strings.TrimSpace(in.AgentConfigPath), filepath.Join(homeDir, ".margin", "configs")),
+		EvalPath:        resolveInstalledRunPath(strings.TrimSpace(in.EvalPath), filepath.Join(homeDir, ".margin", "configs")),
+	}, nil
+}
+
+func resolveInstalledRunPath(raw, fallbackRoot string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" || filepath.IsAbs(trimmed) || strings.HasPrefix(trimmed, "."+string(filepath.Separator)) || trimmed == "." || trimmed == ".." {
+		return trimmed
+	}
+	if pathExists(trimmed) {
+		return trimmed
+	}
+	candidate := filepath.Join(fallbackRoot, filepath.FromSlash(trimmed))
+	if pathExists(candidate) {
+		return candidate
+	}
+	return trimmed
 }
 
 func (a *App) loadBundleForRun(in runBundleInput) (runbundle.Bundle, error) {

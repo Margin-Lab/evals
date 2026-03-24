@@ -70,7 +70,7 @@ Cap the entire run's wall-clock time with a CLI flag:
 ```bash
 margin run \
   --suite ./suites/my-suite \
-  --agent-config ./configs/example-agent-configs/claude-code-default \
+  --agent-config example-agent-configs/claude-code-default \
   --eval ./configs/evals/my-eval.toml \
   --run-timeout 2h
 ```

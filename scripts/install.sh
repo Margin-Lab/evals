@@ -6,6 +6,16 @@ API_BASE_URL="${MARGIN_API_BASE_URL:-https://api.github.com}"
 DOWNLOAD_BASE_URL="${MARGIN_DOWNLOAD_BASE_URL:-https://github.com}"
 DEFAULT_INSTALL_DIR="${HOME}/.local/bin"
 METADATA_PATH="${MARGIN_METADATA_PATH:-${HOME}/.margin/install.json}"
+MARGIN_HOME="${HOME}/.margin"
+
+MANAGED_CONFIG_DIRS=(
+  "agent-definitions"
+  "example-agent-configs"
+  "example-eval-configs"
+)
+MANAGED_SUITE_DIRS=(
+  "swe-minimal-test-suite"
+)
 
 fail() {
   echo "error: $*" >&2
@@ -14,6 +24,19 @@ fail() {
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
+}
+
+require_dir() {
+  local path="$1"
+  [[ -d "${path}" ]] || fail "release archive is missing required directory: ${path}"
+}
+
+install_managed_tree() {
+  local src="$1"
+  local dest="$2"
+  rm -rf "${dest}"
+  mkdir -p "$(dirname "${dest}")"
+  cp -R "${src}" "${dest}" || fail "install ${dest}"
 }
 
 sha256_file() {
@@ -112,12 +135,23 @@ main() {
   actual="$(sha256_file "${archive_path}")"
   [[ "${expected}" == "${actual}" ]] || fail "checksum mismatch for ${archive_name}"
 
-  mkdir -p "${install_dir}" "$(dirname "${METADATA_PATH}")"
+  mkdir -p "${install_dir}" "$(dirname "${METADATA_PATH}")" "${MARGIN_HOME}/configs" "${MARGIN_HOME}/suites"
   tar -xzf "${archive_path}" -C "${temp_dir}" || fail "extract ${archive_name}"
 
   local binary_path="${install_dir}/margin"
   mv "${temp_dir}/margin" "${binary_path}" || fail "install margin to ${binary_path}"
   chmod 0755 "${binary_path}" || fail "chmod ${binary_path}"
+
+  require_dir "${temp_dir}/configs"
+  require_dir "${temp_dir}/suites/swe-minimal-test-suite"
+  for rel in "${MANAGED_CONFIG_DIRS[@]}"; do
+    require_dir "${temp_dir}/configs/${rel}"
+    install_managed_tree "${temp_dir}/configs/${rel}" "${MARGIN_HOME}/configs/${rel}"
+  done
+  for rel in "${MANAGED_SUITE_DIRS[@]}"; do
+    require_dir "${temp_dir}/suites/${rel}"
+    install_managed_tree "${temp_dir}/suites/${rel}" "${MARGIN_HOME}/suites/${rel}"
+  done
 
   cat > "${METADATA_PATH}" <<EOF
 {
@@ -131,12 +165,18 @@ main() {
 EOF
 
   echo "Installed margin ${tag} to ${binary_path}"
+  echo "Installed starter configs to ${MARGIN_HOME}/configs"
+  echo "Installed starter suites to ${MARGIN_HOME}/suites"
   if [[ ":${PATH}:" != *":${install_dir}:"* ]]; then
     echo
     echo "Add ${install_dir} to your PATH before using margin."
   fi
   echo
   echo "Docker must be installed and running before you execute margin evals."
+  echo "Starter quickstart paths:"
+  echo "  suite: ${MARGIN_HOME}/suites/swe-minimal-test-suite"
+  echo "  agent-config: ${MARGIN_HOME}/configs/example-agent-configs/codex-unified"
+  echo "  eval: ${MARGIN_HOME}/configs/example-eval-configs/default.toml"
   echo "Run 'margin help' to verify the install and 'margin update' for manual updates."
 }
 

@@ -29,6 +29,17 @@ margin check
 
 `margin check` verifies that the `docker` binary is on `PATH`, that the Docker daemon responds, and that a `hello-world` container can be started successfully.
 
+Installer-managed starter assets are installed at:
+
+- `~/.margin/configs`
+- `~/.margin/suites/swe-minimal-test-suite`
+
+When those starter assets are installed, `margin run` also accepts shorthand references:
+
+- `--suite swe-minimal-test-suite`
+- `--agent-config example-agent-configs/codex-unified`
+- `--eval example-eval-configs/default.toml`
+
 Resume an existing local run with its saved bundle:
 
 ```bash
