@@ -32,10 +32,14 @@ configs/*
 !configs/agent-definitions/**
 !configs/example-agent-configs/
 !configs/example-agent-configs/**
+!configs/example-eval-configs/
+!configs/example-eval-configs/**
 configs/agent-definitions/**/__pycache__/
 configs/agent-definitions/**/*.pyc
 configs/example-agent-configs/**/__pycache__/
 configs/example-agent-configs/**/*.pyc
+configs/example-eval-configs/**/__pycache__/
+configs/example-eval-configs/**/*.pyc
 
 .marginlab-local/
 .marginlab-swebenchpro-oauth/
