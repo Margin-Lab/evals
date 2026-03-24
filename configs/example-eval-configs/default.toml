@@ -1,0 +1,7 @@
+kind = "eval_config"
+name = "default"
+description = "Safe defaults for getting started — sequential execution"
+
+max_concurrency = 4
+fail_fast = false
+instance_timeout_seconds = 1800
