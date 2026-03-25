@@ -43,7 +43,16 @@ The pre-run confirmation screen shows which credentials (OAuth or API key) will 
 
 Press enter on the pre-run confirmation screen to start the eval. By default, run output is saved to `runs/<run-id>/` under your current working directory.
 
-By default, `margin` uses its embedded `agent-server` payloads and does not require any adjacent binaries. Use `--agent-server-binary` only to override the exact host-side binary path.
+### Dry runs
+Sometimes you may want to confirm an eval suite and agent definition will run properly without actually consuming tokens. Margin supports a `--dry-run` mode that runs the full eval pipeline end-to-end but skips the agent execution step:
+
+```bash
+margin run \
+  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
+  --agent-config example-agent-configs/codex-unified \
+  --eval example-eval-configs/default.toml \
+  --dry-run \
+```
 
 ## Remote suites
 

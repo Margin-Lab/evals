@@ -18,6 +18,7 @@ Margin Eval is the most robust orchestrator for running evals against CLI agents
 - **Compare side-by-side**: unified CLI, config format, and output across all agents
 - **Reproduce any run**: every run is compiled into an immutable, self-contained bundle
 - **Resume on failure**: automatically retry infra failures without re-running completed cases
+- **Extensible**: Define your own agents, test suites, configurations, etc.
 
 ## Quickstart
 
@@ -118,7 +119,7 @@ margin init agent-config \
 
 ## Official eval suites
 
-Hosted in `https://github.com/Margin-Lab/swe-suites.git`
+Official SWE eval suites are hosted at `https://github.com/Margin-Lab/swe-suites.git`
 
 | Suite | Example `--suite` value |
 |-------|--------------------------|
@@ -127,7 +128,9 @@ Hosted in `https://github.com/Margin-Lab/swe-suites.git`
 | `swe-bench-pro-curated-50` | `git::https://github.com/Margin-Lab/swe-suites.git//swe-bench-pro-curated-50` |
 | `terminal-bench-2` | `git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2` |
 
-Many more evals coming soon.
+Many more built-in evals coming soon.
+
+See Creating [Your Own Eval](https://docs.marginlab.ai/creating-your-own-eval/01-quickstart) for a guide on how to create your own eval suite.
 
 ## Supported agents
 
@@ -139,7 +142,7 @@ Many more evals coming soon.
 
 Agent configs support two modes: **direct** (full agent-specific control) and **unified** (one config format that works across all supported agents).
 
-Many more agents coming soon.
+Many more built-in agents coming soon. See [Adding a New Agent](https://docs.marginlab.ai/add-support-for-a-new-agent/01-overview) for a guide on how to add a new agent, and [Configuring Your Agent](https://docs.marginlab.ai/configuration/01-configuring-your-agent) for a guide on how to configure an existing agent.
 
 ## Project structure
 
