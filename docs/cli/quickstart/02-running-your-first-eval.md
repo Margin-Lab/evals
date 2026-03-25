@@ -22,12 +22,6 @@ margin run ... --auth-file-path /path/to/credentials.json
 
 ## Running your first eval
 
-Installer-managed starter assets live at:
-
-- `~/.margin/configs`
-
-You can reference those installed starter configs by shorthand instead of the full `~/.margin/...` path.
-
 Run the following command to start your first eval:
 
 ```bash
@@ -37,9 +31,7 @@ margin run \
   --eval example-eval-configs/default.toml \
 ```
 
-Small example suites are hosted in `https://github.com/Margin-Lab/test-suites.git` and fetched on demand.
-
-The pre-run confirmation screen shows which credentials (OAuth or API key) will be used. This example runs `swe-minimal-test-suite` from the small remote suite collection.
+This run uses a minimal test suite, token usage will be low but not zero. The pre-run confirmation screen shows which credentials (OAuth or API key) will be used.
 
 Press enter on the pre-run confirmation screen to start the eval. By default, run output is saved to `runs/<run-id>/` under your current working directory.
 
