@@ -15,6 +15,11 @@ curl -fsSL https://raw.githubusercontent.com/Margin-Lab/evals/main/scripts/insta
 Verify the installation:
 
 ```bash
+margin check
+```
+
+Help text:
+```bash
 margin help
 ```
 
