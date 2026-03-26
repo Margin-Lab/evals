@@ -27,8 +27,8 @@ Run the following command to start your first eval:
 ```bash
 margin run \
   --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
-  --agent-config example-agent-configs/codex-unified \
-  --eval example-eval-configs/default.toml \
+  --agent-config ~/.margin/configs/example-agent-configs/codex-unified \
+  --eval ~/.margin/configs/example-eval-configs/default.toml \
 ```
 
 This run uses a minimal test suite, token usage will be low but not zero. The pre-run confirmation screen shows which credentials (OAuth or API key) will be used.
@@ -41,8 +41,8 @@ Sometimes you may want to confirm an eval suite and agent definition will run pr
 ```bash
 margin run \
   --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
-  --agent-config example-agent-configs/codex-unified \
-  --eval example-eval-configs/default.toml \
+  --agent-config ~/.margin/configs/example-agent-configs/codex-unified \
+  --eval ~/.margin/configs/example-eval-configs/default.toml \
   --dry-run \
 ```
 
@@ -53,8 +53,8 @@ margin run \
 ```bash
 margin run \
   --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
-  --agent-config example-agent-configs/codex-unified \
-  --eval example-eval-configs/default.toml
+  --agent-config ~/.margin/configs/example-agent-configs/codex-unified \
+  --eval ~/.margin/configs/example-eval-configs/default.toml
 ```
 
 The first run fetches the suite into `~/.margin/suites/.remote/` and pins it to the resolved commit. Refresh it explicitly with:

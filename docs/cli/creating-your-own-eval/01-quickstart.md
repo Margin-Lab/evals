@@ -12,7 +12,7 @@ margin init case --suite ./suites/my-suite --case fix-null-check
 # Run it
 margin run \
   --suite ./suites/my-suite \
-  --agent-config example-agent-configs/claude-code-default \
+  --agent-config ~/.margin/configs/example-agent-configs/claude-code-default \
   --eval ./my-eval.toml
 ```
 
@@ -107,14 +107,14 @@ The script runs inside the container after the agent finishes, in `test_cwd`, wi
 # Validate without spending tokens
 margin run \
   --suite ./suites/my-suite \
-  --agent-config example-agent-configs/claude-code-default \
+  --agent-config ~/.margin/configs/example-agent-configs/claude-code-default \
   --eval ./my-eval.toml \
   --dry-run
 
 # Run for real
 margin run \
   --suite ./suites/my-suite \
-  --agent-config example-agent-configs/claude-code-default \
+  --agent-config ~/.margin/configs/example-agent-configs/claude-code-default \
   --eval ./my-eval.toml
 ```
 
