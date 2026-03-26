@@ -55,13 +55,16 @@ preferred = "24"
 prepare = "hooks/run-prepare.js"
 ```
 
-For OAuth-style file-based auth, add a `local_files` entry:
+For OAuth-style auth discovery, add a `local_credentials` entry with one or more ordered sources:
 
 ```toml
-[[auth.local_files]]
+[[auth.local_credentials]]
 required_env = "MY_AGENT_API_KEY"
-home_rel_path = ".my-agent/credentials.json"
 run_home_rel_path = ".my-agent/credentials.json"
+
+  [[auth.local_credentials.sources]]
+  kind = "home_file"
+  home_rel_path = ".my-agent/credentials.json"
 ```
 
 ## 2. Define the config schema

@@ -348,12 +348,22 @@ func compileEval(evalPath string) (evalFile, error) {
 }
 
 func compileDefinitionManifest(defFile agentDefinitionFile) agentdef.Manifest {
-	localFiles := make([]agentdef.AuthLocalFile, 0, len(defFile.Auth.LocalFiles))
-	for _, item := range defFile.Auth.LocalFiles {
-		localFiles = append(localFiles, agentdef.AuthLocalFile{
-			RequiredEnv:    strings.TrimSpace(item.RequiredEnv),
-			HomeRelPath:    strings.TrimSpace(item.HomeRelPath),
-			RunHomeRelPath: strings.TrimSpace(item.RunHomeRelPath),
+	localCredentials := make([]agentdef.AuthLocalCredential, 0, len(defFile.Auth.LocalCredentials))
+	for _, item := range defFile.Auth.LocalCredentials {
+		sources := make([]agentdef.AuthLocalSource, 0, len(item.Sources))
+		for _, source := range item.Sources {
+			sources = append(sources, agentdef.AuthLocalSource{
+				Kind:        agentdef.AuthLocalSourceKind(strings.TrimSpace(source.Kind)),
+				HomeRelPath: strings.TrimSpace(source.HomeRelPath),
+				Service:     strings.TrimSpace(source.Service),
+				Platforms:   append([]string(nil), source.Platforms...),
+			})
+		}
+		localCredentials = append(localCredentials, agentdef.AuthLocalCredential{
+			RequiredEnv:      strings.TrimSpace(item.RequiredEnv),
+			RunHomeRelPath:   strings.TrimSpace(item.RunHomeRelPath),
+			ValidateJSONPath: strings.TrimSpace(item.ValidateJSONPath),
+			Sources:          sources,
 		})
 	}
 	manifest := agentdef.Manifest{
@@ -361,8 +371,8 @@ func compileDefinitionManifest(defFile agentDefinitionFile) agentdef.Manifest {
 		Name:        strings.TrimSpace(defFile.Name),
 		Description: strings.TrimSpace(defFile.Description),
 		Auth: agentdef.AuthSpec{
-			RequiredEnv: append([]string(nil), defFile.Auth.RequiredEnv...),
-			LocalFiles:  localFiles,
+			RequiredEnv:      append([]string(nil), defFile.Auth.RequiredEnv...),
+			LocalCredentials: localCredentials,
 		},
 		Toolchains: compileToolchains(defFile.Toolchains),
 		Config: agentdef.DefinitionConfigSpec{

@@ -191,6 +191,18 @@ func renderRunAuthBlock(width int, spec runConfirmationSpec) string {
 			{text: orUnknown(item.FilePath), style: runConfirmationCredentialStyle},
 			{text: " to run the agent " + agentName + ". Note that this will use tokens.", style: runConfirmationWarnTextStyle},
 		}))
+	case "OAuth credential":
+		if spec.DryRun {
+			lines = append(lines, runConfirmationWarnTextStyle.Render("Dry-run mode active: No token usage in this run."))
+			break
+		}
+		lines = append(lines, renderStyledWrappedLine(width, []styledSegment{
+			{text: "Will use ", style: runConfirmationWarnTextStyle},
+			{text: "OAuth credential", style: runConfirmationMethodStyle},
+			{text: " from ", style: runConfirmationWarnTextStyle},
+			{text: orUnknown(item.Source), style: runConfirmationCredentialStyle},
+			{text: " to run the agent " + agentName + ". Note that this will use tokens.", style: runConfirmationWarnTextStyle},
+		}))
 	default:
 		if spec.DryRun {
 			lines = append(lines, runConfirmationWarnTextStyle.Render("Dry-run mode active: No token usage in this run."))

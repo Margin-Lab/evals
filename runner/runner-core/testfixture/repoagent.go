@@ -40,14 +40,22 @@ type definitionFile struct {
 }
 
 type definitionAuthFile struct {
-	RequiredEnv []string                  `toml:"required_env"`
-	LocalFiles  []definitionAuthLocalFile `toml:"local_files"`
+	RequiredEnv      []string                        `toml:"required_env"`
+	LocalCredentials []definitionAuthLocalCredential `toml:"local_credentials"`
 }
 
-type definitionAuthLocalFile struct {
-	RequiredEnv    string `toml:"required_env"`
-	HomeRelPath    string `toml:"home_rel_path"`
-	RunHomeRelPath string `toml:"run_home_rel_path"`
+type definitionAuthLocalCredential struct {
+	RequiredEnv      string                      `toml:"required_env"`
+	RunHomeRelPath   string                      `toml:"run_home_rel_path"`
+	ValidateJSONPath string                      `toml:"validate_json_path"`
+	Sources          []definitionAuthLocalSource `toml:"sources"`
+}
+
+type definitionAuthLocalSource struct {
+	Kind        string   `toml:"kind"`
+	HomeRelPath string   `toml:"home_rel_path"`
+	Service     string   `toml:"service"`
+	Platforms   []string `toml:"platforms"`
 }
 
 type definitionNodeToolchains struct {
@@ -287,8 +295,8 @@ func loadDefinitionSnapshot(dir string) (agentdef.DefinitionSnapshot, error) {
 			Name:        strings.TrimSpace(file.Name),
 			Description: strings.TrimSpace(file.Description),
 			Auth: agentdef.AuthSpec{
-				RequiredEnv: append([]string(nil), file.Auth.RequiredEnv...),
-				LocalFiles:  cloneAuthLocalFiles(file.Auth.LocalFiles),
+				RequiredEnv:      append([]string(nil), file.Auth.RequiredEnv...),
+				LocalCredentials: cloneAuthLocalCredentials(file.Auth.LocalCredentials),
 			},
 			Toolchains: loadDefinitionToolchains(file.Toolchains),
 			Config: agentdef.DefinitionConfigSpec{
@@ -376,16 +384,26 @@ func loadConfigSnapshot(dir string) (agentdef.ConfigSpec, error) {
 	return spec, nil
 }
 
-func cloneAuthLocalFiles(files []definitionAuthLocalFile) []agentdef.AuthLocalFile {
+func cloneAuthLocalCredentials(files []definitionAuthLocalCredential) []agentdef.AuthLocalCredential {
 	if len(files) == 0 {
 		return nil
 	}
-	out := make([]agentdef.AuthLocalFile, 0, len(files))
+	out := make([]agentdef.AuthLocalCredential, 0, len(files))
 	for _, file := range files {
-		out = append(out, agentdef.AuthLocalFile{
-			RequiredEnv:    strings.TrimSpace(file.RequiredEnv),
-			HomeRelPath:    strings.TrimSpace(file.HomeRelPath),
-			RunHomeRelPath: strings.TrimSpace(file.RunHomeRelPath),
+		sources := make([]agentdef.AuthLocalSource, 0, len(file.Sources))
+		for _, source := range file.Sources {
+			sources = append(sources, agentdef.AuthLocalSource{
+				Kind:        agentdef.AuthLocalSourceKind(strings.TrimSpace(source.Kind)),
+				HomeRelPath: strings.TrimSpace(source.HomeRelPath),
+				Service:     strings.TrimSpace(source.Service),
+				Platforms:   append([]string(nil), source.Platforms...),
+			})
+		}
+		out = append(out, agentdef.AuthLocalCredential{
+			RequiredEnv:      strings.TrimSpace(file.RequiredEnv),
+			RunHomeRelPath:   strings.TrimSpace(file.RunHomeRelPath),
+			ValidateJSONPath: strings.TrimSpace(file.ValidateJSONPath),
+			Sources:          sources,
 		})
 	}
 	return out

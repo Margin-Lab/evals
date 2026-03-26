@@ -5,10 +5,19 @@ description = "Repo-owned Claude Code agent definition"
 [auth]
 required_env = ["ANTHROPIC_API_KEY"]
 
-[[auth.local_files]]
+[[auth.local_credentials]]
 required_env = "ANTHROPIC_API_KEY"
-home_rel_path = ".claude/.credentials.json"
 run_home_rel_path = ".claude/.credentials.json"
+validate_json_path = "claudeAiOauth.accessToken"
+
+  [[auth.local_credentials.sources]]
+  kind = "macos_keychain"
+  service = "Claude Code-credentials"
+  platforms = ["darwin"]
+
+  [[auth.local_credentials.sources]]
+  kind = "home_file"
+  home_rel_path = ".claude/.credentials.json"
 
 [toolchains.node]
 minimum = "18"
