@@ -43,7 +43,7 @@ The runtime sequence is:
 
 Dependencies are handled inside the case image plus the managed Node runtime declared by a definition's `[toolchains.node]`. There is no per-agent overlay Dockerfile layer.
 
-Managed Node bootstrap and npm installs use an `agent-server`-owned trust bundle, not the case image's CA store. Public roots are embedded in the binary, and operators can append private roots with `AGENT_SERVER_EXTRA_CA_CERTS_FILE`.
+`agent-server` uses its own trust bundle instead of the case image's CA store. Public roots are embedded in the binary, and operators can append private roots with `AGENT_SERVER_EXTRA_CA_CERTS_FILE`. The materialized bundle is exported to hook and agent processes via `SSL_CERT_FILE`, and to managed Node/npm via `NODE_EXTRA_CA_CERTS` and `NPM_CONFIG_CAFILE`.
 
 When a definition declares a skill discovery root, `agent-server` materializes configured skill directories into the run `HOME` before `run.prepare` executes.
 

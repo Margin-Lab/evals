@@ -19,6 +19,7 @@ import (
 const (
 	nodeExtraCACertsEnvKey = "NODE_EXTRA_CA_CERTS"
 	npmConfigCAFileEnvKey  = "NPM_CONFIG_CAFILE"
+	sslCertFileEnvKey      = "SSL_CERT_FILE"
 )
 
 //go:embed public-roots.pem
@@ -30,7 +31,7 @@ type Config struct {
 	ExtraCACertsFile string
 }
 
-// Bundle owns the merged trust roots used by managed Node bootstrap.
+// Bundle owns the merged trust roots used by managed toolchains and agent processes.
 type Bundle struct {
 	bundlePEM  []byte
 	bundlePath string
@@ -90,6 +91,7 @@ func New(cfg Config) (*Bundle, error) {
 		env: map[string]string{
 			nodeExtraCACertsEnvKey: bundlePath,
 			npmConfigCAFileEnvKey:  bundlePath,
+			sslCertFileEnvKey:      bundlePath,
 		},
 	}, nil
 }
@@ -193,7 +195,7 @@ func (b *Bundle) CertPool() *x509.CertPool {
 	return b.pool
 }
 
-// Environment returns deterministic env additions for Node/npm child processes.
+// Environment returns deterministic env additions for hook and agent child processes.
 func (b *Bundle) Environment() map[string]string {
 	out := make(map[string]string, len(b.env))
 	for key, value := range b.env {
@@ -210,6 +212,7 @@ func (b *Bundle) BundlePEM() []byte {
 // EnvironmentKeys returns the environment keys this bundle controls.
 func EnvironmentKeys() []string {
 	return []string{
+		sslCertFileEnvKey,
 		nodeExtraCACertsEnvKey,
 		npmConfigCAFileEnvKey,
 	}
