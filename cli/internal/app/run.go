@@ -160,16 +160,16 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 		return err
 	}
 	if strings.TrimSpace(*authFilePath) != "" {
-		localFiles := bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.LocalFiles
-		if len(localFiles) != 1 {
-			return fmt.Errorf("--auth-file-path requires the selected agent definition to declare exactly one auth.local_files entry; found %d", len(localFiles))
+		localCredentials := bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.LocalCredentials
+		if len(localCredentials) != 1 {
+			return fmt.Errorf("--auth-file-path requires the selected agent definition to declare exactly one auth.local_credentials entry; found %d", len(localCredentials))
 		}
 	}
 	if !*nonInteractive && shouldConfirmRun(a.stderr) {
 		authPreview, err := localexecutor.PreviewAuth(
 			agentEnv.Clone(),
 			bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.RequiredEnv,
-			bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.LocalFiles,
+			bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.LocalCredentials,
 			strings.TrimSpace(*authFilePath),
 		)
 		if err != nil {
@@ -449,9 +449,18 @@ func buildRunConfirmationSpec(agentName string, authPreview []localexecutor.Auth
 			authItem.Method = "API key"
 			authItem.Source = fmt.Sprintf("%s environment variable", strings.TrimSpace(item.RequiredEnv))
 		case localexecutor.AuthPreviewModeOAuth:
-			authItem.Method = "OAuth credential file"
-			authItem.FilePath = strings.TrimSpace(item.Path)
-			authItem.Source = fmt.Sprintf("fallback for %s", strings.TrimSpace(item.RequiredEnv))
+			switch strings.TrimSpace(item.SourceKind) {
+			case "home_file", "override_file":
+				authItem.Method = "OAuth credential file"
+				authItem.FilePath = strings.TrimSpace(item.SourceLabel)
+				authItem.Source = fmt.Sprintf("fallback for %s", strings.TrimSpace(item.RequiredEnv))
+			case "macos_keychain":
+				authItem.Method = "OAuth credential"
+				authItem.Source = fmt.Sprintf("macOS Keychain item %q", strings.TrimSpace(item.SourceLabel))
+			default:
+				authItem.Method = "OAuth credential"
+				authItem.Source = strings.TrimSpace(item.SourceLabel)
+			}
 		default:
 			authItem.Method = strings.TrimSpace(item.RequiredEnv)
 		}

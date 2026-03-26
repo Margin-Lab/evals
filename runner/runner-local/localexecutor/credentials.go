@@ -25,8 +25,24 @@ const (
 type AuthPreview struct {
 	RequiredEnv string
 	Mode        AuthPreviewMode
-	Source      string
-	Path        string
+	SourceKind  string
+	SourceLabel string
+}
+
+type resolvedLocalAuthCredential struct {
+	RequiredEnv    string
+	ContainerPath  string
+	RunHomeRelPath string
+	Payload        []byte
+	SourceKind     string
+	SourceLabel    string
+}
+
+type stagedLocalAuthFile struct {
+	RequiredEnv    string
+	HostPath       string
+	SourcePath     string
+	RunHomeRelPath string
 }
 
 func injectRequiredAgentEnv(env map[string]string, required []string) {
@@ -46,28 +62,15 @@ func injectRequiredAgentEnv(env map[string]string, required []string) {
 	}
 }
 
-func PreviewAuth(explicitEnv map[string]string, required []string, localFiles []agentdef.AuthLocalFile, overridePath string) ([]AuthPreview, error) {
+func PreviewAuth(explicitEnv map[string]string, required []string, localCredentials []agentdef.AuthLocalCredential, overridePath string) ([]AuthPreview, error) {
 	if len(required) == 0 {
 		return nil, nil
 	}
 
-	localFilesByEnv := make(map[string]agentdef.AuthLocalFile, len(localFiles))
-	for _, file := range localFiles {
-		key := strings.TrimSpace(file.RequiredEnv)
-		if key == "" {
-			continue
-		}
-		localFilesByEnv[key] = file
-	}
-
-	trimmedOverride := strings.TrimSpace(overridePath)
-	homeDir := ""
-	if trimmedOverride == "" && len(localFilesByEnv) > 0 {
-		var err error
-		homeDir, err = os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("resolve user home directory: %w", err)
-		}
+	credentialsByEnv := indexLocalCredentials(localCredentials)
+	homeDir, err := resolveAuthHomeDir(strings.TrimSpace(overridePath), len(localCredentials) > 0)
+	if err != nil {
+		return nil, err
 	}
 
 	out := make([]AuthPreview, 0, len(required))
@@ -80,7 +83,8 @@ func PreviewAuth(explicitEnv map[string]string, required []string, localFiles []
 			out = append(out, AuthPreview{
 				RequiredEnv: key,
 				Mode:        AuthPreviewModeAPIKey,
-				Source:      "explicit_env",
+				SourceKind:  "explicit_env",
+				SourceLabel: key,
 			})
 			continue
 		}
@@ -88,84 +92,43 @@ func PreviewAuth(explicitEnv map[string]string, required []string, localFiles []
 			out = append(out, AuthPreview{
 				RequiredEnv: key,
 				Mode:        AuthPreviewModeAPIKey,
-				Source:      "host_env",
+				SourceKind:  "host_env",
+				SourceLabel: key,
 			})
 			continue
 		}
 
-		file, ok := localFilesByEnv[key]
+		credential, ok := credentialsByEnv[key]
 		if !ok {
 			return nil, fmt.Errorf("required agent auth %q is not configured in agent env or host env", key)
 		}
-
-		sourcePath := trimmedOverride
-		sourceKind := "override_file"
-		if sourcePath == "" {
-			sourcePath = filepath.Join(homeDir, filepath.FromSlash(file.HomeRelPath))
-			sourceKind = "home_file"
-		}
-		absSourcePath, err := filepath.Abs(sourcePath)
+		resolved, err := resolveLocalCredential(key, credential, homeDir, strings.TrimSpace(overridePath))
 		if err != nil {
-			return nil, fmt.Errorf("resolve auth file for %q: %w", key, err)
+			return nil, err
 		}
-		info, err := os.Stat(absSourcePath)
-		if err != nil {
-			return nil, fmt.Errorf("required agent auth %q is not configured in agent env or host env and auth file %q is unavailable: %w", key, absSourcePath, err)
-		}
-		if info.IsDir() {
-			return nil, fmt.Errorf("auth file for %q must be a file, got directory %q", key, absSourcePath)
-		}
-
 		out = append(out, AuthPreview{
 			RequiredEnv: key,
 			Mode:        AuthPreviewModeOAuth,
-			Source:      sourceKind,
-			Path:        absSourcePath,
+			SourceKind:  resolved.SourceKind,
+			SourceLabel: resolved.SourceLabel,
 		})
 	}
 
 	return out, nil
 }
 
-type resolvedLocalAuthFile struct {
-	RequiredEnv    string
-	HostPath       string
-	ContainerPath  string
-	RunHomeRelPath string
-}
-
-type stagedLocalAuthFile struct {
-	RequiredEnv    string
-	HostPath       string
-	SourcePath     string
-	RunHomeRelPath string
-}
-
-func resolveLocalAuthFiles(explicitEnv map[string]string, required []string, localFiles []agentdef.AuthLocalFile, overridePath string) ([]resolvedLocalAuthFile, error) {
+func resolveLocalAuthCredentials(explicitEnv map[string]string, required []string, localCredentials []agentdef.AuthLocalCredential, overridePath string) ([]resolvedLocalAuthCredential, error) {
 	if len(required) == 0 {
 		return nil, nil
 	}
 
-	localFilesByEnv := make(map[string]agentdef.AuthLocalFile, len(localFiles))
-	for _, file := range localFiles {
-		key := strings.TrimSpace(file.RequiredEnv)
-		if key == "" {
-			continue
-		}
-		localFilesByEnv[key] = file
+	credentialsByEnv := indexLocalCredentials(localCredentials)
+	homeDir, err := resolveAuthHomeDir(strings.TrimSpace(overridePath), len(localCredentials) > 0)
+	if err != nil {
+		return nil, err
 	}
 
-	trimmedOverride := strings.TrimSpace(overridePath)
-	homeDir := ""
-	if trimmedOverride == "" && len(localFilesByEnv) > 0 {
-		var err error
-		homeDir, err = os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("resolve user home directory: %w", err)
-		}
-	}
-
-	out := make([]resolvedLocalAuthFile, 0, len(localFilesByEnv))
+	out := make([]resolvedLocalAuthCredential, 0, len(localCredentials))
 	for _, name := range required {
 		key := strings.TrimSpace(name)
 		if key == "" {
@@ -175,35 +138,90 @@ func resolveLocalAuthFiles(explicitEnv map[string]string, required []string, loc
 			continue
 		}
 
-		file, ok := localFilesByEnv[key]
+		credential, ok := credentialsByEnv[key]
 		if !ok {
 			return nil, fmt.Errorf("required agent auth %q is not configured in agent env or host env", key)
 		}
-
-		sourcePath := trimmedOverride
-		if sourcePath == "" {
-			sourcePath = filepath.Join(homeDir, filepath.FromSlash(file.HomeRelPath))
-		}
-		absSourcePath, err := filepath.Abs(sourcePath)
+		resolved, err := resolveLocalCredential(key, credential, homeDir, strings.TrimSpace(overridePath))
 		if err != nil {
-			return nil, fmt.Errorf("resolve auth file for %q: %w", key, err)
+			return nil, err
 		}
-		info, err := os.Stat(absSourcePath)
-		if err != nil {
-			return nil, fmt.Errorf("required agent auth %q is not configured in agent env or host env and auth file %q is unavailable: %w", key, absSourcePath, err)
-		}
-		if info.IsDir() {
-			return nil, fmt.Errorf("auth file for %q must be a file, got directory %q", key, absSourcePath)
-		}
-
-		out = append(out, resolvedLocalAuthFile{
-			RequiredEnv:    key,
-			HostPath:       absSourcePath,
-			ContainerPath:  filepath.Join(defaultAgentAuthFilesDir, key),
-			RunHomeRelPath: strings.TrimSpace(file.RunHomeRelPath),
-		})
+		out = append(out, resolved)
 	}
 	return out, nil
+}
+
+func indexLocalCredentials(localCredentials []agentdef.AuthLocalCredential) map[string]agentdef.AuthLocalCredential {
+	credentialsByEnv := make(map[string]agentdef.AuthLocalCredential, len(localCredentials))
+	for _, credential := range localCredentials {
+		key := strings.TrimSpace(credential.RequiredEnv)
+		if key == "" {
+			continue
+		}
+		credentialsByEnv[key] = credential
+	}
+	return credentialsByEnv
+}
+
+func resolveAuthHomeDir(overridePath string, needsHomeDir bool) (string, error) {
+	if overridePath != "" || !needsHomeDir {
+		return "", nil
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve user home directory: %w", err)
+	}
+	return homeDir, nil
+}
+
+func resolveLocalCredential(requiredEnv string, credential agentdef.AuthLocalCredential, homeDir string, overridePath string) (resolvedLocalAuthCredential, error) {
+	containerPath := filepath.Join(defaultAgentAuthFilesDir, requiredEnv)
+	runHomeRelPath := strings.TrimSpace(credential.RunHomeRelPath)
+	if overridePath != "" {
+		resolved, err := resolveOverrideAuthFile(overridePath)
+		if err != nil {
+			return resolvedLocalAuthCredential{}, fmt.Errorf("resolve override auth file for %q: %w", requiredEnv, err)
+		}
+		if err := validateCredentialPayload(credential, resolved.Payload); err != nil {
+			return resolvedLocalAuthCredential{}, fmt.Errorf("validate override auth file for %q: %w", requiredEnv, err)
+		}
+		return resolvedLocalAuthCredential{
+			RequiredEnv:    requiredEnv,
+			ContainerPath:  containerPath,
+			RunHomeRelPath: runHomeRelPath,
+			Payload:        resolved.Payload,
+			SourceKind:     resolved.SourceKind,
+			SourceLabel:    resolved.SourceLabel,
+		}, nil
+	}
+
+	failures := make([]string, 0, len(credential.Sources))
+	for _, source := range credential.Sources {
+		resolved, err := resolveLocalCredentialSource(source, homeDir)
+		if err != nil {
+			failures = append(failures, err.Error())
+			continue
+		}
+		if err := validateCredentialPayload(credential, resolved.Payload); err != nil {
+			failures = append(failures, fmt.Sprintf("%s %q failed validation: %v", resolved.SourceKind, resolved.SourceLabel, err))
+			continue
+		}
+		return resolvedLocalAuthCredential{
+			RequiredEnv:    requiredEnv,
+			ContainerPath:  containerPath,
+			RunHomeRelPath: runHomeRelPath,
+			Payload:        resolved.Payload,
+			SourceKind:     resolved.SourceKind,
+			SourceLabel:    resolved.SourceLabel,
+		}, nil
+	}
+
+	return resolvedLocalAuthCredential{}, fmt.Errorf(
+		"required agent auth %q is not configured in agent env or host env and no local credential source produced %q: %s",
+		requiredEnv,
+		runHomeRelPath,
+		strings.Join(failures, "; "),
+	)
 }
 
 func resolveRequiredAgentEnvValue(explicitEnv map[string]string, key string) (string, bool) {
@@ -217,7 +235,7 @@ func resolveRequiredAgentEnvValue(explicitEnv map[string]string, key string) (st
 	return value, true
 }
 
-func stageLocalAuthFiles(files []resolvedLocalAuthFile) (string, []stagedLocalAuthFile, error) {
+func stageLocalAuthFiles(files []resolvedLocalAuthCredential) (string, []stagedLocalAuthFile, error) {
 	if len(files) == 0 {
 		return "", nil, nil
 	}
@@ -228,13 +246,8 @@ func stageLocalAuthFiles(files []resolvedLocalAuthFile) (string, []stagedLocalAu
 
 	staged := make([]stagedLocalAuthFile, 0, len(files))
 	for _, file := range files {
-		payload, err := os.ReadFile(file.HostPath)
-		if err != nil {
-			_ = os.RemoveAll(stageDir)
-			return "", nil, fmt.Errorf("read auth file for %q: %w", file.RequiredEnv, err)
-		}
 		targetPath := filepath.Join(stageDir, filepath.Base(file.ContainerPath))
-		if err := os.WriteFile(targetPath, payload, 0o600); err != nil {
+		if err := os.WriteFile(targetPath, file.Payload, 0o600); err != nil {
 			_ = os.RemoveAll(stageDir)
 			return "", nil, fmt.Errorf("stage auth file for %q: %w", file.RequiredEnv, err)
 		}

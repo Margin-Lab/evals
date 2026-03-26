@@ -87,12 +87,12 @@ The `margin` binary embeds the supported Linux `agent-server` payloads and extra
 
 Use `--agent-server-binary /path/to/agent-server` only to force one exact host-side binary path.
 
-In interactive mode, `margin run` asks for a pre-run confirmation before submission. It reports whether the selected agent will use an API key or OAuth credential file, and repeats the Docker prune warning when `--prune-built-image` is enabled.
+In interactive mode, `margin run` asks for a pre-run confirmation before submission. It reports whether the selected agent will use an API key or an OAuth credential source, and repeats the Docker prune warning when `--prune-built-image` is enabled.
 
-For repo-owned Codex and Claude Code configs, the local runner auto-discovers OAuth credentials from the standard home-directory files declared by the selected definition:
+For repo-owned Codex and Claude Code configs, the local runner auto-discovers OAuth credentials from the sources declared by the selected definition:
 
 - Codex: `~/.codex/auth.json`
-- Claude Code: `~/.claude/.credentials.json`
+- Claude Code: macOS Keychain item `Claude Code-credentials`, then `~/.claude/.credentials.json`
 
 If the corresponding provider API key is available, it still takes precedence. To override the discovered OAuth file for the selected agent, pass:
 

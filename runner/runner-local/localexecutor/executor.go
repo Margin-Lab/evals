@@ -241,10 +241,10 @@ func (e *Executor) ExecuteInstance(
 		return fail(store.InstanceResult{}, nil, err)
 	}
 	requiredAgentEnv := append([]string(nil), run.Bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.RequiredEnv...)
-	resolvedAuthFiles, err := resolveLocalAuthFiles(
+	resolvedAuthFiles, err := resolveLocalAuthCredentials(
 		e.env,
 		requiredAgentEnv,
-		run.Bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.LocalFiles,
+		run.Bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.LocalCredentials,
 		e.authFileOverridePath,
 	)
 	if err != nil {
