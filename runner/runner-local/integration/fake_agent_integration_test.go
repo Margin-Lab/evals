@@ -17,6 +17,7 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-core/testfixture"
 	"github.com/marginlab/margin-eval/runner/runner-local/localexecutor"
 	"github.com/marginlab/margin-eval/runner/runner-local/localrunner"
+	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
 func TestRunnerLocalWithFakeAgentServer(t *testing.T) {
@@ -27,7 +28,7 @@ func TestRunnerLocalWithFakeAgentServer(t *testing.T) {
 	rootDir := t.TempDir()
 	executor, err := localexecutor.New(localexecutor.Config{
 		AgentServerBinary: agentServerBinary,
-		ArtifactRoot:      t.TempDir(),
+		OutputRoot:        t.TempDir(),
 		AgentPollInterval: 250 * time.Millisecond,
 	})
 	if err != nil {
@@ -62,13 +63,18 @@ func TestRunnerLocalWithFakeAgentServer(t *testing.T) {
 		t.Fatalf("expected completed run, got %s", finalRun.State)
 	}
 
-	for _, rel := range []string{"bundle.json", "manifest.json", "results.json", "events.jsonl", filepath.Join("artifacts", "metadata.json")} {
-		full := filepath.Join(rootDir, "runs", run.RunID, rel)
+	for _, full := range []string{
+		runfs.BundlePath(rootDir, run.RunID),
+		runfs.ManifestPath(rootDir, run.RunID),
+		runfs.ResultsPath(rootDir, run.RunID),
+		runfs.EventsPath(rootDir, run.RunID),
+		runfs.ArtifactsIndexPath(rootDir, run.RunID),
+	} {
 		if _, err := os.Stat(full); err != nil {
 			t.Fatalf("expected %s: %v", full, err)
 		}
 	}
-	resultsPath := filepath.Join(rootDir, "runs", run.RunID, "results.json")
+	resultsPath := runfs.ResultsPath(rootDir, run.RunID)
 	raw, err := os.ReadFile(resultsPath)
 	if err != nil {
 		t.Fatalf("read results.json: %v", err)
@@ -83,7 +89,7 @@ func TestRunnerLocalWithFakeAgentServer(t *testing.T) {
 	if summary.Usage.InputTokens != 12 || summary.Usage.OutputTokens != 5 || summary.Usage.ToolCalls != 1 {
 		t.Fatalf("unexpected usage summary: %+v", summary.Usage)
 	}
-	artifactPayload := filepath.Join(rootDir, "runs", run.RunID, "artifacts", "files", "art-"+run.RunID+"-inst-0001-trajectory.json")
+	artifactPayload := filepath.Join(rootDir, "runs", run.RunID, "instances", run.RunID+"-inst-0001", "trajectory.json")
 	if _, err := os.Stat(artifactPayload); err != nil {
 		t.Fatalf("expected trajectory payload copy at %s: %v", artifactPayload, err)
 	}
@@ -96,7 +102,7 @@ func TestRunnerLocalWithFakeAgentServerFailure(t *testing.T) {
 
 	executor, err := localexecutor.New(localexecutor.Config{
 		AgentServerBinary: agentServerBinary,
-		ArtifactRoot:      t.TempDir(),
+		OutputRoot:        t.TempDir(),
 		AgentPollInterval: 250 * time.Millisecond,
 	})
 	if err != nil {
@@ -140,7 +146,7 @@ func TestRunnerLocalWithFakeAgentServerDryRun(t *testing.T) {
 	rootDir := t.TempDir()
 	executor, err := localexecutor.New(localexecutor.Config{
 		AgentServerBinary: agentServerBinary,
-		ArtifactRoot:      t.TempDir(),
+		OutputRoot:        t.TempDir(),
 		AgentPollInterval: 250 * time.Millisecond,
 	})
 	if err != nil {
@@ -177,7 +183,7 @@ func TestRunnerLocalWithFakeAgentServerDryRun(t *testing.T) {
 		t.Fatalf("expected completed run, got %s", finalRun.State)
 	}
 
-	manifestPath := filepath.Join(rootDir, "runs", run.RunID, "manifest.json")
+	manifestPath := runfs.ManifestPath(rootDir, run.RunID)
 	manifestRaw, err := os.ReadFile(manifestPath)
 	if err != nil {
 		t.Fatalf("read manifest.json: %v", err)
@@ -190,7 +196,7 @@ func TestRunnerLocalWithFakeAgentServerDryRun(t *testing.T) {
 		t.Fatalf("manifest execution_mode = %#v, want %q", manifest["execution_mode"], runbundle.ExecutionModeDryRun)
 	}
 
-	resultsPath := filepath.Join(rootDir, "runs", run.RunID, "results.json")
+	resultsPath := runfs.ResultsPath(rootDir, run.RunID)
 	raw, err := os.ReadFile(resultsPath)
 	if err != nil {
 		t.Fatalf("read results.json: %v", err)
@@ -199,8 +205,8 @@ func TestRunnerLocalWithFakeAgentServerDryRun(t *testing.T) {
 	if err := json.Unmarshal(raw, &summary); err != nil {
 		t.Fatalf("unmarshal results.json: %v", err)
 	}
-	if summary.Status.Passed.Count != 1 || summary.Status.Passed.Percentage != 100 {
-		t.Fatalf("unexpected passed summary: %+v", summary.Status.Passed)
+	if summary.Status.Succeeded.Count != 1 || summary.Status.Succeeded.Percentage != 100 {
+		t.Fatalf("unexpected succeeded summary: %+v", summary.Status.Succeeded)
 	}
 	if summary.Usage.InputTokens != 0 || summary.Usage.OutputTokens != 0 || summary.Usage.ToolCalls != 0 {
 		t.Fatalf("unexpected usage summary: %+v", summary.Usage)
@@ -212,7 +218,7 @@ func TestRunnerLocalWithFakeAgentServerDryRun(t *testing.T) {
 		t.Fatalf("unexpected instance summaries: %+v", summary.Instances)
 	}
 
-	metadataPath := filepath.Join(rootDir, "runs", run.RunID, "artifacts", "metadata.json")
+	metadataPath := runfs.ArtifactsIndexPath(rootDir, run.RunID)
 	metadataRaw, err := os.ReadFile(metadataPath)
 	if err != nil {
 		t.Fatalf("read artifacts metadata: %v", err)
@@ -228,7 +234,7 @@ func TestRunnerLocalWithFakeAgentServerDryRun(t *testing.T) {
 		}
 	}
 
-	trajectoryPayload := filepath.Join(rootDir, "runs", run.RunID, "artifacts", "files", "art-"+run.RunID+"-inst-0001-trajectory.json")
+	trajectoryPayload := filepath.Join(rootDir, "runs", run.RunID, "instances", run.RunID+"-inst-0001", "trajectory.json")
 	if _, err := os.Stat(trajectoryPayload); !os.IsNotExist(err) {
 		t.Fatalf("expected no trajectory payload copy, stat err=%v", err)
 	}

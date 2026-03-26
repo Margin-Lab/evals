@@ -13,6 +13,7 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-core/runnerapi"
 	"github.com/marginlab/margin-eval/runner/runner-core/store"
 	"github.com/marginlab/margin-eval/runner/runner-core/usage"
+	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
 func (s *Service) submitResumedRun(ctx context.Context, in runnerapi.SubmitInput, bundle runbundle.Bundle, hash, resumeFromRunID string) (store.Run, error) {
@@ -31,7 +32,7 @@ func (s *Service) submitResumedRun(ctx context.Context, in runnerapi.SubmitInput
 	if err != nil {
 		return store.Run{}, err
 	}
-	if err := s.writeJSON(filepath.Join(s.runDir(run.RunID), "bundle.json"), bundle); err != nil {
+	if err := s.writeJSON(runfs.BundlePath(s.rootDir, run.RunID), bundle); err != nil {
 		return store.Run{}, err
 	}
 	if err := s.carryForwardLocalCases(ctx, run.RunID, plan); err != nil {
@@ -87,23 +88,18 @@ func (s *Service) copyCarriedArtifacts(runID, instanceID string, result store.In
 	if len(item.Artifacts) == 0 {
 		return nil, result, nil
 	}
-	executorRoot := filepath.Join(s.rootDir, "executor-artifacts")
-	destDir := filepath.Join(executorRoot, runID, instanceID, "carried")
 	copied := make([]store.Artifact, 0, len(item.Artifacts))
 	storeKeyMap := map[string]string{}
 	uriMap := map[string]string{}
+	runDir := runfs.RunDir(s.rootDir, runID)
 	for idx := range item.Artifacts {
 		src := item.Artifacts[idx]
 		sourcePath, err := fileURIPath(src.URI)
 		if err != nil {
 			return nil, store.InstanceResult{}, err
 		}
-		name := fmt.Sprintf("%03d-%s", idx+1, sanitizeArtifactName(src))
-		ext := filepath.Ext(sourcePath)
-		if ext != "" && !strings.HasSuffix(strings.ToLower(name), strings.ToLower(ext)) {
-			name += ext
-		}
-		destPath := filepath.Join(destDir, name)
+		storeKey, _ := runfs.RelativePathForArtifact(instanceID, src, sourcePath)
+		destPath := filepath.Join(runDir, filepath.FromSlash(storeKey))
 		if err := copyFile(sourcePath, destPath); err != nil {
 			return nil, store.InstanceResult{}, err
 		}
@@ -115,11 +111,6 @@ func (s *Service) copyCarriedArtifacts(runID, instanceID string, result store.In
 		if err != nil {
 			return nil, store.InstanceResult{}, err
 		}
-		rel, err := filepath.Rel(executorRoot, destPath)
-		if err != nil {
-			return nil, store.InstanceResult{}, err
-		}
-		storeKey := filepath.ToSlash(rel)
 		meta := cloneAnyMap(src.Metadata)
 		meta["carried_forward"] = true
 		meta["source_run_id"] = item.SourceRunID

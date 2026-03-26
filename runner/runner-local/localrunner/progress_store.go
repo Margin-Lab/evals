@@ -14,6 +14,7 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-core/domain"
 	"github.com/marginlab/margin-eval/runner/runner-core/resume"
 	"github.com/marginlab/margin-eval/runner/runner-core/store"
+	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
 type progressStore struct {
@@ -96,6 +97,8 @@ func (p *progressStore) syncRunProgress(ctx context.Context, runID string) error
 		caseIDs = append(caseIDs, c.CaseID)
 	}
 	cases := map[string]progressCase{}
+	resultsByInstance := map[string]store.StoredInstanceResult{}
+	artifactsByInstance := map[string][]store.Artifact{}
 	for _, inst := range instances {
 		if !inst.State.IsTerminal() {
 			continue
@@ -118,6 +121,9 @@ func (p *progressStore) syncRunProgress(ctx context.Context, runID string) error
 		if err != nil {
 			return err
 		}
+		sortArtifacts(arts)
+		resultsByInstance[inst.InstanceID] = result
+		artifactsByInstance[inst.InstanceID] = arts
 		cases[caseID] = progressCase{
 			CaseID:      caseID,
 			InstanceID:  inst.InstanceID,
@@ -136,11 +142,22 @@ func (p *progressStore) syncRunProgress(ctx context.Context, runID string) error
 		CaseIDs:     caseIDs,
 		Cases:       cases,
 	}
-	return writeJSONAtomic(p.progressPath(runID), payload)
+	if err := writeJSONAtomic(p.progressPath(runID), payload); err != nil {
+		return err
+	}
+	artifacts := make([]store.Artifact, 0)
+	for _, items := range artifactsByInstance {
+		artifacts = append(artifacts, items...)
+	}
+	sortArtifacts(artifacts)
+	if err := writeArtifactsIndex(p.rootDir, runID, artifacts); err != nil {
+		return err
+	}
+	return writeInstanceResults(p.rootDir, runID, instances, resultsByInstance, artifactsByInstance)
 }
 
 func (p *progressStore) progressPath(runID string) string {
-	return filepath.Join(p.rootDir, "runs", runID, "progress.json")
+	return runfs.ProgressPath(p.rootDir, runID)
 }
 
 func (p *progressStore) maybePersistTerminalSnapshot(ctx context.Context, runID string) error {
@@ -158,7 +175,7 @@ func (p *progressStore) maybePersistTerminalSnapshot(ctx context.Context, runID 
 }
 
 func loadProgressSnapshot(rootDir, runID string) (resume.Snapshot, error) {
-	path := filepath.Join(rootDir, "runs", runID, "progress.json")
+	path := runfs.ProgressPath(rootDir, runID)
 	body, err := os.ReadFile(path)
 	if err != nil {
 		return resume.Snapshot{}, fmt.Errorf("read progress file: %w", err)

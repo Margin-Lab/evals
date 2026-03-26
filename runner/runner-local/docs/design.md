@@ -18,13 +18,17 @@
 
 ## Filesystem Persistence
 
-For each terminal run, local service writes:
+For each local run, the run directory is the single output root:
 
-1. `<root>/runs/<run_id>/bundle.json`
-2. `<root>/runs/<run_id>/manifest.json`
-3. `<root>/runs/<run_id>/results.json`
-4. `<root>/runs/<run_id>/events.jsonl`
-5. `<root>/runs/<run_id>/artifacts/metadata.json`
+1. `<root>/runs/<run_id>/results.json`
+2. `<root>/runs/<run_id>/internal/bundle.json`
+3. `<root>/runs/<run_id>/internal/manifest.json`
+4. `<root>/runs/<run_id>/internal/progress.json`
+5. `<root>/runs/<run_id>/internal/events.jsonl`
+6. `<root>/runs/<run_id>/internal/artifacts.json`
+7. `<root>/runs/<run_id>/instances/<instance_id>/result.json`
+8. `<root>/runs/<run_id>/instances/<instance_id>/trajectory.json`
+9. `<root>/runs/<run_id>/instances/<instance_id>/{image,bootstrap,run,test}/...`
 
 ## Lifecycle
 

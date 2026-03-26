@@ -85,12 +85,12 @@ func TestResolveCombinedTestOutputByRole(t *testing.T) {
 			{
 				ArtifactID: "art_stdout",
 				Role:       store.ArtifactRoleTestStdout,
-				StoreKey:   "runs/run_1/inst_1/test_stdout.txt",
+				StoreKey:   "instances/inst_1/test/test_stdout.txt",
 			},
 			{
 				ArtifactID: "art_stderr",
 				Role:       store.ArtifactRoleTestStderr,
-				StoreKey:   "runs/run_1/inst_1/test_stderr.txt",
+				StoreKey:   "instances/inst_1/test/test_stderr.txt",
 			},
 		},
 	}
@@ -110,19 +110,19 @@ func TestResolveCombinedTestOutputFallsBackToResultRefs(t *testing.T) {
 	inst := &runnerapi.InstanceSnapshot{
 		Instance: store.Instance{InstanceID: "inst_1", State: domain.InstanceStateSucceeded},
 		Result: &store.StoredInstanceResult{
-			TestStdoutRef: "runs/run_1/inst_1/test_stdout.txt",
-			TestStderrRef: "runs/run_1/inst_1/test_stderr.txt",
+			TestStdoutRef: "instances/inst_1/test/test_stdout.txt",
+			TestStderrRef: "instances/inst_1/test/test_stderr.txt",
 		},
 		Artifacts: []store.Artifact{
 			{
 				ArtifactID: "art_stdout",
 				Role:       "other",
-				StoreKey:   "runs/run_1/inst_1/test_stdout.txt",
+				StoreKey:   "instances/inst_1/test/test_stdout.txt",
 			},
 			{
 				ArtifactID: "art_stderr",
 				Role:       "other",
-				StoreKey:   "runs/run_1/inst_1/test_stderr.txt",
+				StoreKey:   "instances/inst_1/test/test_stderr.txt",
 			},
 		},
 	}
@@ -144,7 +144,7 @@ func TestResolveCombinedTestOutputAllowsSingleSide(t *testing.T) {
 		Artifacts: []store.Artifact{{
 			ArtifactID: "art_stdout",
 			Role:       store.ArtifactRoleTestStdout,
-			StoreKey:   "runs/run_1/inst_1/test_stdout.txt",
+			StoreKey:   "instances/inst_1/test/test_stdout.txt",
 		}},
 	}
 	targets, _, _ := resolveLogTargets(inst, mustLogStreamByID(t, logStreamTestOutput))
@@ -162,7 +162,7 @@ func TestResolveLogTargetsFindsExecutorRole(t *testing.T) {
 		Artifacts: []store.Artifact{{
 			ArtifactID: "art_control",
 			Role:       store.ArtifactRoleAgentControl,
-			StoreKey:   "runs/run_1/inst_1/agent_server_control.log",
+			StoreKey:   "instances/inst_1/run/agent_server_control.log",
 		}},
 	}
 	targets, _, _ := resolveLogTargets(inst, mustLogStreamByID(t, logStreamAgentControl))
@@ -222,8 +222,8 @@ func TestRenderRightPaneShowsRetainedIdentityOnly(t *testing.T) {
 						AgentRunID:    "agent_run_1",
 						AgentExitCode: &agentExitCode,
 						TestExitCode:  &testExitCode,
-						TestStdoutRef: "runs/run_1/inst_1/test_stdout.txt",
-						TestStderrRef: "runs/run_1/inst_1/test_stderr.txt",
+						TestStdoutRef: "instances/inst_1/test/test_stdout.txt",
+						TestStderrRef: "instances/inst_1/test/test_stderr.txt",
 					},
 				},
 			},
@@ -844,7 +844,7 @@ func TestLogsLoadMovesViewportToBottom(t *testing.T) {
 		Artifacts: []store.Artifact{{
 			ArtifactID: "art_stdout",
 			Role:       store.ArtifactRoleTestStdout,
-			StoreKey:   "runs/run_1/inst_1/test_stdout.txt",
+			StoreKey:   "instances/inst_1/test/test_stdout.txt",
 		}},
 	}
 	source := &fakeMissionSource{
@@ -1178,7 +1178,7 @@ func TestStructuredLogLoadSetsCardRenderMode(t *testing.T) {
 		Artifacts: []store.Artifact{{
 			ArtifactID: "art_control",
 			Role:       store.ArtifactRoleAgentControl,
-			StoreKey:   "runs/run_1/inst_1/agent_server_control.log",
+			StoreKey:   "instances/inst_1/run/agent_server_control.log",
 		}},
 	}
 	source := &fakeMissionSource{
@@ -1364,7 +1364,7 @@ func TestLogsPauseFollowWhenUserScrolls(t *testing.T) {
 		Artifacts: []store.Artifact{{
 			ArtifactID: "art_stdout",
 			Role:       store.ArtifactRoleTestStdout,
-			StoreKey:   "runs/run_1/inst_1/test_stdout.txt",
+			StoreKey:   "instances/inst_1/test/test_stdout.txt",
 		}},
 	}
 	source := &fakeMissionSource{
@@ -1429,7 +1429,7 @@ func TestLogsFollowResumesWhenUserReturnsBottom(t *testing.T) {
 		Artifacts: []store.Artifact{{
 			ArtifactID: "art_stdout",
 			Role:       store.ArtifactRoleTestStdout,
-			StoreKey:   "runs/run_1/inst_1/test_stdout.txt",
+			StoreKey:   "instances/inst_1/test/test_stdout.txt",
 		}},
 	}
 	source := &fakeMissionSource{
