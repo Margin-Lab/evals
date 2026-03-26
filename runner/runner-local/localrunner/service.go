@@ -2,15 +2,10 @@ package localrunner
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -21,6 +16,7 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-core/runnerapi"
 	"github.com/marginlab/margin-eval/runner/runner-core/runresults"
 	"github.com/marginlab/margin-eval/runner/runner-core/store"
+	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
 type Config struct {
@@ -181,7 +177,7 @@ func (s *Service) SubmitRun(ctx context.Context, in runnerapi.SubmitInput) (stor
 	if err != nil {
 		return store.Run{}, err
 	}
-	if err := s.writeJSON(filepath.Join(s.runDir(run.RunID), "bundle.json"), bundle); err != nil {
+	if err := s.writeJSON(runfs.BundlePath(s.rootDir, run.RunID), bundle); err != nil {
 		return store.Run{}, err
 	}
 	return run, nil
@@ -274,7 +270,7 @@ func (s *Service) persistRunSnapshot(ctx context.Context, runID string) error {
 		"ended_at":       run.EndedAt,
 		"counts":         run.Counts,
 	}
-	if err := s.writeJSON(filepath.Join(s.runDir(runID), "manifest.json"), manifest); err != nil {
+	if err := s.writeJSON(runfs.ManifestPath(s.rootDir, runID), manifest); err != nil {
 		return err
 	}
 	results, err := s.runStore.ListInstanceResults(ctx, runID)
@@ -282,7 +278,7 @@ func (s *Service) persistRunSnapshot(ctx context.Context, runID string) error {
 		return err
 	}
 	summary := runresults.Build(run, instances, results)
-	if err := s.writeJSON(filepath.Join(s.runDir(runID), "results.json"), summary); err != nil {
+	if err := s.writeJSON(runfs.ResultsPath(s.rootDir, runID), summary); err != nil {
 		return err
 	}
 
@@ -290,7 +286,6 @@ func (s *Service) persistRunSnapshot(ctx context.Context, runID string) error {
 	for _, ev := range runEvents {
 		eventLines = append(eventLines, map[string]any{"type": "run_event", "event": ev})
 	}
-	artifacts := make([]store.Artifact, 0)
 	for _, inst := range instances {
 		instanceEvents, err := s.runStore.ListInstanceEvents(ctx, inst.InstanceID)
 		if err != nil {
@@ -299,130 +294,25 @@ func (s *Service) persistRunSnapshot(ctx context.Context, runID string) error {
 		for _, ev := range instanceEvents {
 			eventLines = append(eventLines, map[string]any{"type": "instance_event", "event": ev})
 		}
-		items, err := s.runStore.ListArtifacts(ctx, inst.InstanceID)
-		if err != nil {
-			return err
-		}
-		for _, item := range items {
-			localized, err := s.localizeArtifact(runID, item)
-			if err != nil {
-				return err
-			}
-			artifacts = append(artifacts, localized)
-		}
 	}
-	sort.Slice(artifacts, func(i, j int) bool {
-		if artifacts[i].Role == artifacts[j].Role {
-			return artifacts[i].Ordinal < artifacts[j].Ordinal
-		}
-		return artifacts[i].Role < artifacts[j].Role
-	})
-	if err := s.writeJSONLines(filepath.Join(s.runDir(runID), "events.jsonl"), eventLines); err != nil {
+	artifactsByInstance, artifacts, err := collectRunArtifacts(ctx, s.runStore, instances)
+	if err != nil {
 		return err
 	}
-	if err := s.writeJSON(filepath.Join(s.runDir(runID), "artifacts", "metadata.json"), artifacts); err != nil {
+	if err := s.writeJSONLines(runfs.EventsPath(s.rootDir, runID), eventLines); err != nil {
+		return err
+	}
+	if err := writeArtifactsIndex(s.rootDir, runID, artifacts); err != nil {
+		return err
+	}
+	resultsByInstance, err := collectRunResults(ctx, s.runStore, instances)
+	if err != nil {
+		return err
+	}
+	if err := writeInstanceResults(s.rootDir, runID, instances, resultsByInstance, artifactsByInstance); err != nil {
 		return err
 	}
 	return nil
-}
-
-func (s *Service) runDir(runID string) string {
-	return filepath.Join(s.rootDir, "runs", runID)
-}
-
-func (s *Service) localizeArtifact(runID string, item store.Artifact) (store.Artifact, error) {
-	sourcePath, err := fileURIPath(item.URI)
-	if err != nil {
-		return store.Artifact{}, fmt.Errorf("artifact %q has unsupported URI %q: %w", item.ArtifactID, item.URI, err)
-	}
-	info, err := os.Stat(sourcePath)
-	if err != nil {
-		return store.Artifact{}, fmt.Errorf("stat artifact source %q: %w", sourcePath, err)
-	}
-	if info.IsDir() {
-		return store.Artifact{}, fmt.Errorf("artifact source %q must be a file", sourcePath)
-	}
-
-	artifactName := sanitizeArtifactName(item)
-	ext := filepath.Ext(sourcePath)
-	if ext != "" && !strings.HasSuffix(strings.ToLower(artifactName), strings.ToLower(ext)) {
-		artifactName += ext
-	}
-	destRelPath := filepath.ToSlash(filepath.Join("artifacts", "files", artifactName))
-	destPath := filepath.Join(s.runDir(runID), filepath.FromSlash(destRelPath))
-	if err := copyFile(sourcePath, destPath); err != nil {
-		return store.Artifact{}, fmt.Errorf("copy artifact payload %q -> %q: %w", sourcePath, destPath, err)
-	}
-
-	sha, err := fileSHA256(destPath)
-	if err != nil {
-		return store.Artifact{}, err
-	}
-	item.StoreKey = destRelPath
-	item.URI = "file://" + destPath
-	item.ByteSize = info.Size()
-	item.SHA256 = sha
-	return item, nil
-}
-
-func fileURIPath(rawURI string) (string, error) {
-	u, err := url.Parse(rawURI)
-	if err != nil {
-		return "", fmt.Errorf("parse URI: %w", err)
-	}
-	if u.Scheme != "file" {
-		return "", fmt.Errorf("only file:// artifact URIs are supported")
-	}
-	if u.Path == "" {
-		return "", fmt.Errorf("empty file URI path")
-	}
-	return filepath.Clean(u.Path), nil
-}
-
-func sanitizeArtifactName(item store.Artifact) string {
-	base := strings.TrimSpace(item.ArtifactID)
-	if base == "" {
-		base = strings.TrimSpace(item.Role)
-	}
-	if base == "" {
-		base = fmt.Sprintf("artifact-%d", item.Ordinal)
-	}
-	replacer := strings.NewReplacer("/", "-", "\\", "-", " ", "-", "\t", "-", "\n", "-")
-	return replacer.Replace(base)
-}
-
-func copyFile(srcPath, destPath string) error {
-	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
-		return fmt.Errorf("mkdir %q: %w", filepath.Dir(destPath), err)
-	}
-	src, err := os.Open(srcPath)
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-
-	dest, err := os.Create(destPath)
-	if err != nil {
-		return err
-	}
-	defer dest.Close()
-	if _, err := io.Copy(dest, src); err != nil {
-		return err
-	}
-	return nil
-}
-
-func fileSHA256(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", fmt.Errorf("open artifact payload %q: %w", path, err)
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", fmt.Errorf("hash artifact payload %q: %w", path, err)
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func (s *Service) writeJSON(path string, payload any) error {

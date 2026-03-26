@@ -69,7 +69,7 @@ func TestBuildRunSnapshotIncludesRequestedFields(t *testing.T) {
 			ArtifactID:  "art_1",
 			Role:        "test_stdout",
 			Ordinal:     0,
-			StoreKey:    "runs/run_1/instances/run_1-inst-0001/test_stdout.txt",
+			StoreKey:    "instances/run_1-inst-0001/test/test_stdout.txt",
 			URI:         "file:///tmp/test_stdout.txt",
 			ContentType: "text/plain",
 		}},

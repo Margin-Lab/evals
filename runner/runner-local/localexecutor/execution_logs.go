@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/marginlab/margin-eval/runner/runner-core/store"
+	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
 var executionLogRoleOrder = []string{
@@ -33,33 +34,32 @@ var structuredExecutionLogRoles = map[string]struct{}{
 }
 
 type executionLogs struct {
-	artifactRoot string
-	runID        string
-	instanceID   string
-	dir          string
+	rootDir    string
+	runID      string
+	instanceID string
 
 	mu                sync.Mutex
 	files             map[string]*os.File
 	paths             map[string]string
+	storeKeys         map[string]string
 	structuredWriters map[string]*structuredLogWriter
 }
 
-func newExecutionLogs(artifactRoot, runID, instanceID string) (*executionLogs, error) {
-	root := strings.TrimSpace(artifactRoot)
+func newExecutionLogs(rootDir, runID, instanceID string) (*executionLogs, error) {
+	root := strings.TrimSpace(rootDir)
 	if root == "" {
-		return nil, fmt.Errorf("artifact root is required")
+		return nil, fmt.Errorf("root dir is required")
 	}
-	dir := filepath.Join(root, runID, instanceID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("create execution log dir: %w", err)
+	if err := os.MkdirAll(runfs.InstanceDir(root, runID, instanceID), 0o755); err != nil {
+		return nil, fmt.Errorf("create instance dir: %w", err)
 	}
 	return &executionLogs{
-		artifactRoot:      root,
+		rootDir:           root,
 		runID:             runID,
 		instanceID:        instanceID,
-		dir:               dir,
 		files:             map[string]*os.File{},
 		paths:             map[string]string{},
+		storeKeys:         map[string]string{},
 		structuredWriters: map[string]*structuredLogWriter{},
 	}, nil
 }
@@ -163,8 +163,8 @@ func (l *executionLogs) Artifacts() []store.Artifact {
 		if err != nil || info.IsDir() {
 			continue
 		}
-		rel, err := filepath.Rel(l.artifactRoot, path)
-		if err != nil {
+		storeKey := l.storeKeys[role]
+		if strings.TrimSpace(storeKey) == "" {
 			continue
 		}
 		sum, err := fileSHA256(path)
@@ -175,7 +175,7 @@ func (l *executionLogs) Artifacts() []store.Artifact {
 			ArtifactID:  fmt.Sprintf("art-%s-%s", sanitizeID(l.instanceID), strings.ReplaceAll(role, "_", "-")),
 			Role:        role,
 			Ordinal:     idx,
-			StoreKey:    filepath.ToSlash(rel),
+			StoreKey:    storeKey,
 			URI:         "file://" + path,
 			ContentType: "text/plain",
 			ByteSize:    info.Size(),
@@ -227,12 +227,15 @@ func (l *executionLogs) pathForRoleLocked(role string) (string, error) {
 	if path := l.paths[trimmed]; path != "" {
 		return path, nil
 	}
-	name, ok := store.DefaultArtifactFilename(trimmed)
+	path, storeKey, _, ok := runfs.AbsoluteArtifactPath(l.rootDir, l.runID, l.instanceID, trimmed)
 	if !ok {
 		return "", fmt.Errorf("unsupported execution log role %q", trimmed)
 	}
-	path := filepath.Join(l.dir, name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", fmt.Errorf("create execution log dir for %q: %w", trimmed, err)
+	}
 	l.paths[trimmed] = path
+	l.storeKeys[trimmed] = storeKey
 	return path, nil
 }
 

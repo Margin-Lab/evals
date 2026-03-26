@@ -27,6 +27,7 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
 	"github.com/marginlab/margin-eval/runner/runner-core/store"
 	"github.com/marginlab/margin-eval/runner/runner-core/testassets"
+	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
 const (
@@ -60,7 +61,7 @@ type Config struct {
 	AgentPollInterval time.Duration
 	HTTPClient        *http.Client
 
-	ArtifactRoot         string
+	OutputRoot           string
 	Env                  map[string]string
 	Binds                map[string]string
 	AuthFileOverridePath string
@@ -81,7 +82,7 @@ type Executor struct {
 	agentPollInterval time.Duration
 	httpClient        *http.Client
 
-	artifactRoot         string
+	outputRoot           string
 	env                  map[string]string
 	binds                map[string]string
 	authFileOverridePath string
@@ -139,16 +140,16 @@ func New(cfg Config) (*Executor, error) {
 	if readyPollInterval <= 0 {
 		readyPollInterval = defaultReadyPollInterval
 	}
-	artifactRoot := strings.TrimSpace(cfg.ArtifactRoot)
-	if artifactRoot == "" {
-		return nil, fmt.Errorf("artifact_root is required")
+	outputRoot := strings.TrimSpace(cfg.OutputRoot)
+	if outputRoot == "" {
+		return nil, fmt.Errorf("output_root is required")
 	}
-	absArtifactRoot, err := filepath.Abs(artifactRoot)
+	absOutputRoot, err := filepath.Abs(outputRoot)
 	if err != nil {
-		return nil, fmt.Errorf("resolve artifact_root: %w", err)
+		return nil, fmt.Errorf("resolve output_root: %w", err)
 	}
-	if err := os.MkdirAll(absArtifactRoot, 0o755); err != nil {
-		return nil, fmt.Errorf("create artifact_root: %w", err)
+	if err := os.MkdirAll(absOutputRoot, 0o755); err != nil {
+		return nil, fmt.Errorf("create output_root: %w", err)
 	}
 	client := cfg.HTTPClient
 	if client == nil {
@@ -184,7 +185,7 @@ func New(cfg Config) (*Executor, error) {
 		readyPollInterval:         readyPollInterval,
 		agentPollInterval:         cfg.AgentPollInterval,
 		httpClient:                client,
-		artifactRoot:              absArtifactRoot,
+		outputRoot:                absOutputRoot,
 		env:                       env,
 		binds:                     cloneStringMap(cfg.Binds),
 		authFileOverridePath:      authFileOverridePath,
@@ -223,7 +224,7 @@ func (e *Executor) ExecuteInstance(
 	if updateResolvedImage == nil {
 		return store.InstanceResult{}, nil, fmt.Errorf("update_resolved_image callback is required")
 	}
-	logs, err := newExecutionLogs(e.artifactRoot, run.RunID, inst.InstanceID)
+	logs, err := newExecutionLogs(e.outputRoot, run.RunID, inst.InstanceID)
 	if err != nil {
 		return store.InstanceResult{}, nil, err
 	}
@@ -438,7 +439,7 @@ func (e *Executor) ExecuteInstance(
 	agentExec, err := agentexecutor.New(agentexecutor.Config{
 		BaseURL:      baseURL,
 		HTTPClient:   e.httpClient,
-		ArtifactRoot: filepath.Join(e.artifactRoot, run.RunID, inst.InstanceID),
+		ArtifactRoot: runfs.InstanceDir(e.outputRoot, run.RunID, inst.InstanceID),
 		AuthFiles:    toAgentExecutorAuthFiles(stagedAuthFiles),
 		PollInterval: e.agentPollInterval,
 		OnStep: func(ev agentexecutor.StepEvent) {
@@ -454,6 +455,12 @@ func (e *Executor) ExecuteInstance(
 	stopPTYCapture = func() {}
 	if result.ProvisionedAt == nil {
 		result.ProvisionedAt = timePtr(provisionedAt)
+	}
+	e.rebaseStoredArtifacts(inst.InstanceID, artifacts)
+	if strings.TrimSpace(result.Trajectory) != "" {
+		if rel, _, ok := runfs.RelativePathForRole(inst.InstanceID, store.ArtifactRoleTrajectory); ok {
+			result.Trajectory = rel
+		}
 	}
 
 	if err != nil {
@@ -1130,35 +1137,30 @@ func (e *Executor) ensureCaseWorkingDir(ctx context.Context, containerID string,
 }
 
 func (e *Executor) persistTestArtifacts(runID, instanceID string, stdout, stderr []byte) ([]store.Artifact, string, string, error) {
-	dir := filepath.Join(e.artifactRoot, runID, instanceID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	stdoutPath, stdoutStoreKey, _, ok := runfs.AbsoluteArtifactPath(e.outputRoot, runID, instanceID, store.ArtifactRoleTestStdout)
+	if !ok {
+		return nil, "", "", fmt.Errorf("resolve test stdout artifact path")
+	}
+	stderrPath, stderrStoreKey, _, ok := runfs.AbsoluteArtifactPath(e.outputRoot, runID, instanceID, store.ArtifactRoleTestStderr)
+	if !ok {
+		return nil, "", "", fmt.Errorf("resolve test stderr artifact path")
+	}
+	if err := os.MkdirAll(filepath.Dir(stdoutPath), 0o755); err != nil {
+		return nil, "", "", fmt.Errorf("create test artifact dir: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(stderrPath), 0o755); err != nil {
 		return nil, "", "", fmt.Errorf("create test artifact dir: %w", err)
 	}
 
-	stdoutName, _ := store.DefaultArtifactFilename(store.ArtifactRoleTestStdout)
-	stderrName, _ := store.DefaultArtifactFilename(store.ArtifactRoleTestStderr)
-	stdoutPath := filepath.Join(dir, stdoutName)
 	if err := os.WriteFile(stdoutPath, stdout, 0o644); err != nil {
 		return nil, "", "", fmt.Errorf("write test stdout artifact: %w", err)
 	}
-	stderrPath := filepath.Join(dir, stderrName)
 	if err := os.WriteFile(stderrPath, stderr, 0o644); err != nil {
 		return nil, "", "", fmt.Errorf("write test stderr artifact: %w", err)
 	}
 
-	stdoutRel, err := filepath.Rel(e.artifactRoot, stdoutPath)
-	if err != nil {
-		return nil, "", "", fmt.Errorf("compute test stdout relative path: %w", err)
-	}
-	stderrRel, err := filepath.Rel(e.artifactRoot, stderrPath)
-	if err != nil {
-		return nil, "", "", fmt.Errorf("compute test stderr relative path: %w", err)
-	}
-
 	stdoutHash := sha256.Sum256(stdout)
 	stderrHash := sha256.Sum256(stderr)
-	stdoutStoreKey := filepath.ToSlash(stdoutRel)
-	stderrStoreKey := filepath.ToSlash(stderrRel)
 	artifacts := []store.Artifact{
 		{
 			ArtifactID:  "art-" + sanitizeID(instanceID) + "-test-stdout",
@@ -1182,6 +1184,14 @@ func (e *Executor) persistTestArtifacts(runID, instanceID string, stdout, stderr
 		},
 	}
 	return artifacts, stdoutStoreKey, stderrStoreKey, nil
+}
+
+func (e *Executor) rebaseStoredArtifacts(instanceID string, artifacts []store.Artifact) {
+	for i := range artifacts {
+		if rel, _, ok := runfs.RelativePathForRole(instanceID, artifacts[i].Role); ok {
+			artifacts[i].StoreKey = rel
+		}
+	}
 }
 
 func splitHostPort(raw string) (string, string, error) {
