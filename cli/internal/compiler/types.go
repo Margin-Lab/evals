@@ -75,14 +75,22 @@ type agentDefinitionFile struct {
 }
 
 type definitionAuthFile struct {
-	RequiredEnv []string                  `toml:"required_env"`
-	LocalFiles  []definitionAuthLocalFile `toml:"local_files"`
+	RequiredEnv      []string                        `toml:"required_env"`
+	LocalCredentials []definitionAuthLocalCredential `toml:"local_credentials"`
 }
 
-type definitionAuthLocalFile struct {
-	RequiredEnv    string `toml:"required_env"`
-	HomeRelPath    string `toml:"home_rel_path"`
-	RunHomeRelPath string `toml:"run_home_rel_path"`
+type definitionAuthLocalCredential struct {
+	RequiredEnv      string                      `toml:"required_env"`
+	RunHomeRelPath   string                      `toml:"run_home_rel_path"`
+	ValidateJSONPath string                      `toml:"validate_json_path"`
+	Sources          []definitionAuthLocalSource `toml:"sources"`
+}
+
+type definitionAuthLocalSource struct {
+	Kind        string   `toml:"kind"`
+	HomeRelPath string   `toml:"home_rel_path"`
+	Service     string   `toml:"service"`
+	Platforms   []string `toml:"platforms"`
 }
 
 type definitionNodeToolchainFile struct {

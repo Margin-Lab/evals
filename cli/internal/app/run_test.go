@@ -1041,10 +1041,13 @@ func TestRunPassesAuthFileOverridePathToLocalExecutor(t *testing.T) {
 					Definition: agentdef.DefinitionSnapshot{
 						Manifest: agentdef.Manifest{
 							Auth: agentdef.AuthSpec{
-								LocalFiles: []agentdef.AuthLocalFile{{
+								LocalCredentials: []agentdef.AuthLocalCredential{{
 									RequiredEnv:    "OPENAI_API_KEY",
-									HomeRelPath:    ".codex/auth.json",
 									RunHomeRelPath: ".codex/auth.json",
+									Sources: []agentdef.AuthLocalSource{{
+										Kind:        agentdef.AuthLocalSourceKindHomeFile,
+										HomeRelPath: ".codex/auth.json",
+									}},
 								}},
 							},
 						},
@@ -1100,9 +1103,23 @@ func TestRunRejectsAuthFileOverrideWithoutSingleManifestLocalFile(t *testing.T) 
 					Definition: agentdef.DefinitionSnapshot{
 						Manifest: agentdef.Manifest{
 							Auth: agentdef.AuthSpec{
-								LocalFiles: []agentdef.AuthLocalFile{
-									{RequiredEnv: "OPENAI_API_KEY", HomeRelPath: ".codex/auth.json", RunHomeRelPath: ".codex/auth.json"},
-									{RequiredEnv: "ANTHROPIC_API_KEY", HomeRelPath: ".claude/.credentials.json", RunHomeRelPath: ".claude/.credentials.json"},
+								LocalCredentials: []agentdef.AuthLocalCredential{
+									{
+										RequiredEnv:    "OPENAI_API_KEY",
+										RunHomeRelPath: ".codex/auth.json",
+										Sources: []agentdef.AuthLocalSource{{
+											Kind:        agentdef.AuthLocalSourceKindHomeFile,
+											HomeRelPath: ".codex/auth.json",
+										}},
+									},
+									{
+										RequiredEnv:    "ANTHROPIC_API_KEY",
+										RunHomeRelPath: ".claude/.credentials.json",
+										Sources: []agentdef.AuthLocalSource{{
+											Kind:        agentdef.AuthLocalSourceKindHomeFile,
+											HomeRelPath: ".claude/.credentials.json",
+										}},
+									},
 								},
 							},
 						},
@@ -1122,7 +1139,7 @@ func TestRunRejectsAuthFileOverrideWithoutSingleManifestLocalFile(t *testing.T) 
 		"--agent-server-binary", "agent-server",
 		"--auth-file-path", "auth.json",
 	})
-	if err == nil || !strings.Contains(err.Error(), "exactly one auth.local_files entry") {
+	if err == nil || !strings.Contains(err.Error(), "exactly one auth.local_credentials entry") {
 		t.Fatalf("expected auth-file-path validation error, got %v", err)
 	}
 }
@@ -1156,10 +1173,13 @@ func TestRunShowsPreRunConfirmationWithResolvedAuthAndPruneWarning(t *testing.T)
 							Name: "codex",
 							Auth: agentdef.AuthSpec{
 								RequiredEnv: []string{"OPENAI_API_KEY"},
-								LocalFiles: []agentdef.AuthLocalFile{{
+								LocalCredentials: []agentdef.AuthLocalCredential{{
 									RequiredEnv:    "OPENAI_API_KEY",
-									HomeRelPath:    ".codex/auth.json",
 									RunHomeRelPath: ".codex/auth.json",
+									Sources: []agentdef.AuthLocalSource{{
+										Kind:        agentdef.AuthLocalSourceKindHomeFile,
+										HomeRelPath: ".codex/auth.json",
+									}},
 								}},
 							},
 						},
@@ -1291,7 +1311,8 @@ func TestBuildRunConfirmationSpecUsesOAuthCredentialWording(t *testing.T) {
 	spec := buildRunConfirmationSpec("codex", []localexecutor.AuthPreview{{
 		RequiredEnv: "OPENAI_API_KEY",
 		Mode:        localexecutor.AuthPreviewModeOAuth,
-		Path:        "/Users/josebouza/.codex/auth.json",
+		SourceKind:  "home_file",
+		SourceLabel: "/Users/josebouza/.codex/auth.json",
 	}}, 0, false)
 
 	if len(spec.Auth) != 1 {
@@ -1304,6 +1325,25 @@ func TestBuildRunConfirmationSpecUsesOAuthCredentialWording(t *testing.T) {
 		t.Fatalf("file path = %q", spec.Auth[0].FilePath)
 	}
 	if spec.Auth[0].Source != "fallback for OPENAI_API_KEY" {
+		t.Fatalf("source = %q", spec.Auth[0].Source)
+	}
+}
+
+func TestBuildRunConfirmationSpecUsesKeychainOAuthWording(t *testing.T) {
+	spec := buildRunConfirmationSpec("claude-code", []localexecutor.AuthPreview{{
+		RequiredEnv: "ANTHROPIC_API_KEY",
+		Mode:        localexecutor.AuthPreviewModeOAuth,
+		SourceKind:  "macos_keychain",
+		SourceLabel: "Claude Code-credentials",
+	}}, 0, false)
+
+	if len(spec.Auth) != 1 {
+		t.Fatalf("auth spec = %#v", spec.Auth)
+	}
+	if spec.Auth[0].Method != "OAuth credential" {
+		t.Fatalf("method = %q", spec.Auth[0].Method)
+	}
+	if spec.Auth[0].Source != `macOS Keychain item "Claude Code-credentials"` {
 		t.Fatalf("source = %q", spec.Auth[0].Source)
 	}
 }

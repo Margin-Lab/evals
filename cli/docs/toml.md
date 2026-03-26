@@ -76,19 +76,22 @@ If a definition supports skills, `definition.toml` declares the home-relative di
 home_rel_dir = ".agents/skills"
 ```
 
-Definitions may also declare local OAuth credential file fallbacks for the local runner:
+Definitions may also declare local OAuth credential discovery rules for the local runner:
 
 ```toml
 [auth]
 required_env = ["OPENAI_API_KEY"]
 
-[[auth.local_files]]
+[[auth.local_credentials]]
 required_env = "OPENAI_API_KEY"
-home_rel_path = ".codex/auth.json"
 run_home_rel_path = ".codex/auth.json"
+
+  [[auth.local_credentials.sources]]
+  kind = "home_file"
+  home_rel_path = ".codex/auth.json"
 ```
 
-When the required env is unavailable in the local runner container environment, `margin run` checks `$HOME/<home_rel_path>`, or the `--auth-file-path` override when provided, and copies the file into `run_home/<run_home_rel_path>` before the run hook executes.
+When the required env is unavailable in the local runner container environment, `margin run` evaluates the credential sources in order, or uses the `--auth-file-path` override when provided, and materializes the resolved payload into `run_home/<run_home_rel_path>` before the run hook executes.
 
 If a definition supports root instructions, `definition.toml` declares which filename should be materialized into the project root:
 

@@ -264,7 +264,7 @@ func TestValidateAndNormalizeConfigSpecRejectsAgentsMDWhenUnsupported(t *testing
 	}
 }
 
-func TestValidateManifestAllowsAuthLocalFiles(t *testing.T) {
+func TestValidateManifestAllowsAuthLocalCredentials(t *testing.T) {
 	t.Parallel()
 
 	err := ValidateManifest(Manifest{
@@ -272,10 +272,13 @@ func TestValidateManifestAllowsAuthLocalFiles(t *testing.T) {
 		Name: "fixture-agent",
 		Auth: AuthSpec{
 			RequiredEnv: []string{"OPENAI_API_KEY"},
-			LocalFiles: []AuthLocalFile{{
+			LocalCredentials: []AuthLocalCredential{{
 				RequiredEnv:    "OPENAI_API_KEY",
-				HomeRelPath:    ".codex/auth.json",
 				RunHomeRelPath: ".codex/auth.json",
+				Sources: []AuthLocalSource{{
+					Kind:        AuthLocalSourceKindHomeFile,
+					HomeRelPath: ".codex/auth.json",
+				}},
 			}},
 		},
 		Run: RunSpec{PrepareHook: HookRef{Path: "hooks/run.sh"}},
@@ -285,7 +288,7 @@ func TestValidateManifestAllowsAuthLocalFiles(t *testing.T) {
 	}
 }
 
-func TestValidateManifestRejectsInvalidAuthLocalFiles(t *testing.T) {
+func TestValidateManifestRejectsInvalidAuthLocalCredentials(t *testing.T) {
 	t.Parallel()
 
 	err := ValidateManifest(Manifest{
@@ -293,16 +296,19 @@ func TestValidateManifestRejectsInvalidAuthLocalFiles(t *testing.T) {
 		Name: "fixture-agent",
 		Auth: AuthSpec{
 			RequiredEnv: []string{"OPENAI_API_KEY"},
-			LocalFiles: []AuthLocalFile{{
+			LocalCredentials: []AuthLocalCredential{{
 				RequiredEnv:    "ANTHROPIC_API_KEY",
-				HomeRelPath:    ".claude/.credentials.json",
 				RunHomeRelPath: ".claude/.credentials.json",
+				Sources: []AuthLocalSource{{
+					Kind:        AuthLocalSourceKindHomeFile,
+					HomeRelPath: ".claude/.credentials.json",
+				}},
 			}},
 		},
 		Run: RunSpec{PrepareHook: HookRef{Path: "hooks/run.sh"}},
 	})
 	if err == nil || !strings.Contains(err.Error(), `must reference auth.required_env`) {
-		t.Fatalf("expected auth.local_files required_env validation error, got %v", err)
+		t.Fatalf("expected auth.local_credentials required_env validation error, got %v", err)
 	}
 
 	err = ValidateManifest(Manifest{
@@ -310,23 +316,49 @@ func TestValidateManifestRejectsInvalidAuthLocalFiles(t *testing.T) {
 		Name: "fixture-agent",
 		Auth: AuthSpec{
 			RequiredEnv: []string{"OPENAI_API_KEY"},
-			LocalFiles: []AuthLocalFile{
+			LocalCredentials: []AuthLocalCredential{
 				{
 					RequiredEnv:    "OPENAI_API_KEY",
-					HomeRelPath:    ".codex/auth.json",
 					RunHomeRelPath: ".codex/auth.json",
+					Sources: []AuthLocalSource{{
+						Kind:        AuthLocalSourceKindHomeFile,
+						HomeRelPath: ".codex/auth.json",
+					}},
 				},
 				{
 					RequiredEnv:    "OPENAI_API_KEY",
-					HomeRelPath:    ".codex/auth-backup.json",
-					RunHomeRelPath: ".codex/auth.json",
+					RunHomeRelPath: ".codex/auth-backup.json",
+					Sources: []AuthLocalSource{{
+						Kind:        AuthLocalSourceKindHomeFile,
+						HomeRelPath: ".codex/auth-backup.json",
+					}},
 				},
 			},
 		},
 		Run: RunSpec{PrepareHook: HookRef{Path: "hooks/run.sh"}},
 	})
 	if err == nil || !strings.Contains(err.Error(), `must not be duplicated`) {
-		t.Fatalf("expected duplicate auth.local_files error, got %v", err)
+		t.Fatalf("expected duplicate auth.local_credentials error, got %v", err)
+	}
+
+	err = ValidateManifest(Manifest{
+		Kind: "agent_definition",
+		Name: "fixture-agent",
+		Auth: AuthSpec{
+			RequiredEnv: []string{"ANTHROPIC_API_KEY"},
+			LocalCredentials: []AuthLocalCredential{{
+				RequiredEnv:    "ANTHROPIC_API_KEY",
+				RunHomeRelPath: ".claude/.credentials.json",
+				Sources: []AuthLocalSource{{
+					Kind:    AuthLocalSourceKindMacOSKeychain,
+					Service: "Claude Code-credentials",
+				}},
+			}},
+		},
+		Run: RunSpec{PrepareHook: HookRef{Path: "hooks/run.sh"}},
+	})
+	if err != nil {
+		t.Fatalf("expected macos_keychain source to validate, got %v", err)
 	}
 }
 

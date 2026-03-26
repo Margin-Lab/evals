@@ -42,34 +42,42 @@ func ValidateManifest(manifest Manifest) error {
 		}
 		requiredEnv[trimmed] = struct{}{}
 	}
-	localFilesByEnv := make(map[string]struct{}, len(manifest.Auth.LocalFiles))
-	localFilesByTarget := make(map[string]struct{}, len(manifest.Auth.LocalFiles))
-	for i, file := range manifest.Auth.LocalFiles {
-		trimmedEnv := strings.TrimSpace(file.RequiredEnv)
+	localCredentialsByEnv := make(map[string]struct{}, len(manifest.Auth.LocalCredentials))
+	localCredentialsByTarget := make(map[string]struct{}, len(manifest.Auth.LocalCredentials))
+	for i, credential := range manifest.Auth.LocalCredentials {
+		trimmedEnv := strings.TrimSpace(credential.RequiredEnv)
 		if trimmedEnv == "" {
-			return fmt.Errorf("auth.local_files[%d].required_env is required", i)
+			return fmt.Errorf("auth.local_credentials[%d].required_env is required", i)
 		}
 		if !envNamePattern.MatchString(trimmedEnv) {
-			return fmt.Errorf("auth.local_files[%d].required_env must be a valid env name", i)
+			return fmt.Errorf("auth.local_credentials[%d].required_env must be a valid env name", i)
 		}
 		if _, ok := requiredEnv[trimmedEnv]; !ok {
-			return fmt.Errorf("auth.local_files[%d].required_env %q must reference auth.required_env", i, trimmedEnv)
+			return fmt.Errorf("auth.local_credentials[%d].required_env %q must reference auth.required_env", i, trimmedEnv)
 		}
-		if _, exists := localFilesByEnv[trimmedEnv]; exists {
-			return fmt.Errorf("auth.local_files[%d].required_env %q must not be duplicated", i, trimmedEnv)
+		if _, exists := localCredentialsByEnv[trimmedEnv]; exists {
+			return fmt.Errorf("auth.local_credentials[%d].required_env %q must not be duplicated", i, trimmedEnv)
 		}
-		localFilesByEnv[trimmedEnv] = struct{}{}
-		if _, err := sanitizeRelPath(file.HomeRelPath); err != nil {
-			return fmt.Errorf("auth.local_files[%d].home_rel_path: %w", i, err)
-		}
-		runHomeRelPath, err := sanitizeRelPath(file.RunHomeRelPath)
+		localCredentialsByEnv[trimmedEnv] = struct{}{}
+		runHomeRelPath, err := sanitizeRelPath(credential.RunHomeRelPath)
 		if err != nil {
-			return fmt.Errorf("auth.local_files[%d].run_home_rel_path: %w", i, err)
+			return fmt.Errorf("auth.local_credentials[%d].run_home_rel_path: %w", i, err)
 		}
-		if _, exists := localFilesByTarget[runHomeRelPath]; exists {
-			return fmt.Errorf("auth.local_files[%d].run_home_rel_path %q must not be duplicated", i, runHomeRelPath)
+		if _, exists := localCredentialsByTarget[runHomeRelPath]; exists {
+			return fmt.Errorf("auth.local_credentials[%d].run_home_rel_path %q must not be duplicated", i, runHomeRelPath)
 		}
-		localFilesByTarget[runHomeRelPath] = struct{}{}
+		localCredentialsByTarget[runHomeRelPath] = struct{}{}
+		if err := validateJSONPath(credential.ValidateJSONPath); err != nil {
+			return fmt.Errorf("auth.local_credentials[%d].validate_json_path: %w", i, err)
+		}
+		if len(credential.Sources) == 0 {
+			return fmt.Errorf("auth.local_credentials[%d].sources must not be empty", i)
+		}
+		for sourceIdx, source := range credential.Sources {
+			if err := validateAuthLocalSource(i, sourceIdx, source); err != nil {
+				return err
+			}
+		}
 	}
 	if err := validateHookRef("run.prepare_hook", manifest.Run.PrepareHook); err != nil {
 		return err
@@ -130,6 +138,46 @@ func ValidateManifest(manifest Manifest) error {
 	}
 	if err := validateToolchains(manifest.Toolchains); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateAuthLocalSource(credentialIdx, sourceIdx int, source AuthLocalSource) error {
+	switch AuthLocalSourceKind(strings.TrimSpace(string(source.Kind))) {
+	case AuthLocalSourceKindHomeFile:
+		if _, err := sanitizeRelPath(source.HomeRelPath); err != nil {
+			return fmt.Errorf("auth.local_credentials[%d].sources[%d].home_rel_path: %w", credentialIdx, sourceIdx, err)
+		}
+		if strings.TrimSpace(source.Service) != "" {
+			return fmt.Errorf("auth.local_credentials[%d].sources[%d].service is not allowed for kind %q", credentialIdx, sourceIdx, AuthLocalSourceKindHomeFile)
+		}
+	case AuthLocalSourceKindMacOSKeychain:
+		if strings.TrimSpace(source.Service) == "" {
+			return fmt.Errorf("auth.local_credentials[%d].sources[%d].service is required for kind %q", credentialIdx, sourceIdx, AuthLocalSourceKindMacOSKeychain)
+		}
+		if strings.TrimSpace(source.HomeRelPath) != "" {
+			return fmt.Errorf("auth.local_credentials[%d].sources[%d].home_rel_path is not allowed for kind %q", credentialIdx, sourceIdx, AuthLocalSourceKindMacOSKeychain)
+		}
+	default:
+		return fmt.Errorf("auth.local_credentials[%d].sources[%d].kind %q is not supported", credentialIdx, sourceIdx, strings.TrimSpace(string(source.Kind)))
+	}
+	for platformIdx, platform := range source.Platforms {
+		if strings.TrimSpace(platform) == "" {
+			return fmt.Errorf("auth.local_credentials[%d].sources[%d].platforms[%d] is required", credentialIdx, sourceIdx, platformIdx)
+		}
+	}
+	return nil
+}
+
+func validateJSONPath(path string) error {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return nil
+	}
+	for idx, segment := range strings.Split(trimmed, ".") {
+		if strings.TrimSpace(segment) == "" {
+			return fmt.Errorf("segment %d is empty", idx)
+		}
 	}
 	return nil
 }
