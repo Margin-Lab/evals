@@ -88,7 +88,7 @@ The default resume policy retries tests that failed for infrastructure reasons o
 margin run --resume-from <run-id>
 ```
 
-Resume uses the saved bundle from `runs/<run-id>/bundle.json`, so you don't need to re-specify suite, agent config, or eval config.
+Resume uses the saved bundle from `runs/<run-id>/internal/bundle.json`, so you don't need to re-specify suite, agent config, or eval config.
 
 ## Next steps
 

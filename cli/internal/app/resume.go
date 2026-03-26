@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
 	"github.com/marginlab/margin-eval/runner/runner-core/runnerapi"
+	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
 func resolveResumeMode(resumeFromRunID, raw string) (runnerapi.ResumeMode, error) {
@@ -56,7 +56,7 @@ func validateRunSourceFlags(resumeFromRunID, suitePath, agentConfigPath, evalPat
 }
 
 func savedRunBundlePath(rootDir, runID string) string {
-	return filepath.Join(rootDir, "runs", strings.TrimSpace(runID), "bundle.json")
+	return runfs.BundlePath(rootDir, strings.TrimSpace(runID))
 }
 
 func loadSavedRunBundle(rootDir, runID string) (runbundle.Bundle, error) {

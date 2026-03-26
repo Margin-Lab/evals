@@ -13,31 +13,32 @@ import (
 
 	"github.com/marginlab/margin-eval/runner/runner-core/runnerapi"
 	"github.com/marginlab/margin-eval/runner/runner-core/store"
+	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
 // LocalSource adapts a local runner datasource to the mission-control Source contract.
 type LocalSource struct {
-	snapshots    datasource.Source
-	artifactRoot string
+	snapshots datasource.Source
+	runDir    string
 }
 
 func isPTYLogRole(role string) bool {
 	return strings.EqualFold(strings.TrimSpace(role), store.ArtifactRoleAgentPTY)
 }
 
-func NewLocalSource(snapshots datasource.Source, artifactRoot string) (*LocalSource, error) {
+func NewLocalSource(snapshots datasource.Source, runDir string) (*LocalSource, error) {
 	if snapshots == nil {
 		return nil, fmt.Errorf("local snapshot datasource is required")
 	}
-	resolvedRoot := ""
-	if strings.TrimSpace(artifactRoot) != "" {
-		absRoot, err := filepath.Abs(strings.TrimSpace(artifactRoot))
+	resolvedRunDir := ""
+	if strings.TrimSpace(runDir) != "" {
+		absRoot, err := filepath.Abs(strings.TrimSpace(runDir))
 		if err != nil {
-			return nil, fmt.Errorf("resolve artifact root: %w", err)
+			return nil, fmt.Errorf("resolve run dir: %w", err)
 		}
-		resolvedRoot = absRoot
+		resolvedRunDir = absRoot
 	}
-	return &LocalSource{snapshots: snapshots, artifactRoot: resolvedRoot}, nil
+	return &LocalSource{snapshots: snapshots, runDir: resolvedRunDir}, nil
 }
 
 func (s *LocalSource) GetRunSnapshot(ctx context.Context, runID string) (runnerapi.RunSnapshot, error) {
@@ -78,13 +79,13 @@ func (s *LocalSource) resolveArtifactPath(artifact store.Artifact) (string, erro
 		}
 	}
 
-	if s.artifactRoot == "" {
-		return "", fmt.Errorf("artifact %q has no file URI and no local artifact root configured", artifact.ArtifactID)
+	if s.runDir == "" {
+		return "", fmt.Errorf("artifact %q has no file URI and no local run dir configured", artifact.ArtifactID)
 	}
 	if strings.TrimSpace(artifact.StoreKey) == "" {
 		return "", fmt.Errorf("artifact %q has no URI or store_key", artifact.ArtifactID)
 	}
-	return filepath.Clean(filepath.Join(s.artifactRoot, filepath.FromSlash(artifact.StoreKey))), nil
+	return filepath.Clean(filepath.Join(s.runDir, filepath.FromSlash(artifact.StoreKey))), nil
 }
 
 func readTextFile(path string, maxBytes int64) (ArtifactText, error) {
@@ -143,11 +144,7 @@ func readTextFileTail(path string, maxBytes int64) (ArtifactText, error) {
 }
 
 func (s *LocalSource) injectLiveArtifacts(snapshot *runnerapi.RunSnapshot) {
-	if snapshot == nil || strings.TrimSpace(s.artifactRoot) == "" {
-		return
-	}
-	runID := strings.TrimSpace(snapshot.Run.RunID)
-	if runID == "" {
+	if snapshot == nil || strings.TrimSpace(s.runDir) == "" {
 		return
 	}
 	liveRoles := []string{
@@ -171,26 +168,22 @@ func (s *LocalSource) injectLiveArtifacts(snapshot *runnerapi.RunSnapshot) {
 			if _, exists := existingByRole[strings.ToLower(role)]; exists {
 				continue
 			}
-			fileName, ok := store.DefaultArtifactFilename(role)
+			rel, _, ok := runfs.RelativePathForRole(instanceID, role)
 			if !ok {
 				continue
 			}
-			path := filepath.Join(s.artifactRoot, runID, instanceID, fileName)
+			path := filepath.Join(s.runDir, filepath.FromSlash(rel))
 			info, err := os.Stat(path)
 			if err != nil || info.IsDir() {
 				continue
 			}
-			rel, err := filepath.Rel(s.artifactRoot, path)
-			if err != nil {
-				continue
-			}
 			inst.Artifacts = append(inst.Artifacts, store.Artifact{
 				ArtifactID:  fmt.Sprintf("live-%s-%s", instanceID, strings.ReplaceAll(role, "_", "-")),
-				RunID:       runID,
+				RunID:       strings.TrimSpace(snapshot.Run.RunID),
 				InstanceID:  instanceID,
 				Role:        role,
 				Ordinal:     100 + ord,
-				StoreKey:    filepath.ToSlash(rel),
+				StoreKey:    rel,
 				URI:         "file://" + path,
 				ContentType: "text/plain",
 				ByteSize:    info.Size(),

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-core/store"
 	"github.com/marginlab/margin-eval/runner/runner-core/testfixture"
 	"github.com/marginlab/margin-eval/runner/runner-core/usage"
+	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
 type fakeExecutor struct {
@@ -72,7 +72,7 @@ func TestServiceSubmitRunWritesBundle(t *testing.T) {
 		t.Fatalf("submit run: %v", err)
 	}
 
-	bundlePath := filepath.Join(tmp, "runs", run.RunID, "bundle.json")
+	bundlePath := runfs.BundlePath(tmp, run.RunID)
 	if _, err := os.Stat(bundlePath); err != nil {
 		t.Fatalf("expected bundle.json at %s: %v", bundlePath, err)
 	}
@@ -120,11 +120,12 @@ func TestServiceRunsAndPersistsSnapshot(t *testing.T) {
 		t.Fatalf("expected completed run, got %s", finalRun.State)
 	}
 
-	manifestPath := filepath.Join(tmp, "runs", run.RunID, "manifest.json")
-	resultsPath := filepath.Join(tmp, "runs", run.RunID, "results.json")
-	eventsPath := filepath.Join(tmp, "runs", run.RunID, "events.jsonl")
-	artifactsPath := filepath.Join(tmp, "runs", run.RunID, "artifacts", "metadata.json")
-	for _, path := range []string{manifestPath, resultsPath, eventsPath, artifactsPath} {
+	manifestPath := runfs.ManifestPath(tmp, run.RunID)
+	resultsPath := runfs.ResultsPath(tmp, run.RunID)
+	eventsPath := runfs.EventsPath(tmp, run.RunID)
+	artifactsPath := runfs.ArtifactsIndexPath(tmp, run.RunID)
+	instanceResultPath := runfs.InstanceResultPath(tmp, run.RunID, run.RunID+"-inst-0001")
+	for _, path := range []string{manifestPath, resultsPath, eventsPath, artifactsPath, instanceResultPath} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected file %s: %v", path, err)
 		}
@@ -215,7 +216,7 @@ func TestServiceWritesProgressFile(t *testing.T) {
 		t.Fatalf("wait for terminal run: %v", err)
 	}
 
-	progressPath := filepath.Join(tmp, "runs", run.RunID, "progress.json")
+	progressPath := runfs.ProgressPath(tmp, run.RunID)
 	if _, err := os.Stat(progressPath); err != nil {
 		t.Fatalf("expected progress.json at %s: %v", progressPath, err)
 	}
@@ -269,8 +270,8 @@ func TestServicePersistsTerminalSnapshotWithoutWaitForTerminalRun(t *testing.T) 
 	if snapshot.Run.State != domain.RunStateCompleted {
 		t.Fatalf("expected completed run, got %s", snapshot.Run.State)
 	}
-	resultsPath := filepath.Join(tmp, "runs", run.RunID, "results.json")
-	manifestPath := filepath.Join(tmp, "runs", run.RunID, "manifest.json")
+	resultsPath := runfs.ResultsPath(tmp, run.RunID)
+	manifestPath := runfs.ManifestPath(tmp, run.RunID)
 	for _, path := range []string{manifestPath, resultsPath} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected file %s after terminal snapshot persistence: %v", path, err)

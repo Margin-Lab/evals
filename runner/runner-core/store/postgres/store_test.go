@@ -166,7 +166,7 @@ func TestScanStoredInstanceResultIncludesUsage(t *testing.T) {
 		*dest[4].(**string) = &agentRunID
 		agentExitCode := 1
 		*dest[5].(**int) = &agentExitCode
-		trajectoryRef := "runs/run_1/instances/inst_1/trajectory.json"
+		trajectoryRef := "instances/inst_1/trajectory.json"
 		*dest[6].(**string) = &trajectoryRef
 		inputTokens := int64(12)
 		*dest[7].(**int64) = &inputTokens
@@ -203,7 +203,7 @@ func TestScanStoredInstanceResultIncludesUsage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan stored instance result: %v", err)
 	}
-	if result.InstanceID != "inst_1" || result.TrajectoryRef != "runs/run_1/instances/inst_1/trajectory.json" {
+	if result.InstanceID != "inst_1" || result.TrajectoryRef != "instances/inst_1/trajectory.json" {
 		t.Fatalf("unexpected stored result identity: %+v", result)
 	}
 	wantUsage := &usage.Metrics{InputTokens: int64Ptr(12), OutputTokens: int64Ptr(4), ToolCalls: int64Ptr(2)}
