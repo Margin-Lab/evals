@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGING_DIR="${ROOT_DIR}/cli/internal/agentserverembed/generated"
+export GOTOOLCHAIN="${GOTOOLCHAIN:-go1.25.4}"
 
 mkdir -p "${STAGING_DIR}"
 
