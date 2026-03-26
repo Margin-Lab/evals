@@ -33,7 +33,7 @@ func TestRunnerLocalWithRealAgentServerMatrix(t *testing.T) {
 					"AGENT_SERVER_TRAJECTORY_POLL_INTERVAL":   "200ms",
 				},
 				ReadyPath:         "/readyz",
-				ArtifactRoot:      t.TempDir(),
+				OutputRoot:        t.TempDir(),
 				AgentPollInterval: 400 * time.Millisecond,
 			})
 			if err != nil {

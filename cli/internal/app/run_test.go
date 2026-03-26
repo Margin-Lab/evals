@@ -25,6 +25,7 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-core/testassets"
 	"github.com/marginlab/margin-eval/runner/runner-local/localexecutor"
 	"github.com/marginlab/margin-eval/runner/runner-local/localrunner"
+	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
 type fakeRunnerService struct{}
@@ -116,7 +117,7 @@ func writeSavedBundle(t *testing.T, rootDir, runID string, bundle runbundle.Bund
 	if err != nil {
 		t.Fatalf("marshal source bundle: %v", err)
 	}
-	path := filepath.Join(rootDir, "runs", runID, "bundle.json")
+	path := runfs.BundlePath(rootDir, runID)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir source bundle path: %v", err)
 	}

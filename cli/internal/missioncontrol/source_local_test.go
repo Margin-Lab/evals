@@ -11,6 +11,7 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-core/domain"
 	"github.com/marginlab/margin-eval/runner/runner-core/runnerapi"
 	"github.com/marginlab/margin-eval/runner/runner-core/store"
+	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
 type fakeSnapshotSource struct {
@@ -72,7 +73,7 @@ func TestLocalSourceReadArtifactTextFromFileURI(t *testing.T) {
 
 func TestLocalSourceReadArtifactTextFallsBackToStoreKey(t *testing.T) {
 	tmp := t.TempDir()
-	path := filepath.Join(tmp, "run", "inst", "stderr.txt")
+	path := filepath.Join(tmp, "instances", "inst_1", "test", "test_stderr.txt")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir fixture dir: %v", err)
 	}
@@ -84,7 +85,27 @@ func TestLocalSourceReadArtifactTextFallsBackToStoreKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new local source: %v", err)
 	}
-	out, err := src.ReadArtifactText(context.Background(), store.Artifact{ArtifactID: "a1", StoreKey: "run/inst/stderr.txt"}, DefaultTextPreviewLimit)
+	_, err = src.ReadArtifactText(context.Background(), store.Artifact{ArtifactID: "a1", StoreKey: "run/inst/stderr.txt"}, DefaultTextPreviewLimit)
+	if err == nil {
+		t.Fatalf("expected old store key lookup to fail")
+	}
+}
+
+func TestLocalSourceReadArtifactTextFallsBackToStoreKeyNewLayout(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "instances", "inst_1", "test", "test_stderr.txt")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir fixture dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("stderr payload"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	src, err := NewLocalSource(&fakeSnapshotSource{}, tmp)
+	if err != nil {
+		t.Fatalf("new local source: %v", err)
+	}
+	out, err := src.ReadArtifactText(context.Background(), store.Artifact{ArtifactID: "a1", StoreKey: "instances/inst_1/test/test_stderr.txt"}, DefaultTextPreviewLimit)
 	if err != nil {
 		t.Fatalf("read artifact text: %v", err)
 	}
@@ -95,7 +116,7 @@ func TestLocalSourceReadArtifactTextFallsBackToStoreKey(t *testing.T) {
 
 func TestLocalSourceReadArtifactTextPTYUsesTail(t *testing.T) {
 	tmp := t.TempDir()
-	path := filepath.Join(tmp, "run", "inst", "agent_server_pty.log")
+	path := filepath.Join(tmp, "instances", "inst_1", "run", "agent_server_pty.log")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir fixture dir: %v", err)
 	}
@@ -110,7 +131,7 @@ func TestLocalSourceReadArtifactTextPTYUsesTail(t *testing.T) {
 	out, err := src.ReadArtifactText(context.Background(), store.Artifact{
 		ArtifactID: "a1",
 		Role:       store.ArtifactRoleAgentPTY,
-		StoreKey:   "run/inst/agent_server_pty.log",
+		StoreKey:   "instances/inst_1/run/agent_server_pty.log",
 	}, 8)
 	if err != nil {
 		t.Fatalf("read artifact text: %v", err)
@@ -124,16 +145,14 @@ func TestLocalSourceInjectsLiveExecutionArtifacts(t *testing.T) {
 	tmp := t.TempDir()
 	runID := "run_1"
 	instanceID := "run_1-inst-0001"
-	fileName, _ := store.DefaultArtifactFilename(store.ArtifactRoleAgentControl)
-	logPath := filepath.Join(tmp, runID, instanceID, fileName)
+	logPath := filepath.Join(tmp, filepath.FromSlash(mustStoreKey(t, instanceID, store.ArtifactRoleAgentControl)))
 	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
 		t.Fatalf("mkdir live log dir: %v", err)
 	}
 	if err := os.WriteFile(logPath, []byte("live log line\n"), 0o644); err != nil {
 		t.Fatalf("write live log: %v", err)
 	}
-	ptyFile, _ := store.DefaultArtifactFilename(store.ArtifactRoleAgentPTY)
-	ptyPath := filepath.Join(tmp, runID, instanceID, ptyFile)
+	ptyPath := filepath.Join(tmp, filepath.FromSlash(mustStoreKey(t, instanceID, store.ArtifactRoleAgentPTY)))
 	if err := os.WriteFile(ptyPath, []byte("pty log line\n"), 0o644); err != nil {
 		t.Fatalf("write live pty log: %v", err)
 	}
@@ -173,4 +192,13 @@ func TestLocalSourceInjectsLiveExecutionArtifacts(t *testing.T) {
 	if !foundPTY {
 		t.Fatalf("expected injected live pty artifact")
 	}
+}
+
+func mustStoreKey(t *testing.T, instanceID, role string) string {
+	t.Helper()
+	rel, _, ok := runfs.RelativePathForRole(instanceID, role)
+	if !ok {
+		t.Fatalf("missing store key for role %s", role)
+	}
+	return rel
 }

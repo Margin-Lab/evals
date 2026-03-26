@@ -69,7 +69,7 @@ margin run \
   --root .
 ```
 
-When `--resume-from` is set, the CLI loads `runs/<run-id>/bundle.json` from the selected `--root` and does not accept `--suite`, `--agent-config`, or `--eval`.
+When `--resume-from` is set, the CLI loads `runs/<run-id>/internal/bundle.json` from the selected `--root` and does not accept `--suite`, `--agent-config`, or `--eval`.
 
 To validate setup without starting the agent or spending tokens, add `--dry-run`:
 

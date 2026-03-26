@@ -196,7 +196,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 		AgentServerBinary:         resolvedAgentServerBinary,
 		AgentServerBinaryProvider: agentServerBinaryProvider,
 		DockerBinary:              *dockerBinary,
-		ArtifactRoot:              filepath.Join(absRoot, "executor-artifacts"),
+		OutputRoot:                absRoot,
 		Env:                       agentEnv.Clone(),
 		Binds:                     agentBinds.Clone(),
 		AuthFileOverridePath:      strings.TrimSpace(*authFilePath),
@@ -264,7 +264,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 			return fmt.Errorf("run non-interactive monitor: %w", err)
 		}
 	} else {
-		localSource, err := missioncontrol.NewLocalSource(dataSource, filepath.Join(absRoot, "executor-artifacts"))
+		localSource, err := missioncontrol.NewLocalSource(dataSource, filepath.Join(absRoot, "runs", run.RunID))
 		if err != nil {
 			return fmt.Errorf("create mission-control local source: %w", err)
 		}

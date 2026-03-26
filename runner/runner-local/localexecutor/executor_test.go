@@ -36,7 +36,7 @@ func TestContainerEnvInheritsRequiredAgentEnvFromHost(t *testing.T) {
 
 	exec, err := New(Config{
 		AgentServerBinary: writeTempBinary(t),
-		ArtifactRoot:      t.TempDir(),
+		OutputRoot:        t.TempDir(),
 	})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -57,7 +57,7 @@ func TestContainerEnvExplicitRequiredAgentEnvOverridesHost(t *testing.T) {
 
 	exec, err := New(Config{
 		AgentServerBinary: writeTempBinary(t),
-		ArtifactRoot:      t.TempDir(),
+		OutputRoot:        t.TempDir(),
 		Env: map[string]string{
 			envKeyOpenAIAPIKey:    "sk-config-openai",
 			envKeyAnthropicAPIKey: "",
@@ -126,7 +126,7 @@ exit 1
 func TestNewInitializesDefaultImageResolver(t *testing.T) {
 	exec, err := New(Config{
 		AgentServerBinary: writeTempBinary(t),
-		ArtifactRoot:      t.TempDir(),
+		OutputRoot:        t.TempDir(),
 	})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -140,7 +140,7 @@ func TestNewAcceptsAgentServerBinaryProvider(t *testing.T) {
 	provider := &stubAgentServerBinaryProvider{path: "/tmp/agent-server"}
 	exec, err := New(Config{
 		AgentServerBinaryProvider: provider,
-		ArtifactRoot:              t.TempDir(),
+		OutputRoot:                t.TempDir(),
 	})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -218,7 +218,7 @@ func TestResolveCaseImageUsesConfiguredResolver(t *testing.T) {
 func TestNewRejectsCleanupWhenResolverDoesNotSupportCleanup(t *testing.T) {
 	_, err := New(Config{
 		AgentServerBinary:  writeTempBinary(t),
-		ArtifactRoot:       t.TempDir(),
+		OutputRoot:         t.TempDir(),
 		ImageResolver:      &stubImageResolver{out: "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"},
 		CleanupBuiltImages: true,
 	})
