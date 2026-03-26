@@ -6,10 +6,13 @@
 [auth]
 required_env = ["OPENAI_API_KEY"]
 
-[[auth.local_files]]
+[[auth.local_credentials]]
 required_env = "OPENAI_API_KEY"
-home_rel_path = ".codex/auth.json"
 run_home_rel_path = ".codex/auth.json"
+
+  [[auth.local_credentials.sources]]
+  kind = "home_file"
+  home_rel_path = ".codex/auth.json"
 ```
 
 ## Contract
@@ -58,4 +61,4 @@ Relevant API error codes:
 
 - Required env is resolved only at run time, not when loading a definition or config.
 - Managed Node, when enabled, is injected through `PATH`; it is not treated as a secret.
-- `auth.local_files` is consumed only when the caller sends `auth_files[]` at run start. Repo-owned local CLI runs use this to stage OAuth credential files for Codex and Claude Code without requiring provider API keys.
+- `auth.local_credentials` is resolved only by the caller before `POST /v1/run`. Repo-owned local CLI runs use it to discover and stage OAuth credential payloads for Codex and Claude Code without requiring provider API keys.

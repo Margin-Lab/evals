@@ -6,15 +6,30 @@ type HookRef struct {
 	Path string `json:"path" toml:"path"`
 }
 
-type AuthLocalFile struct {
-	RequiredEnv    string `json:"required_env" toml:"required_env"`
-	HomeRelPath    string `json:"home_rel_path" toml:"home_rel_path"`
-	RunHomeRelPath string `json:"run_home_rel_path" toml:"run_home_rel_path"`
+type AuthLocalSourceKind string
+
+const (
+	AuthLocalSourceKindHomeFile      AuthLocalSourceKind = "home_file"
+	AuthLocalSourceKindMacOSKeychain AuthLocalSourceKind = "macos_keychain"
+)
+
+type AuthLocalSource struct {
+	Kind        AuthLocalSourceKind `json:"kind" toml:"kind"`
+	HomeRelPath string              `json:"home_rel_path,omitempty" toml:"home_rel_path"`
+	Service     string              `json:"service,omitempty" toml:"service"`
+	Platforms   []string            `json:"platforms,omitempty" toml:"platforms"`
+}
+
+type AuthLocalCredential struct {
+	RequiredEnv      string            `json:"required_env" toml:"required_env"`
+	RunHomeRelPath   string            `json:"run_home_rel_path" toml:"run_home_rel_path"`
+	ValidateJSONPath string            `json:"validate_json_path,omitempty" toml:"validate_json_path"`
+	Sources          []AuthLocalSource `json:"sources,omitempty" toml:"sources"`
 }
 
 type AuthSpec struct {
-	RequiredEnv []string        `json:"required_env,omitempty" toml:"required_env"`
-	LocalFiles  []AuthLocalFile `json:"local_files,omitempty" toml:"local_files"`
+	RequiredEnv      []string              `json:"required_env,omitempty" toml:"required_env"`
+	LocalCredentials []AuthLocalCredential `json:"local_credentials,omitempty" toml:"local_credentials"`
 }
 
 type UnifiedManifestSpec struct {
