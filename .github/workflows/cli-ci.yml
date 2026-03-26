@@ -36,6 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GOFLAGS: -mod=readonly
+      GOTOOLCHAIN: go1.25.4
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -43,7 +44,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: cli/go.mod
+          go-version: "1.25.4"
           cache-dependency-path: |
             agent-server/go.sum
             cli/go.sum

@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN_DIR="${ROOT_DIR}/bin"
+export GOTOOLCHAIN="${GOTOOLCHAIN:-go1.25.4}"
 
 mkdir -p "${BIN_DIR}"
 
