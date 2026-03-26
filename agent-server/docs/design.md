@@ -84,7 +84,7 @@ preferred = "24"
 
 When enabled, `agent-server` ensures managed Node before every hook phase, then prepends the managed bin dir to hook and run `PATH`. On Alpine it installs the image's `nodejs` package with `apk` and verifies the resulting major version is at least `minimum`. Everywhere else it downloads a pinned official Node archive in-process, verifies its checksum, and installs that runtime under the managed toolchain directory. It tries `preferred` first and falls back to `minimum` if needed.
 
-Managed Node bootstrap does not rely on the case image's CA trust store. `agent-server` embeds a public root bundle, materializes a merged PEM file under `state/`, and uses that bundle both for Go HTTPS downloads and for managed Node/npm child processes via `NODE_EXTRA_CA_CERTS` and `NPM_CONFIG_CAFILE`. Operators can append private roots with `AGENT_SERVER_EXTRA_CA_CERTS_FILE`.
+Managed Node bootstrap does not rely on the case image's CA trust store. `agent-server` embeds a public root bundle, materializes a merged PEM file under `state/`, and uses that bundle both for Go HTTPS downloads and for hook/agent child processes via `SSL_CERT_FILE`, plus managed Node/npm child processes via `NODE_EXTRA_CA_CERTS` and `NPM_CONFIG_CAFILE`. Operators can append private roots with `AGENT_SERVER_EXTRA_CA_CERTS_FILE`.
 
 There is no built-in Python installer. Python hooks are still supported, but they rely on the case image already containing Python. The repo-owned definitions use JS hooks plus managed Node instead.
 
