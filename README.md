@@ -52,8 +52,8 @@ Dry-run your first eval (no token usage)
 ```bash
 margin run \
   --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
-  --agent-config example-agent-configs/codex-unified \
-  --eval example-eval-configs/default.toml \
+  --agent-config ~/.margin/configs/example-agent-configs/codex-unified \
+  --eval ~/.margin/configs/example-eval-configs/default.toml \
   --dry-run
 ```
 
@@ -62,24 +62,24 @@ Run your first eval using an API key
 export ANTHROPIC_API_KEY=<API_KEY>
 margin run \
   --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
-  --agent-config example-agent-configs/claude-code-default \
-  --eval example-eval-configs/default.toml \
+  --agent-config ~/.margin/configs/example-agent-configs/claude-code-default \
+  --eval ~/.margin/configs/example-eval-configs/default.toml \
 ```
 
 Run your first eval using your agents OAuth, Margin will auto-detect your OAuth file
 ```bash
 margin run \
   --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
-  --agent-config example-agent-configs/codex-unified \
-  --eval example-eval-configs/default.toml \
+  --agent-config ~/.margin/configs/example-agent-configs/codex-unified \
+  --eval ~/.margin/configs/example-eval-configs/default.toml \
 ```
 
 Or, run with a specific OAuth file
 ```bash
 margin run \
   --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
-  --agent-config example-agent-configs/codex-unified \
-  --eval example-eval-configs/default.toml \
+  --agent-config ~/.margin/configs/example-agent-configs/codex-unified \
+  --eval ~/.margin/configs/example-eval-configs/default.toml \
   --auth-file-path /path/to/credentials.json
 ```
 
@@ -90,8 +90,8 @@ margin run \
 ```bash
 margin run \
   --suite git::https://github.com/Margin-Lab/swe-suites.git//swe-bench-pro \
-  --agent-config example-agent-configs/claude-code-default \
-  --eval example-eval-configs/default.toml \
+  --agent-config ~/.margin/configs/example-agent-configs/claude-code-default \
+  --eval ~/.margin/configs/example-eval-configs/default.toml \
 ```
 
 **Run Codex with unified config:**
@@ -99,8 +99,8 @@ margin run \
 ```bash
 margin run \
   --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
-  --agent-config example-agent-configs/codex-unified \
-  --eval example-eval-configs/default.toml \
+  --agent-config ~/.margin/configs/example-agent-configs/codex-unified \
+  --eval ~/.margin/configs/example-eval-configs/default.toml \
 ```
 
 **Resume a run:**

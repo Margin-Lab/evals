@@ -16,8 +16,8 @@ Reference a suite from that repo with `--suite`:
 ```bash
 margin run \
   --suite git::https://github.com/Margin-Lab/swe-suites.git//swe-bench-pro \
-  --agent-config example-agent-configs/claude-code-default \
-  --eval example-eval-configs/default.toml
+  --agent-config ~/.margin/configs/example-agent-configs/claude-code-default \
+  --eval ~/.margin/configs/example-eval-configs/default.toml
 ```
 
 The `git::...//subdir` form means:
@@ -45,8 +45,8 @@ For example:
 ```bash
 margin run \
   --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
-  --agent-config example-agent-configs/codex-unified \
-  --eval example-eval-configs/default.toml
+  --agent-config ~/.margin/configs/example-agent-configs/codex-unified \
+  --eval ~/.margin/configs/example-eval-configs/default.toml
 ```
 
 This is the suite used in the quickstart docs because it is faster and cheaper than the larger benchmark suites.

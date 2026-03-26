@@ -49,10 +49,10 @@ Installer-managed starter assets are installed at:
 
 - `~/.margin/configs`
 
-When those starter assets are installed, `margin run` accepts shorthand references for configs:
+Use those installed starter assets by passing their explicit paths:
 
-- `--agent-config example-agent-configs/codex-unified`
-- `--eval example-eval-configs/default.toml`
+- `--agent-config ~/.margin/configs/example-agent-configs/codex-unified`
+- `--eval ~/.margin/configs/example-eval-configs/default.toml`
 
 Official suites are hosted in `https://github.com/Margin-Lab/swe-suites.git` and are referenced directly through `--suite`, for example:
 
