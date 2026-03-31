@@ -1,0 +1,12 @@
+kind = "agent_config"
+name = "gemini-cli-default"
+definition = "../../agent-definitions/gemini-cli"
+mode = "direct"
+
+[input]
+gemini_version = "latest"
+startup_args = []
+run_args = []
+model = "gemini-3-flash-preview"
+approval_mode = "yolo"
+settings_json = "{}"

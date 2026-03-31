@@ -1,0 +1,52 @@
+kind = "agent_definition"
+name = "gemini-cli"
+description = "Repo-owned Gemini CLI agent definition"
+
+[auth]
+required_env = ["GEMINI_API_KEY"]
+
+[[auth.local_credentials]]
+required_env = "GEMINI_API_KEY"
+run_home_rel_path = ".gemini/oauth_creds.json"
+validate_json_path = "refresh_token"
+
+  [[auth.local_credentials.sources]]
+  kind = "home_file"
+  home_rel_path = ".gemini/oauth_creds.json"
+
+[toolchains.node]
+minimum = "20"
+preferred = "24"
+
+[config]
+schema = "schema.json"
+
+[skills]
+home_rel_dir = ".agents/skills"
+
+[agents_md]
+filename = "AGENTS.md"
+
+[config.unified]
+translate = "hooks/translate-unified.js"
+allowed_models = [
+  "gemini-2.5-pro",
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-3-pro-preview",
+  "gemini-3-flash-preview",
+  "gemini-3.1-pro-preview",
+  "gemini-3.1-pro-preview-customtools",
+  "gemini-3.1-flash-lite-preview",
+]
+allowed_reasoning_levels = ["low", "medium", "high"]
+
+[install]
+check = "hooks/install-check.js"
+run = "hooks/install-run.js"
+
+[run]
+prepare = "hooks/run-prepare.js"
+
+[trajectory]
+collect = "hooks/trajectory-collect.js"

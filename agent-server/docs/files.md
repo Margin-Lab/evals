@@ -55,7 +55,7 @@
 These are outside `agent-server/`, but they are the main inputs consumed by the runtime:
 
 - `configs/agent-definitions/`: repo-owned definition packages
-- `configs/agent-configs/`: repo-owned direct and unified config profiles
+- `configs/example-agent-configs/`: repo-owned direct and unified config profiles
 - `runner/runner-core/agentdef/`: shared definition/config snapshot types
 
 ## Legacy Code

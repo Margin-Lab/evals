@@ -3,8 +3,8 @@
 Repo-owned Claude Code uses:
 
 - definition: `configs/agent-definitions/claude-code`
-- default config: `configs/agent-configs/claude-code-default`
-- unified config: `configs/agent-configs/claude-code-unified`
+- default config: `configs/example-agent-configs/claude-code-default`
+- unified config: `configs/example-agent-configs/claude-code-unified`
 
 ## Required Env
 

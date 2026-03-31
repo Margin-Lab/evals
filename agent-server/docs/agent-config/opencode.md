@@ -3,8 +3,8 @@
 Repo-owned Opencode uses:
 
 - definition: `configs/agent-definitions/opencode`
-- default config: `configs/agent-configs/opencode-default`
-- unified config: `configs/agent-configs/opencode-unified`
+- default config: `configs/example-agent-configs/opencode-default`
+- unified config: `configs/example-agent-configs/opencode-unified`
 
 ## Required Env
 

@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/marginlab/margin-eval/agent-server/internal/apperr"
-	"nhooyr.io/websocket"
 	"github.com/marginlab/margin-eval/runner/runner-core/testfixture"
+	"nhooyr.io/websocket"
 )
 
 var (
@@ -158,6 +158,10 @@ func requireProviderEnvForAgent(t *testing.T, agentName string) {
 			if anthropicAPIKey() == "" {
 				t.Fatalf("%s is required for %s model integration tests", envAnthropicKey, agentName)
 			}
+		case envGeminiKey:
+			if geminiAPIKey() == "" {
+				t.Fatalf("%s is required for %s model integration tests", envGeminiKey, agentName)
+			}
 		}
 	}
 }
@@ -183,6 +187,9 @@ func modelProviderEnv() map[string]string {
 	}
 	if value := anthropicAPIKey(); value != "" {
 		out[envAnthropicKey] = value
+	}
+	if value := geminiAPIKey(); value != "" {
+		out[envGeminiKey] = value
 	}
 	return out
 }

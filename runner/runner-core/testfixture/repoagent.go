@@ -134,11 +134,23 @@ var (
 			UnifiedConfig:  "claude-code-unified",
 			VersionInput:   "claude_version",
 		},
+		"gemini-cli": {
+			DefinitionName: "gemini-cli",
+			DefaultConfig:  "gemini-cli-default",
+			UnifiedConfig:  "gemini-cli-unified",
+			VersionInput:   "gemini_version",
+		},
 		"opencode": {
 			DefinitionName: "opencode",
 			DefaultConfig:  "opencode-default",
 			UnifiedConfig:  "opencode-unified",
 			VersionInput:   "opencode_version",
+		},
+		"pi": {
+			DefinitionName: "pi",
+			DefaultConfig:  "pi-default",
+			UnifiedConfig:  "pi-unified",
+			VersionInput:   "pi_version",
 		},
 	}
 

@@ -1,0 +1,31 @@
+kind = "agent_definition"
+name = "pi"
+description = "Repo-owned Pi coding agent definition"
+
+[toolchains.node]
+minimum = "20"
+preferred = "24"
+
+[config]
+schema = "schema.json"
+
+[skills]
+home_rel_dir = ".agents/skills"
+
+[agents_md]
+filename = "AGENTS.md"
+
+[config.unified]
+translate = "hooks/translate-unified.js"
+allowed_models = ["*"]
+allowed_reasoning_levels = ["off", "minimal", "low", "medium", "high", "xhigh"]
+
+[install]
+check = "hooks/install-check.js"
+run = "hooks/install-run.js"
+
+[run]
+prepare = "hooks/run-prepare.js"
+
+[trajectory]
+collect = "hooks/trajectory-collect.js"
