@@ -38,4 +38,4 @@ Validation uses the shared ATIF decoder in `runner-core/trajectory` and currentl
 
 ## Repo-Owned Definitions
 
-The repo-owned Codex, Claude Code, and Opencode definitions all emit `ATIF-v1.6`.
+The repo-owned Codex, Claude Code, Gemini CLI, Opencode, and Pi definitions all emit `ATIF-v1.6`.

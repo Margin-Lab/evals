@@ -1,0 +1,44 @@
+{
+  "type": "object",
+  "required": [
+    "pi_version",
+    "startup_args",
+    "run_args",
+    "provider",
+    "model",
+    "thinking"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "pi_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "startup_args": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "run_args": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "thinking": {
+      "type": "string",
+      "enum": ["off", "minimal", "low", "medium", "high", "xhigh"]
+    }
+  }
+}

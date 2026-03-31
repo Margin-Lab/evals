@@ -1,0 +1,12 @@
+kind = "agent_config"
+name = "pi-default"
+definition = "../../agent-definitions/pi"
+mode = "direct"
+
+[input]
+pi_version = "latest"
+startup_args = []
+run_args = []
+provider = "openai"
+model = "gpt-5"
+thinking = "medium"

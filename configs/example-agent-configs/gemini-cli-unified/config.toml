@@ -1,0 +1,8 @@
+kind = "agent_config"
+name = "gemini-cli-unified"
+definition = "../../agent-definitions/gemini-cli"
+mode = "unified"
+
+[unified]
+model = "gemini-3-flash-preview"
+reasoning_level = "medium"

@@ -4,11 +4,13 @@
 
 `POST /v1/run` also supports a dry-run path that executes the full prelaunch setup and exits immediately without starting the agent PTY. This is intended for validating run preparation without token usage.
 
-The repo-owned Codex, Claude Code, and Opencode integrations now use the same hook contract as any custom definition:
+The repo-owned Codex, Claude Code, Gemini CLI, Opencode, and Pi integrations now use the same hook contract as any custom definition:
 
 - `configs/agent-definitions/codex`
 - `configs/agent-definitions/claude-code`
+- `configs/agent-definitions/gemini-cli`
 - `configs/agent-definitions/opencode`
+- `configs/agent-definitions/pi`
 
 ## Main Documentation
 
@@ -98,15 +100,21 @@ Provider credentials used by the repo-owned definitions:
 
 - `OPENAI_API_KEY` for Codex and Opencode
 - `ANTHROPIC_API_KEY` for Claude Code
+- `GEMINI_API_KEY` or reusable `~/.gemini/oauth_creds.json` for Gemini CLI
+- provider-specific env for Pi
 
 Repo-owned config profiles include both direct and unified examples:
 
-- `configs/agent-configs/codex-default`
-- `configs/agent-configs/codex-unified`
-- `configs/agent-configs/claude-code-default`
-- `configs/agent-configs/claude-code-unified`
-- `configs/agent-configs/opencode-default`
-- `configs/agent-configs/opencode-unified`
+- `configs/example-agent-configs/codex-default`
+- `configs/example-agent-configs/codex-unified`
+- `configs/example-agent-configs/claude-code-default`
+- `configs/example-agent-configs/claude-code-unified`
+- `configs/example-agent-configs/gemini-cli-default`
+- `configs/example-agent-configs/gemini-cli-unified`
+- `configs/example-agent-configs/opencode-default`
+- `configs/example-agent-configs/opencode-unified`
+- `configs/example-agent-configs/pi-default`
+- `configs/example-agent-configs/pi-unified`
 
 Integration harness env behavior:
 
@@ -115,7 +123,9 @@ Integration harness env behavior:
 - optional version fanout:
   - `MARGINLAB_IT_CODEX_VERSIONS`
   - `MARGINLAB_IT_CLAUDE_CODE_VERSIONS`
+  - `MARGINLAB_IT_GEMINI_CLI_VERSIONS`
   - `MARGINLAB_IT_OPENCODE_VERSIONS`
+  - `MARGINLAB_IT_PI_VERSIONS`
 - optional matrix override:
   - `MARGINLAB_IT_MATRIX_FILE`
 - optional artifact export:
