@@ -3,8 +3,8 @@
 Repo-owned Codex uses:
 
 - definition: `configs/agent-definitions/codex`
-- default config: `configs/agent-configs/codex-default`
-- unified config: `configs/agent-configs/codex-unified`
+- default config: `configs/example-agent-configs/codex-default`
+- unified config: `configs/example-agent-configs/codex-unified`
 
 ## Required Env
 

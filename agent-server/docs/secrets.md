@@ -33,7 +33,9 @@ The same required env set is also used when preparing snapshots and trajectory h
 
 - `codex`: `OPENAI_API_KEY`
 - `claude-code`: `ANTHROPIC_API_KEY`
+- `gemini-cli`: `GEMINI_API_KEY` or a staged `~/.gemini/oauth_creds.json` payload
 - `opencode`: `OPENAI_API_KEY`
+- `pi`: provider-specific runtime env, not definition-managed
 
 Custom definitions may declare any env keys they need.
 
@@ -61,4 +63,4 @@ Relevant API error codes:
 
 - Required env is resolved only at run time, not when loading a definition or config.
 - Managed Node, when enabled, is injected through `PATH`; it is not treated as a secret.
-- `auth.local_credentials` is resolved only by the caller before `POST /v1/run`. Repo-owned local CLI runs use it to discover and stage OAuth credential payloads for Codex and Claude Code without requiring provider API keys.
+- `auth.local_credentials` is resolved only by the caller before `POST /v1/run`. Repo-owned local CLI runs use it to discover and stage OAuth credential payloads for Codex, Claude Code, and Gemini CLI without requiring provider API keys.

@@ -75,6 +75,7 @@ func requireMatrixAPIKeys(t *testing.T, cases []agentMatrixCase) {
 	t.Helper()
 	needsOpenAI := false
 	needsAnthropic := false
+	needsGemini := false
 	for _, c := range cases {
 		for _, envName := range caseRequiredEnv(c) {
 			switch envName {
@@ -82,6 +83,8 @@ func requireMatrixAPIKeys(t *testing.T, cases []agentMatrixCase) {
 				needsOpenAI = true
 			case "ANTHROPIC_API_KEY":
 				needsAnthropic = true
+			case "GEMINI_API_KEY":
+				needsGemini = true
 			}
 		}
 	}
@@ -91,6 +94,9 @@ func requireMatrixAPIKeys(t *testing.T, cases []agentMatrixCase) {
 	}
 	if needsAnthropic && os.Getenv("ANTHROPIC_API_KEY") == "" {
 		missing = append(missing, "ANTHROPIC_API_KEY")
+	}
+	if needsGemini && os.Getenv("GEMINI_API_KEY") == "" {
+		missing = append(missing, "GEMINI_API_KEY")
 	}
 	if len(missing) > 0 {
 		t.Fatalf("integration_model requires API keys for matrix cases; missing: %v", missing)

@@ -50,9 +50,13 @@ Install, run, snapshot, and trajectory hooks always consume the resolved direct 
 
 Repo-owned profiles now include both direct and unified examples:
 
-- `configs/agent-configs/codex-default`
-- `configs/agent-configs/codex-unified`
-- `configs/agent-configs/claude-code-default`
-- `configs/agent-configs/claude-code-unified`
-- `configs/agent-configs/opencode-default`
-- `configs/agent-configs/opencode-unified`
+- `configs/example-agent-configs/codex-default`
+- `configs/example-agent-configs/codex-unified`
+- `configs/example-agent-configs/claude-code-default`
+- `configs/example-agent-configs/claude-code-unified`
+- `configs/example-agent-configs/gemini-cli-default`
+- `configs/example-agent-configs/gemini-cli-unified`
+- `configs/example-agent-configs/opencode-default`
+- `configs/example-agent-configs/opencode-unified`
+- `configs/example-agent-configs/pi-default`
+- `configs/example-agent-configs/pi-unified`

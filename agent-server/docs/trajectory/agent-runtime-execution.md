@@ -40,10 +40,26 @@ For all definitions, `agent-server` currently does the same high-level sequence:
 - launch/bootstrap: `hooks/run-prepare.js`
 - trajectory hook: `hooks/trajectory-collect.js`
 
+### Gemini CLI
+
+- required env: `GEMINI_API_KEY`
+- definition path: `configs/agent-definitions/gemini-cli/`
+- snapshot support: no
+- launch/bootstrap: `hooks/run-prepare.js`
+- trajectory hook: `hooks/trajectory-collect.js`
+
 ### Opencode
 
 - required env: `OPENAI_API_KEY`
 - definition path: `configs/agent-definitions/opencode/`
+- snapshot support: no
+- launch/bootstrap: `hooks/run-prepare.js`
+- trajectory hook: `hooks/trajectory-collect.js`
+
+### Pi
+
+- required env: none in the definition manifest
+- definition path: `configs/agent-definitions/pi/`
 - snapshot support: no
 - launch/bootstrap: `hooks/run-prepare.js`
 - trajectory hook: `hooks/trajectory-collect.js`

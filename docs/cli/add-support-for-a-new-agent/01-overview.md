@@ -1,6 +1,6 @@
 # Add Support for a New Agent
 
-Integrate an agent that isn't built-in (Claude Code, Codex, OpenCode) by creating your own agent definition.
+Integrate an agent that isn't built-in (Claude Code, Codex, Gemini CLI, OpenCode, Pi) by creating your own agent definition.
 
 ```bash
 # Scaffold the definition
@@ -213,7 +213,9 @@ collect = "hooks/trajectory-collect.js"
 |---|---|---|
 | Claude Code | `configs/agent-definitions/claude-code/` | `ANTHROPIC_API_KEY` |
 | Codex | `configs/agent-definitions/codex/` | `OPENAI_API_KEY` |
+| Gemini CLI | `configs/agent-definitions/gemini-cli/` | `GEMINI_API_KEY` |
 | OpenCode | `configs/agent-definitions/opencode/` | `OPENAI_API_KEY` |
+| Pi | `configs/agent-definitions/pi/` | provider-specific |
 
 Study these for complete hook implementations and translate-unified examples.
 
