@@ -1,0 +1,44 @@
+{
+  "type": "object",
+  "required": [
+    "gemini_version",
+    "startup_args",
+    "run_args",
+    "model",
+    "approval_mode",
+    "settings_json"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "gemini_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "startup_args": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "run_args": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approval_mode": {
+      "type": "string",
+      "enum": ["default", "auto_edit", "yolo", "plan"]
+    },
+    "settings_json": {
+      "type": "string",
+      "minLength": 2
+    }
+  }
+}

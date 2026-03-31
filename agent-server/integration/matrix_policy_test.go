@@ -20,7 +20,9 @@ const (
 
 	envCodexVersions      = "MARGINLAB_IT_CODEX_VERSIONS"
 	envClaudeCodeVersions = "MARGINLAB_IT_CLAUDE_CODE_VERSIONS"
+	envGeminiCLIVersions  = "MARGINLAB_IT_GEMINI_CLI_VERSIONS"
 	envOpencodeVersions   = "MARGINLAB_IT_OPENCODE_VERSIONS"
+	envPiVersions         = "MARGINLAB_IT_PI_VERSIONS"
 )
 
 type matrixCase struct {
@@ -117,8 +119,12 @@ func versionsForAgent(agent string) []string {
 		return parseVersionsEnv(envCodexVersions)
 	case "claude-code":
 		return parseVersionsEnv(envClaudeCodeVersions)
+	case "gemini-cli":
+		return parseVersionsEnv(envGeminiCLIVersions)
 	case "opencode":
 		return parseVersionsEnv(envOpencodeVersions)
+	case "pi":
+		return parseVersionsEnv(envPiVersions)
 	default:
 		return []string{"latest"}
 	}

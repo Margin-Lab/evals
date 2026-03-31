@@ -175,6 +175,68 @@ func TestPreviewAuthReportsOAuthHomeFileMode(t *testing.T) {
 	}
 }
 
+func TestResolveLocalAuthCredentialsUsesGeminiOAuthFileWhenEnvMissing(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	hostPath := filepath.Join(homeDir, ".gemini", "oauth_creds.json")
+	if err := os.MkdirAll(filepath.Dir(hostPath), 0o755); err != nil {
+		t.Fatalf("mkdir auth dir: %v", err)
+	}
+	if err := os.WriteFile(hostPath, []byte(`{"refresh_token":"oauth-refresh-token"}`), 0o600); err != nil {
+		t.Fatalf("write auth file: %v", err)
+	}
+
+	files, err := resolveLocalAuthCredentials(
+		nil,
+		[]string{"GEMINI_API_KEY"},
+		[]agentdef.AuthLocalCredential{geminiLocalCredential()},
+		"",
+	)
+	if err != nil {
+		t.Fatalf("resolveLocalAuthCredentials() error = %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("resolved files = %#v", files)
+	}
+	if files[0].SourceKind != "home_file" {
+		t.Fatalf("source kind = %q", files[0].SourceKind)
+	}
+	if files[0].SourceLabel != hostPath {
+		t.Fatalf("source label = %q, want %q", files[0].SourceLabel, hostPath)
+	}
+}
+
+func TestPreviewAuthReportsGeminiOAuthHomeFileMode(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	hostPath := filepath.Join(homeDir, ".gemini", "oauth_creds.json")
+	if err := os.MkdirAll(filepath.Dir(hostPath), 0o755); err != nil {
+		t.Fatalf("mkdir auth dir: %v", err)
+	}
+	if err := os.WriteFile(hostPath, []byte(`{"refresh_token":"oauth-refresh-token"}`), 0o600); err != nil {
+		t.Fatalf("write auth file: %v", err)
+	}
+
+	preview, err := PreviewAuth(
+		nil,
+		[]string{"GEMINI_API_KEY"},
+		[]agentdef.AuthLocalCredential{geminiLocalCredential()},
+		"",
+	)
+	if err != nil {
+		t.Fatalf("PreviewAuth() error = %v", err)
+	}
+	if len(preview) != 1 {
+		t.Fatalf("preview = %#v", preview)
+	}
+	if preview[0].Mode != AuthPreviewModeOAuth {
+		t.Fatalf("mode = %q", preview[0].Mode)
+	}
+	if preview[0].SourceLabel != hostPath {
+		t.Fatalf("source label = %q, want %q", preview[0].SourceLabel, hostPath)
+	}
+}
+
 func TestResolveLocalAuthCredentialsUsesMacOSKeychainSource(t *testing.T) {
 	origGOOS := authSourceGOOS
 	origRun := runAuthSourceCommand
@@ -325,6 +387,18 @@ func claudeLocalCredential() agentdef.AuthLocalCredential {
 				HomeRelPath: ".claude/.credentials.json",
 			},
 		},
+	}
+}
+
+func geminiLocalCredential() agentdef.AuthLocalCredential {
+	return agentdef.AuthLocalCredential{
+		RequiredEnv:      "GEMINI_API_KEY",
+		RunHomeRelPath:   ".gemini/oauth_creds.json",
+		ValidateJSONPath: "refresh_token",
+		Sources: []agentdef.AuthLocalSource{{
+			Kind:        agentdef.AuthLocalSourceKindHomeFile,
+			HomeRelPath: ".gemini/oauth_creds.json",
+		}},
 	}
 }
 

@@ -30,8 +30,12 @@ func IntegrationInstructionKeywordsForAgent(agentName string) IntegrationInstruc
 		return IntegrationInstructionKeywords{Root: "CodexArbor", Skill: "LanternSignal"}
 	case "claude-code":
 		return IntegrationInstructionKeywords{Root: "ClaudeBeacon", Skill: "HarborCipher"}
+	case "gemini-cli":
+		return IntegrationInstructionKeywords{Root: "GeminiSignal", Skill: "AtlasMarker"}
 	case "opencode":
 		return IntegrationInstructionKeywords{Root: "OpencodeCinder", Skill: "ZephyrMarker"}
+	case "pi":
+		return IntegrationInstructionKeywords{Root: "PiVector", Skill: "MistralThread"}
 	default:
 		return IntegrationInstructionKeywords{Root: "FixtureSignal", Skill: "FixtureCipher"}
 	}

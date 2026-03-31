@@ -382,6 +382,47 @@ func TestRepoOwnedUnifiedConfigsTranslateToDirectSnapshots(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:      "gemini-cli",
+			agentName: "gemini-cli",
+			assertions: func(t *testing.T, snapshot agentdef.ConfigSnapshot) {
+				t.Helper()
+				if snapshot.Unified == nil || snapshot.Unified.Model != "gemini-2.5-pro" {
+					t.Fatalf("unexpected unified payload: %#v", snapshot.Unified)
+				}
+				if got := snapshot.Input["gemini_version"]; got != "latest" {
+					t.Fatalf("gemini_version = %#v", got)
+				}
+				if got := snapshot.Input["approval_mode"]; got != "yolo" {
+					t.Fatalf("approval_mode = %#v", got)
+				}
+				if got := snapshot.Input["model"]; got != "gemini-2.5-pro" {
+					t.Fatalf("model = %#v", got)
+				}
+			},
+		},
+		{
+			name:      "pi",
+			agentName: "pi",
+			assertions: func(t *testing.T, snapshot agentdef.ConfigSnapshot) {
+				t.Helper()
+				if snapshot.Unified == nil || snapshot.Unified.Model != "openai/gpt-5" {
+					t.Fatalf("unexpected unified payload: %#v", snapshot.Unified)
+				}
+				if got := snapshot.Input["pi_version"]; got != "latest" {
+					t.Fatalf("pi_version = %#v", got)
+				}
+				if got := snapshot.Input["provider"]; got != "openai" {
+					t.Fatalf("provider = %#v", got)
+				}
+				if got := snapshot.Input["model"]; got != "gpt-5" {
+					t.Fatalf("model = %#v", got)
+				}
+				if got := snapshot.Input["thinking"]; got != "medium" {
+					t.Fatalf("thinking = %#v", got)
+				}
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -439,7 +480,9 @@ func TestRepoOwnedAgentsMaterializeSkillsIntoDiscoveryRoots(t *testing.T) {
 	}{
 		{name: "codex", agentName: "codex", skillsDir: ".agents/skills"},
 		{name: "claude-code", agentName: "claude-code", skillsDir: ".claude/skills"},
+		{name: "gemini-cli", agentName: "gemini-cli", skillsDir: ".agents/skills"},
 		{name: "opencode", agentName: "opencode", skillsDir: ".config/opencode/skills"},
+		{name: "pi", agentName: "pi", skillsDir: ".agents/skills"},
 	}
 
 	for _, tc := range tests {
@@ -524,7 +567,9 @@ func TestRepoOwnedAgentsMaterializeAgentsMDIntoStartDirectory(t *testing.T) {
 	}{
 		{name: "codex", agentName: "codex", filename: "AGENTS.md"},
 		{name: "claude-code", agentName: "claude-code", filename: "CLAUDE.md"},
+		{name: "gemini-cli", agentName: "gemini-cli", filename: "AGENTS.md"},
 		{name: "opencode", agentName: "opencode", filename: "AGENTS.md"},
+		{name: "pi", agentName: "pi", filename: "AGENTS.md"},
 	}
 
 	for _, tc := range tests {
@@ -1046,6 +1091,197 @@ func TestRepoOwnedClaudePrepareSnapshotUsesPrintResume(t *testing.T) {
 	}
 }
 
+func TestRepoOwnedGeminiPrepareRunWritesSettingsAndStreamsJSON(t *testing.T) {
+	stateDir := t.TempDir()
+	definitionDir := filepath.Join(stateDir, "definition")
+	installDir := filepath.Join(stateDir, "install")
+	runHome := filepath.Join(stateDir, "run-home")
+	artifactsDir := filepath.Join(stateDir, "artifacts")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatalf("mkdir install dir: %v", err)
+	}
+	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+		t.Fatalf("mkdir artifacts dir: %v", err)
+	}
+
+	agentBundle := testfixture.RepoOwnedUnifiedAgent("gemini-cli")
+	agentBundle.Config.Unified.MCP = &agentdef.MCPConfig{
+		Servers: []agentdef.MCPServer{{
+			Name:      "filesystem",
+			Transport: agentdef.MCPTransportSTDIO,
+			Command:   []string{"npx", "-y", "@modelcontextprotocol/server-filesystem", "/workspace"},
+			Env:       map[string]string{"FS_ROOT": "/workspace"},
+		}},
+	}
+	if err := materializeDefinition(agentBundle.Definition, definitionDir); err != nil {
+		t.Fatalf("materializeDefinition() error = %v", err)
+	}
+
+	runtime := &Runtime{
+		cfg: config.Config{StateDir: stateDir},
+		nodeRuntime: &fakeManagedNodeRuntime{
+			info: runtimeTestManagedNodeInfo(filepath.Join(t.TempDir(), "managed-bin"), "/managed/bin/node", "/managed/bin/npm", "/managed/bin/npx"),
+		},
+	}
+	definitionRecord := state.DefinitionRecord{
+		Snapshot:      agentBundle.Definition,
+		PackageHash:   agentBundle.Definition.Package.ArchiveTGZSHA256,
+		DefinitionDir: definitionDir,
+		InstallDir:    installDir,
+	}
+	configSnapshot, err := runtime.ValidateConfig(definitionRecord, agentBundle.Config)
+	if err != nil {
+		t.Fatalf("ValidateConfig() error = %v", err)
+	}
+	agent := state.AgentRecord{
+		Definition: &definitionRecord,
+		Config:     &state.ConfigRecord{Snapshot: configSnapshot},
+		Install: &state.InstallInfo{
+			InstalledAt: time.Now().UTC(),
+			Result: map[string]any{
+				"bin_path": filepath.Join(installDir, "bin", "gemini"),
+			},
+		},
+	}
+
+	execSpec, err := runtime.PrepareRun(context.Background(), agent, RunContext{
+		RunID:         "run_1",
+		SessionID:     "session_1",
+		CWD:           "/workspace",
+		RunHome:       runHome,
+		ArtifactsDir:  artifactsDir,
+		Env:           map[string]string{"PATH": "/usr/bin"},
+		InitialPrompt: "inspect the repository",
+	})
+	if err != nil {
+		t.Fatalf("PrepareRun() error = %v", err)
+	}
+	if execSpec.Path != "bash" {
+		t.Fatalf("path = %q, want %q", execSpec.Path, "bash")
+	}
+	if len(execSpec.Args) != 2 || execSpec.Args[0] != "-lc" {
+		t.Fatalf("args = %#v", execSpec.Args)
+	}
+	command := execSpec.Args[1]
+	for _, token := range []string{"--output-format stream-json", "--approval-mode yolo", "--model gemini-2.5-pro", "gemini-stream.jsonl", "gemini.stderr.log", "-p"} {
+		if !strings.Contains(command, token) {
+			t.Fatalf("command %q missing %q", command, token)
+		}
+	}
+
+	settingsBytes, err := os.ReadFile(filepath.Join(runHome, ".gemini", "settings.json"))
+	if err != nil {
+		t.Fatalf("read settings.json: %v", err)
+	}
+	var settings map[string]any
+	if err := json.Unmarshal(settingsBytes, &settings); err != nil {
+		t.Fatalf("unmarshal settings.json: %v", err)
+	}
+	contextBlock, ok := settings["context"].(map[string]any)
+	if !ok {
+		t.Fatalf("context = %#v", settings["context"])
+	}
+	fileNames, ok := contextBlock["fileName"].([]any)
+	if !ok {
+		t.Fatalf("context.fileName = %#v", contextBlock["fileName"])
+	}
+	if !slices.Equal(fileNames, []any{"AGENTS.md", "GEMINI.md"}) {
+		t.Fatalf("context.fileName = %#v", fileNames)
+	}
+	mcpServers, ok := settings["mcpServers"].(map[string]any)
+	if !ok {
+		t.Fatalf("mcpServers = %#v", settings["mcpServers"])
+	}
+	fsServer, ok := mcpServers["filesystem"].(map[string]any)
+	if !ok {
+		t.Fatalf("filesystem server = %#v", mcpServers["filesystem"])
+	}
+	if fsServer["command"] != "npx" {
+		t.Fatalf("filesystem command = %#v", fsServer["command"])
+	}
+}
+
+func TestRepoOwnedPiPrepareRunUsesJSONModeAndSessionDir(t *testing.T) {
+	stateDir := t.TempDir()
+	definitionDir := filepath.Join(stateDir, "definition")
+	installDir := filepath.Join(stateDir, "install")
+	runHome := filepath.Join(stateDir, "run-home")
+	artifactsDir := filepath.Join(stateDir, "artifacts")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatalf("mkdir install dir: %v", err)
+	}
+	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+		t.Fatalf("mkdir artifacts dir: %v", err)
+	}
+
+	agentBundle := testfixture.RepoOwnedAgent("pi")
+	if err := materializeDefinition(agentBundle.Definition, definitionDir); err != nil {
+		t.Fatalf("materializeDefinition() error = %v", err)
+	}
+
+	runtime := &Runtime{
+		cfg: config.Config{StateDir: stateDir},
+		nodeRuntime: &fakeManagedNodeRuntime{
+			info: runtimeTestManagedNodeInfo(filepath.Join(t.TempDir(), "managed-bin"), "/managed/bin/node", "/managed/bin/npm", "/managed/bin/npx"),
+		},
+	}
+	definitionRecord := state.DefinitionRecord{
+		Snapshot:      agentBundle.Definition,
+		PackageHash:   agentBundle.Definition.Package.ArchiveTGZSHA256,
+		DefinitionDir: definitionDir,
+		InstallDir:    installDir,
+	}
+	configSnapshot, err := runtime.ValidateConfig(definitionRecord, agentBundle.Config)
+	if err != nil {
+		t.Fatalf("ValidateConfig() error = %v", err)
+	}
+	agent := state.AgentRecord{
+		Definition: &definitionRecord,
+		Config:     &state.ConfigRecord{Snapshot: configSnapshot},
+		Install: &state.InstallInfo{
+			InstalledAt: time.Now().UTC(),
+			Result: map[string]any{
+				"bin_path": filepath.Join(installDir, "bin", "pi"),
+			},
+		},
+	}
+
+	execSpec, err := runtime.PrepareRun(context.Background(), agent, RunContext{
+		RunID:         "run_1",
+		SessionID:     "session_1",
+		CWD:           "/workspace",
+		RunHome:       runHome,
+		ArtifactsDir:  artifactsDir,
+		Env:           map[string]string{"PATH": "/usr/bin"},
+		InitialPrompt: "inspect the repository",
+	})
+	if err != nil {
+		t.Fatalf("PrepareRun() error = %v", err)
+	}
+	if execSpec.Path != "bash" {
+		t.Fatalf("path = %q, want %q", execSpec.Path, "bash")
+	}
+	if len(execSpec.Args) != 2 || execSpec.Args[0] != "-lc" {
+		t.Fatalf("args = %#v", execSpec.Args)
+	}
+	command := execSpec.Args[1]
+	for _, token := range []string{"--mode json", "--session-dir", "--provider openai", "--model gpt-5", "--thinking medium", "pi-events.jsonl", "pi.stderr.log"} {
+		if !strings.Contains(command, token) {
+			t.Fatalf("command %q missing %q", command, token)
+		}
+	}
+	gotEnv := map[string]string{}
+	for _, pair := range execSpec.Env {
+		key, value, ok := strings.Cut(pair, "=")
+		if ok {
+			gotEnv[key] = value
+		}
+	}
+	if gotEnv["PI_CODING_AGENT_DIR"] != filepath.Join(runHome, ".pi", "agent") {
+		t.Fatalf("PI_CODING_AGENT_DIR = %q", gotEnv["PI_CODING_AGENT_DIR"])
+	}
+}
+
 func TestRepoOwnedCodexCollectTrajectoryProducesATIF(t *testing.T) {
 	runtime, agent, runCtx := setupRepoOwnedTrajectoryTest(t, "codex")
 	sessionFile := filepath.Join(runCtx.RunHome, ".codex", "sessions", "2026", "03", "10", "session", "codex.jsonl")
@@ -1177,6 +1413,100 @@ func TestRepoOwnedOpencodeCollectTrajectoryProducesATIF(t *testing.T) {
 		t.Fatalf("unexpected completion totals = %+v", traj.FinalMetrics)
 	}
 	if traj.FinalMetrics.TotalCachedTokens == nil || *traj.FinalMetrics.TotalCachedTokens != 4 {
+		t.Fatalf("unexpected cached totals = %+v", traj.FinalMetrics)
+	}
+}
+
+func TestRepoOwnedGeminiCollectTrajectoryProducesATIF(t *testing.T) {
+	runtime, agent, runCtx := setupRepoOwnedTrajectoryTest(t, "gemini-cli")
+	writeJSONLLines(t, filepath.Join(runCtx.ArtifactsDir, "gemini-stream.jsonl"), []string{
+		`{"type":"init","timestamp":"2026-03-10T12:00:00Z","session_id":"gemini-session","model":"gemini-2.5-pro"}`,
+		`{"type":"message","timestamp":"2026-03-10T12:00:00Z","role":"user","content":"fix the bug"}`,
+		`{"type":"message","timestamp":"2026-03-10T12:00:01Z","role":"assistant","content":"Inspecting files"}`,
+		`{"type":"tool_use","timestamp":"2026-03-10T12:00:02Z","tool_name":"ReadFile","tool_id":"tool-1","parameters":{"path":"main.go"}}`,
+		`{"type":"tool_result","timestamp":"2026-03-10T12:00:03Z","tool_id":"tool-1","status":"success","output":"package main"}`,
+		`{"type":"message","timestamp":"2026-03-10T12:00:04Z","role":"assistant","content":"Done"}`,
+		`{"type":"result","timestamp":"2026-03-10T12:00:05Z","status":"success","stats":{"total_tokens":24,"input_tokens":14,"output_tokens":10,"cached":3,"input":11,"duration_ms":2500,"tool_calls":1,"models":{"gemini-2.5-pro":{"total_tokens":24,"input_tokens":14,"output_tokens":10,"cached":3,"input":11}}}}`,
+	})
+
+	raw, err := runtime.CollectTrajectory(context.Background(), agent, runCtx)
+	if err != nil {
+		t.Fatalf("CollectTrajectory() error = %v", err)
+	}
+	traj, err := trajectory.Decode(raw)
+	if err != nil {
+		t.Fatalf("trajectory.Decode() error = %v", err)
+	}
+	if traj.SessionID != "gemini-session" {
+		t.Fatalf("session_id = %q", traj.SessionID)
+	}
+	if traj.Agent.Name != "gemini-cli" || traj.Agent.Version != "1.0.0" {
+		t.Fatalf("unexpected agent = %+v", traj.Agent)
+	}
+	if len(traj.Steps) != 3 {
+		t.Fatalf("steps = %d, want 3", len(traj.Steps))
+	}
+	if len(traj.Steps[1].ToolCalls) != 1 || traj.Steps[1].ToolCalls[0].FunctionName != "ReadFile" {
+		t.Fatalf("unexpected tool call step = %+v", traj.Steps[1])
+	}
+	if traj.Steps[1].Observation == nil || len(traj.Steps[1].Observation.Results) != 1 {
+		t.Fatalf("observation = %+v", traj.Steps[1].Observation)
+	}
+	if traj.FinalMetrics == nil || traj.FinalMetrics.TotalPromptTokens == nil || *traj.FinalMetrics.TotalPromptTokens != 14 {
+		t.Fatalf("unexpected prompt totals = %+v", traj.FinalMetrics)
+	}
+	if traj.FinalMetrics.TotalCompletionTokens == nil || *traj.FinalMetrics.TotalCompletionTokens != 10 {
+		t.Fatalf("unexpected completion totals = %+v", traj.FinalMetrics)
+	}
+	if traj.FinalMetrics.TotalCachedTokens == nil || *traj.FinalMetrics.TotalCachedTokens != 3 {
+		t.Fatalf("unexpected cached totals = %+v", traj.FinalMetrics)
+	}
+}
+
+func TestRepoOwnedPiCollectTrajectoryProducesATIF(t *testing.T) {
+	runtime, agent, runCtx := setupRepoOwnedTrajectoryTest(t, "pi")
+	imageData := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0b8AAAAASUVORK5CYII="
+	writeJSONLLines(t, filepath.Join(runCtx.ArtifactsDir, "pi-events.jsonl"), []string{
+		`{"type":"session","id":"pi-session","cwd":"/workspace"}`,
+		`{"type":"agent_end","messages":[{"role":"user","content":"fix the bug","timestamp":1741608000000},{"role":"assistant","model":"openai/gpt-5","timestamp":1741608001000,"usage":{"input":12,"output":6,"cacheRead":2,"cacheWrite":1,"cost":{"total":0.42}},"content":[{"type":"thinking","thinking":"Plan the fix"},{"type":"text","text":"Inspecting the repository"},{"type":"toolCall","id":"toolu_1","name":"bash","arguments":{"command":"ls"}}]},{"role":"toolResult","toolCallId":"toolu_1","content":[{"type":"text","text":"file1\nfile2"},{"type":"image","mimeType":"image/png","data":"` + imageData + `"}]},{"role":"assistant","model":"openai/gpt-5","timestamp":1741608002000,"usage":{"input":4,"output":3,"cacheRead":0,"cacheWrite":0,"cost":{"total":0.11}},"content":[{"type":"text","text":"Done"}]}]}`,
+	})
+
+	raw, err := runtime.CollectTrajectory(context.Background(), agent, runCtx)
+	if err != nil {
+		t.Fatalf("CollectTrajectory() error = %v", err)
+	}
+	traj, err := trajectory.Decode(raw)
+	if err != nil {
+		t.Fatalf("trajectory.Decode() error = %v", err)
+	}
+	if traj.SessionID != "pi-session" {
+		t.Fatalf("session_id = %q", traj.SessionID)
+	}
+	if traj.Agent.Name != "pi" || traj.Agent.Version != "1.0.0" {
+		t.Fatalf("unexpected agent = %+v", traj.Agent)
+	}
+	if len(traj.Steps) != 3 {
+		t.Fatalf("steps = %d, want 3", len(traj.Steps))
+	}
+	if traj.Steps[1].ReasoningContent != "Plan the fix" {
+		t.Fatalf("reasoning_content = %q", traj.Steps[1].ReasoningContent)
+	}
+	if len(traj.Steps[1].ToolCalls) != 1 || traj.Steps[1].ToolCalls[0].FunctionName != "bash" {
+		t.Fatalf("unexpected tool call step = %+v", traj.Steps[1])
+	}
+	if traj.Steps[1].Observation == nil || len(traj.Steps[1].Observation.Results) != 1 {
+		t.Fatalf("observation = %+v", traj.Steps[1].Observation)
+	}
+	if _, err := os.Stat(filepath.Join(runCtx.ArtifactsDir, "images", "step_2_obs_0_img_0.png")); err != nil {
+		t.Fatalf("materialized observation image missing: %v", err)
+	}
+	if traj.FinalMetrics == nil || traj.FinalMetrics.TotalPromptTokens == nil || *traj.FinalMetrics.TotalPromptTokens != 18 {
+		t.Fatalf("unexpected prompt totals = %+v", traj.FinalMetrics)
+	}
+	if traj.FinalMetrics.TotalCompletionTokens == nil || *traj.FinalMetrics.TotalCompletionTokens != 9 {
+		t.Fatalf("unexpected completion totals = %+v", traj.FinalMetrics)
+	}
+	if traj.FinalMetrics.TotalCachedTokens == nil || *traj.FinalMetrics.TotalCachedTokens != 2 {
 		t.Fatalf("unexpected cached totals = %+v", traj.FinalMetrics)
 	}
 }

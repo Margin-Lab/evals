@@ -26,6 +26,7 @@ import (
 const (
 	envOpenAIKey    = "OPENAI_API_KEY"
 	envAnthropicKey = "ANTHROPIC_API_KEY"
+	envGeminiKey    = "GEMINI_API_KEY"
 	envArtifactsDir = "AGENT_SERVER_IT_ARTIFACTS_DIR"
 	envITPrefix     = "AGENT_SERVER_IT_"
 )
@@ -172,7 +173,7 @@ func integrationContainerEnv(extraEnv map[string]string) map[string]string {
 
 func isProviderCredentialEnvKey(key string) bool {
 	normalized := strings.ToUpper(strings.TrimSpace(key))
-	return normalized == envOpenAIKey || normalized == envAnthropicKey
+	return normalized == envOpenAIKey || normalized == envAnthropicKey || normalized == envGeminiKey
 }
 
 func endpointBaseURLs(endpoint string) (string, string, error) {
@@ -507,6 +508,10 @@ func openAIAPIKey() string {
 
 func anthropicAPIKey() string {
 	return strings.TrimSpace(os.Getenv(envAnthropicKey))
+}
+
+func geminiAPIKey() string {
+	return strings.TrimSpace(os.Getenv(envGeminiKey))
 }
 
 func sanitizeToken(value string) string {

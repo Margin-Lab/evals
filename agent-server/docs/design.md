@@ -1,6 +1,6 @@
 # agent-server Design
 
-`agent-server` is a generic runtime for packaged `agent_definition` artifacts. It no longer contains a live built-in plugin registry. Codex, Claude Code, and Opencode are ordinary repo-owned definitions that use the same lifecycle contract as custom agents.
+`agent-server` is a generic runtime for packaged `agent_definition` artifacts. It no longer contains a live built-in plugin registry. Codex, Claude Code, Gemini CLI, Opencode, and Pi are ordinary repo-owned definitions that use the same lifecycle contract as custom agents.
 
 ## Core Model
 

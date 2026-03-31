@@ -12,7 +12,7 @@
 
 ---
 
-Margin Eval is the most robust orchestrator for running evals against CLI agents like **Claude Code**, **Codex**, and **OpenCode**. It measures accuracy, token usage, runtime, and captures full execution traces, all in a standardized, reproducible local format.
+Margin Eval is the most robust orchestrator for running evals against CLI agents like **Claude Code**, **Codex**, **Gemini CLI**, **OpenCode**, and **Pi**. It measures accuracy, token usage, runtime, and captures full execution traces, all in a standardized, reproducible local format.
 
 - **Test any configuration**: agents, models, MCPs, skills, prompting strategies
 - **Compare side-by-side**: unified CLI, config format, and output across all agents
@@ -63,6 +63,15 @@ export ANTHROPIC_API_KEY=<API_KEY>
 margin run \
   --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
   --agent-config ~/.margin/configs/example-agent-configs/claude-code-default \
+  --eval ~/.margin/configs/example-eval-configs/default.toml \
+```
+
+Run Gemini CLI with the unified config
+```bash
+export GEMINI_API_KEY=<API_KEY>
+margin run \
+  --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \
+  --agent-config ~/.margin/configs/example-agent-configs/gemini-cli-unified \
   --eval ~/.margin/configs/example-eval-configs/default.toml \
 ```
 
@@ -138,7 +147,9 @@ See Creating [Your Own Eval](https://docs.marginlab.ai/creating-your-own-eval/01
 |-------|----------------|
 | **Claude Code** | `claude-code-default`, `claude-code-unified` |
 | **Codex** | `codex-default`, `codex-unified` |
+| **Gemini CLI** | `gemini-cli-default`, `gemini-cli-unified` |
 | **OpenCode** | `opencode-default`, `opencode-unified` |
+| **Pi** | `pi-default`, `pi-unified` |
 
 Agent configs support two modes: **direct** (full agent-specific control) and **unified** (one config format that works across all supported agents).
 
