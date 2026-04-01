@@ -54,6 +54,18 @@ jobs:
       - name: Prepare embedded agent-server payloads
         run: bash scripts/prepare-embedded-agent-server.sh
 
+      - name: Run agent-server unit tests
+        working-directory: agent-server
+        run: go test ./...
+
+      - name: Run runner-core unit tests
+        working-directory: runner/runner-core
+        run: go test ./...
+
+      - name: Run runner-local unit tests
+        working-directory: runner/runner-local
+        run: go test ./...
+
       - name: Run CLI unit tests
         working-directory: cli
         run: go test ./...
