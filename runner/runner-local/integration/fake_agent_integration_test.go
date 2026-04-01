@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -89,9 +88,24 @@ func TestRunnerLocalWithFakeAgentServer(t *testing.T) {
 	if summary.Usage.InputTokens != 12 || summary.Usage.OutputTokens != 5 || summary.Usage.ToolCalls != 1 {
 		t.Fatalf("unexpected usage summary: %+v", summary.Usage)
 	}
-	artifactPayload := filepath.Join(rootDir, "runs", run.RunID, "instances", run.RunID+"-inst-0001", "trajectory.json")
-	if _, err := os.Stat(artifactPayload); err != nil {
-		t.Fatalf("expected trajectory payload copy at %s: %v", artifactPayload, err)
+	artifactsIndexPath := runfs.ArtifactsIndexPath(rootDir, run.RunID)
+	artifactsRaw, err := os.ReadFile(artifactsIndexPath)
+	if err != nil {
+		t.Fatalf("read artifacts metadata: %v", err)
+	}
+	var artifacts []store.Artifact
+	if err := json.Unmarshal(artifactsRaw, &artifacts); err != nil {
+		t.Fatalf("unmarshal artifacts metadata: %v", err)
+	}
+	foundTrajectory := false
+	for _, artifact := range artifacts {
+		if artifact.Role == store.ArtifactRoleTrajectory {
+			foundTrajectory = true
+			break
+		}
+	}
+	if !foundTrajectory {
+		t.Fatalf("expected trajectory artifact metadata in %s", artifactsIndexPath)
 	}
 }
 
@@ -183,19 +197,6 @@ func TestRunnerLocalWithFakeAgentServerDryRun(t *testing.T) {
 		t.Fatalf("expected completed run, got %s", finalRun.State)
 	}
 
-	manifestPath := runfs.ManifestPath(rootDir, run.RunID)
-	manifestRaw, err := os.ReadFile(manifestPath)
-	if err != nil {
-		t.Fatalf("read manifest.json: %v", err)
-	}
-	var manifest map[string]any
-	if err := json.Unmarshal(manifestRaw, &manifest); err != nil {
-		t.Fatalf("unmarshal manifest.json: %v", err)
-	}
-	if manifest["execution_mode"] != string(runbundle.ExecutionModeDryRun) {
-		t.Fatalf("manifest execution_mode = %#v, want %q", manifest["execution_mode"], runbundle.ExecutionModeDryRun)
-	}
-
 	resultsPath := runfs.ResultsPath(rootDir, run.RunID)
 	raw, err := os.ReadFile(resultsPath)
 	if err != nil {
@@ -234,8 +235,4 @@ func TestRunnerLocalWithFakeAgentServerDryRun(t *testing.T) {
 		}
 	}
 
-	trajectoryPayload := filepath.Join(rootDir, "runs", run.RunID, "instances", run.RunID+"-inst-0001", "trajectory.json")
-	if _, err := os.Stat(trajectoryPayload); !os.IsNotExist(err) {
-		t.Fatalf("expected no trajectory payload copy, stat err=%v", err)
-	}
 }

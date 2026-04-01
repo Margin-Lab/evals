@@ -37,7 +37,7 @@ const command = [
 const shellCommand = `set -euo pipefail\n${command} 2>&1 | tee ${shellQuote(outputPath)}`;
 process.stdout.write(JSON.stringify({
   path: "bash",
-  args: ["-lc", shellCommand],
+  args: ["-c", shellCommand],
   env,
   dir: run.cwd,
 }) + "\n");
