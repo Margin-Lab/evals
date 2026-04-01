@@ -189,11 +189,12 @@ func buildBundleWithAgent(prompt string, agent runbundle.Agent) runbundle.Bundle
 				InstanceTimeoutSecond: 240,
 			},
 			Agent:       agent,
-			RunDefaults: runbundle.RunDefault{Cwd: "/marginlab/workspaces", Env: map[string]string{"TERM": "xterm-256color"}, PTY: runbundle.PTY{Cols: 120, Rows: 40}},
+			RunDefaults: runbundle.RunDefault{Env: map[string]string{"TERM": "xterm-256color"}, PTY: runbundle.PTY{Cols: 120, Rows: 40}},
 			Cases: []runbundle.Case{{
 				CaseID:            "case_1",
 				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 				InitialPrompt:     prompt,
+				AgentCwd:          "/workspace",
 				TestCommand:       []string{"bash", "-lc", "true"},
 				TestCwd:           "/work",
 				TestTimeoutSecond: 120,

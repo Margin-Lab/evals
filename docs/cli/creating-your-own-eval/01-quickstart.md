@@ -64,6 +64,7 @@ name = "fix-null-check"
 description = "Describe what this case validates"
 
 image = "ghcr.io/acme/repo@sha256:0123456789abcdef..."
+agent_cwd = "/work"
 test_cwd = "/work"
 test_timeout_seconds = 900
 ```
@@ -99,7 +100,7 @@ cd /work
 npm test -- --grep "getUserById"
 ```
 
-The script runs inside the container after the agent finishes, in `test_cwd`, with a `test_timeout_seconds` hard limit.
+The agent starts in `agent_cwd`. The verification script runs inside the container after the agent finishes, in `test_cwd`, with a `test_timeout_seconds` hard limit.
 
 ## 5. Validate and run
 

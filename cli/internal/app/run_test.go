@@ -1495,13 +1495,12 @@ func validRemoteSuiteRunBundle(t *testing.T) runbundle.Bundle {
 					Input: map[string]any{"command": []any{"bash", "-lc", "echo hi"}},
 				},
 			},
-			RunDefaults: runbundle.RunDefault{
-				Cwd: "/work",
-			},
+			RunDefaults: runbundle.RunDefault{},
 			Cases: []runbundle.Case{{
 				CaseID:            "case-1",
 				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 				InitialPrompt:     "prompt",
+				AgentCwd:          "/workspace",
 				TestCommand:       []string{"bash", "-lc", "tests/test.sh"},
 				TestCwd:           "/work",
 				TestTimeoutSecond: 1,
