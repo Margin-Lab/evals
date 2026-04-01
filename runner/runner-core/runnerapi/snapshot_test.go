@@ -163,7 +163,6 @@ func snapshotFixtureBundle() runbundle.Bundle {
 			Execution: runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1, FailFast: false, InstanceTimeoutSecond: 120},
 			Agent:     testfixture.MinimalAgent(),
 			RunDefaults: runbundle.RunDefault{
-				Cwd: "/work",
 				Env: map[string]string{"TERM": "xterm-256color"},
 				PTY: runbundle.PTY{Cols: 120, Rows: 40},
 			},
@@ -171,6 +170,7 @@ func snapshotFixtureBundle() runbundle.Bundle {
 				CaseID:            "case_1",
 				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 				InitialPrompt:     "Fix tests",
+				AgentCwd:          "/workspace",
 				TestCommand:       []string{"bash", "-lc", "true"},
 				TestCwd:           "/work",
 				TestTimeoutSecond: 60,

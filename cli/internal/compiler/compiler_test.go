@@ -197,8 +197,9 @@ func TestCompileCaseWithoutImageOrDockerfileFails(t *testing.T) {
 	root := t.TempDir()
 
 	suitePath := filepath.Join(root, "suite")
-	createSuiteCase(t, suitePath, "repo-build", `kind = "test_case"
+createSuiteCase(t, suitePath, "repo-build", `kind = "test_case"
 name = "repo-build"
+agent_cwd = "/workspace"
 test_cwd = "/work"
 test_timeout_seconds = 120
 `)
@@ -226,8 +227,9 @@ func TestCompileUsesEnvDockerfileWhenImageOmitted(t *testing.T) {
 	root := t.TempDir()
 
 	suitePath := filepath.Join(root, "suite")
-	createSuiteCase(t, suitePath, "repo-build", `kind = "test_case"
+createSuiteCase(t, suitePath, "repo-build", `kind = "test_case"
 name = "repo-build"
+agent_cwd = "/workspace"
 test_cwd = "/work"
 test_timeout_seconds = 120
 `)
@@ -268,9 +270,10 @@ func TestCompilePrefersExplicitImageOverEnvBuild(t *testing.T) {
 
 	suitePath := filepath.Join(root, "suite")
 	const explicitImage = "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	createSuiteCase(t, suitePath, "repo-build", `kind = "test_case"
+createSuiteCase(t, suitePath, "repo-build", `kind = "test_case"
 name = "repo-build"
 image = "`+explicitImage+`"
+agent_cwd = "/workspace"
 test_cwd = "/work"
 test_timeout_seconds = 120
 `)
@@ -473,7 +476,7 @@ func createSuiteWithCases(t *testing.T, suitePath string, cases []string) {
 	writeFile(t, filepath.Join(suitePath, "suite.toml"), "kind = \"test_suite\"\nname = \"smoke\"\ncases = [\n  "+caseList+"\n]\n")
 
 	for _, name := range cases {
-		writeFile(t, filepath.Join(suitePath, "cases", name, "case.toml"), "kind = \"test_case\"\nname = \""+name+"\"\nimage = \"ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"\ntest_cwd = \"/work\"\ntest_timeout_seconds = 120\n")
+		writeFile(t, filepath.Join(suitePath, "cases", name, "case.toml"), "kind = \"test_case\"\nname = \""+name+"\"\nimage = \"ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"\nagent_cwd = \"/workspace\"\ntest_cwd = \"/work\"\ntest_timeout_seconds = 120\n")
 		writeFile(t, filepath.Join(suitePath, "cases", name, "prompt.md"), "run case "+name+"\n")
 		writeFile(t, filepath.Join(suitePath, "cases", name, "tests", "test.sh"), "#!/usr/bin/env bash\ntrue\n")
 	}

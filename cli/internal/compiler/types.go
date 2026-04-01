@@ -15,7 +15,6 @@ type CompileInput struct {
 	BundleID        string
 	CreatedAt       time.Time
 
-	RunCwd  string
 	RunEnv  map[string]string
 	PTYCols int
 	PTYRows int
@@ -55,6 +54,7 @@ type caseFile struct {
 	Name               string `toml:"name"`
 	Description        string `toml:"description"`
 	Image              string `toml:"image"`
+	AgentCwd           string `toml:"agent_cwd"`
 	TestCwd            string `toml:"test_cwd"`
 	TestTimeoutSeconds int    `toml:"test_timeout_seconds"`
 }

@@ -202,7 +202,7 @@ func (e *Executor) ExecuteInstance(ctx context.Context, run store.Run, inst stor
 		return store.InstanceResult{}, nil, fmt.Errorf("case test_timeout_seconds must be > 0")
 	}
 	startReq := startRunRequest{
-		CWD:           inst.Case.TestCwd,
+		CWD:           inst.Case.AgentCwd,
 		InitialPrompt: inst.Case.InitialPrompt,
 		Env:           cloneStringMap(runDefaults.Env),
 		AuthFiles:     append([]StartRunAuthFile(nil), e.authFiles...),

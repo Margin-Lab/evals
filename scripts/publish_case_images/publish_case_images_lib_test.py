@@ -38,6 +38,7 @@ class PublishCaseImagesLibTest(unittest.TestCase):
                 'kind = "test_case"\n'
                 'name = "demo"\n'
                 'description = "demo case"\n'
+                'agent_cwd = "/workspace"\n'
                 'test_cwd = "/"\n'
             )
 
@@ -49,6 +50,7 @@ class PublishCaseImagesLibTest(unittest.TestCase):
                 'name = "demo"\n'
                 'description = "demo case"\n'
                 'image = "ghcr.io/acme/demo@sha256:1234"\n'
+                'agent_cwd = "/workspace"\n'
                 'test_cwd = "/"\n',
             )
 
@@ -60,6 +62,7 @@ class PublishCaseImagesLibTest(unittest.TestCase):
                 'name = "demo"\n'
                 'description = "demo case"\n'
                 'image = "ghcr.io/acme/demo@sha256:old"\n'
+                'agent_cwd = "/workspace"\n'
                 'test_cwd = "/"\n'
             )
 

@@ -16,7 +16,6 @@ import (
 
 const (
 	defaultProjectID = "proj_local"
-	defaultRunCWD    = "/marginlab/workspaces"
 	defaultPTYCols   = 120
 	defaultPTYRows   = 40
 )
@@ -235,6 +234,7 @@ func compileCase(caseDir, expectedName string) (runbundle.Case, error) {
 		Image:             strings.TrimSpace(resolvedImage),
 		ImageBuild:        imageBuild,
 		InitialPrompt:     prompt,
+		AgentCwd:          strings.TrimSpace(c.AgentCwd),
 		TestCommand:       []string{"bash", "-lc", "tests/test.sh"},
 		TestCwd:           strings.TrimSpace(c.TestCwd),
 		TestTimeoutSecond: c.TestTimeoutSeconds,
@@ -448,10 +448,6 @@ func compileToolchains(spec definitionToolchainFile) agentdef.ToolchainSpec {
 }
 
 func compileRunDefaults(in CompileInput) runbundle.RunDefault {
-	cwd := strings.TrimSpace(in.RunCwd)
-	if cwd == "" {
-		cwd = defaultRunCWD
-	}
 	env := map[string]string{"TERM": "xterm-256color"}
 	for k, v := range in.RunEnv {
 		key := strings.TrimSpace(k)
@@ -465,10 +461,10 @@ func compileRunDefaults(in CompileInput) runbundle.RunDefault {
 		cols = defaultPTYCols
 	}
 	rows := in.PTYRows
-	if rows <= 0 {
-		rows = defaultPTYRows
-	}
-	return runbundle.RunDefault{Cwd: cwd, Env: env, PTY: runbundle.PTY{Cols: cols, Rows: rows}}
+		if rows <= 0 {
+			rows = defaultPTYRows
+		}
+	return runbundle.RunDefault{Env: env, PTY: runbundle.PTY{Cols: cols, Rows: rows}}
 }
 
 func compileLocalSkills(configDir string, files []agentConfigSkillFile) ([]agentdef.SkillSpec, error) {

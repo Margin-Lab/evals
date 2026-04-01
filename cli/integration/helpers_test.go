@@ -418,9 +418,10 @@ command = ["bash", "-lc", "echo hello"]
 	image := resolveDigestPinnedLocalImage(fakeImageTag)
 	suitePath = filepath.Join(root, "suite")
 	writeTextFile(t, filepath.Join(suitePath, "suite.toml"), "kind = \"test_suite\"\nname = \"cli-it\"\ncases = [\n  \"case-1\"\n]\n")
-	writeTextFile(t, filepath.Join(suitePath, "cases", "case-1", "case.toml"), fmt.Sprintf(`kind = "test_case"
+writeTextFile(t, filepath.Join(suitePath, "cases", "case-1", "case.toml"), fmt.Sprintf(`kind = "test_case"
 name = "case-1"
 image = %q
+agent_cwd = "/workspace"
 test_cwd = "/work"
 test_timeout_seconds = 120
 `, image))
@@ -448,9 +449,10 @@ func writeModelRunFixture(t *testing.T, definitionName, configName, version stri
 	image := resolveDigestPinnedLocalImage(realImageTag)
 	suitePath = filepath.Join(root, "suite")
 	writeTextFile(t, filepath.Join(suitePath, "suite.toml"), "kind = \"test_suite\"\nname = \"cli-model-it\"\ncases = [\n  \"case-1\"\n]\n")
-	writeTextFile(t, filepath.Join(suitePath, "cases", "case-1", "case.toml"), fmt.Sprintf(`kind = "test_case"
+writeTextFile(t, filepath.Join(suitePath, "cases", "case-1", "case.toml"), fmt.Sprintf(`kind = "test_case"
 name = "case-1"
 image = %q
+agent_cwd = "/workspace"
 test_cwd = "/work"
 test_timeout_seconds = 120
 `, image))

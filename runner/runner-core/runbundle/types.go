@@ -90,7 +90,6 @@ type Agent struct {
 }
 
 type RunDefault struct {
-	Cwd string            `json:"cwd"`
 	Env map[string]string `json:"env"`
 	PTY PTY               `json:"pty"`
 }
@@ -105,6 +104,7 @@ type Case struct {
 	Image             string          `json:"image"`
 	ImageBuild        *CaseImageBuild `json:"image_build,omitempty"`
 	InitialPrompt     string          `json:"initial_prompt"`
+	AgentCwd          string          `json:"agent_cwd"`
 	TestCommand       []string        `json:"test_command"`
 	TestCwd           string          `json:"test_cwd"`
 	TestTimeoutSecond int             `json:"test_timeout_seconds"`
