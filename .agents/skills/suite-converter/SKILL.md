@@ -54,6 +54,7 @@ The `cases` array lists directory names under `cases/`, in the order they should
 kind = "test_case"
 name = "<case-name>"
 description = "<one-line description>"
+agent_cwd = "/"
 test_cwd = "/"
 test_timeout_seconds = 1800
 
@@ -63,12 +64,13 @@ category = "programming"
 tags = ["tag1", "tag2"]
 ```
 
-`[metadata]` can be preserved for human context and future tooling, but the current Margin compiler/runtime only executes `kind`, `name`, `description`, `image`, `test_cwd`, and `test_timeout_seconds`.
+`[metadata]` can be preserved for human context and future tooling, but the current Margin compiler/runtime primarily cares about the execution fields such as `kind`, `name`, `description`, `image`, `agent_cwd`, `test_cwd`, and `test_timeout_seconds`.
 
 Key rules:
 - `name` **must** match its directory name exactly
 - `kind` is always `"test_case"`
 - `test_timeout_seconds` is an integer (seconds)
+- `agent_cwd` is the directory where the agent is expected to start and do its work inside the container
 - `test_cwd` is the working directory where test.sh runs inside the container
 
 Image handling, exactly one of:
@@ -112,6 +114,15 @@ These rules are cross-source and should hold for every conversion.
 - `case.toml.name` must match the case directory name exactly
 - If source-name sanitization causes collisions, append a stable suffix such as part of the source task ID or UUID
 
+### Working directory rules
+
+- `agent_cwd` and `test_cwd` are separate concepts:
+  - `agent_cwd` is where the agent starts
+  - `test_cwd` is where the verifier runs
+- Set `agent_cwd` to the directory where the source task expects the agent to operate on the codebase or files
+- Set `test_cwd` to the directory where the verifier should execute
+- Do not assume they are the same. Only use the same value for both when the source task clearly indicates that the agent and verifier operate from the same directory
+
 ### Validation rules
 
 - Do not assume the conversion is correct until a sample run succeeds without harness-level issues
@@ -120,9 +131,18 @@ These rules are cross-source and should hold for every conversion.
 
 ## Decision Rules
 
-### Inferring test_cwd
+### Inferring working directories
 
-Parse the Dockerfile for `WORKDIR` directives. Use the last `WORKDIR` value found. If none exists, default to `"/"`.
+Parse the Dockerfile for `WORKDIR` directives. Use the last `WORKDIR` value found as the default working directory inside the container.
+
+Use that information carefully:
+- infer `test_cwd` from the verifier and Dockerfile execution context
+- infer `agent_cwd` from where the source task expects the agent to work on the repo or files
+- do not default `agent_cwd` to `test_cwd` unless the source task clearly uses the same directory for both
+
+If no better signal exists:
+- default `test_cwd` to the last `WORKDIR`, or `"/"` if none exists
+- choose `agent_cwd` from the most plausible agent workspace for the task, rather than assuming it matches `test_cwd`
 
 ### Clarifying Docker behavior
 
@@ -156,7 +176,8 @@ When Docker behavior is ambiguous, ask which of these they want:
 9. **Smoke test a sample first**: convert a small sample of 2-5 representative cases before committing to the full dataset
 10. **Run Margin on that sample**: execute the sample with `margin run` and carefully inspect the results, logs, and verifier behavior to identify conversion issues before scaling up
 11. **Validate verifier behavior**: confirm the converted `tests/test.sh` locates its test assets under `{test_cwd}/tests`, returns a non-zero exit code when the underlying tests fail, and does not discover the same tests from both the workspace and `tests/`
-12. **Fix and rerun before scaling up**: if the sample exposes harness issues, adjust the conversion so the verifier has a single authoritative test location, then rerun the sample before converting the full dataset
+12. **Validate agent starting context**: confirm `agent_cwd` points at the directory where the agent should actually begin work for the task
+13. **Fix and rerun before scaling up**: if the sample exposes harness issues, adjust the conversion so the verifier has a single authoritative test location, then rerun the sample before converting the full dataset
 
 ## Generated Wrapper Guidance
 
@@ -229,7 +250,7 @@ Each UUID directory wraps exactly one named task subdirectory.
    l. Copy `tests/` to `tests/`
    m. Apply the general verifier rules above, especially path normalization, environment-variable overrides, single test location, and exit-code propagation
    n. If `solution/` exists, copy it to `oracle/` as reference material only
-3. **Parse `WORKDIR`** from `env/Dockerfile` to set `test_cwd` when using a Dockerfile-backed environment or rebuilding/publishing a new image. If using a Harbor `docker_image` without a Dockerfile, infer `test_cwd` from the source verifier or default to `"/"`.
+3. **Parse `WORKDIR`** from `env/Dockerfile` to help infer working directories when using a Dockerfile-backed environment or rebuilding/publishing a new image. Use it directly for `test_cwd` when it matches the verifier context, and infer `agent_cwd` separately from the source task layout or expected repo workspace. If using a Harbor `docker_image` without a Dockerfile, infer both directories from the source task and verifier rather than assuming they match.
 4. **Generate `suite.toml`** with all case names
 5. **`chmod +x`** all `.sh` files in `tests/` and `oracle/`
 
@@ -260,6 +281,7 @@ harbor_agent_timeout_sec = 120
 Before declaring a conversion complete, verify:
 - Every case has `case.toml`, `prompt.md`, `tests/test.sh`, and either `image` or `env/Dockerfile`
 - `case.toml.name` matches the directory name
+- `agent_cwd` points at the directory where the agent should actually start
 - `test_cwd` resolves to a real working directory assumption for the case
 - Required shell scripts are executable
 - The sample suite runs under `margin run`

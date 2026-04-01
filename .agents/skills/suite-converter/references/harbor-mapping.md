@@ -8,6 +8,7 @@
 | task directory name | `name` | Use the inner task directory name (not UUID parent), sanitize for filesystem, and add a stable suffix on collision |
 | — | `description` | Use first line of `instruction.md`, truncated to ~100 chars |
 | `[environment].docker_image` | `image` | Preserve as Margin `image` when the user wants to keep or reuse the source image |
+| — | `agent_cwd` | Set to the directory where the agent should start; infer from the source task layout, repo workspace, or prompt expectations, and do not assume it matches `test_cwd` |
 | — | `test_cwd` | Parse last `WORKDIR` from Dockerfile; if only `docker_image` is present, infer from verifier conventions or default `"/"` |
 | `[verifier].timeout_sec` | `test_timeout_seconds` | `int(timeout_sec)`; default 1800 if missing |
 | `[metadata].difficulty` | `[metadata].difficulty` | Copy as-is |
@@ -157,6 +158,7 @@ kind = "test_case"
 name = "hello-world"
 description = "Create a file called hello.txt with \"Hello, world!\" as the content."
 image = "ghcr.io/example/hello-world:1.0"
+agent_cwd = "/app"
 test_cwd = "/app"
 test_timeout_seconds = 120
 
