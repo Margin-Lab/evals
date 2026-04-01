@@ -53,7 +53,7 @@ const shellCommand = [
 
 process.stdout.write(JSON.stringify({
   path: "bash",
-  args: ["-lc", shellCommand],
+  args: ["-c", shellCommand],
   env,
   dir: run.cwd,
 }) + "\n");
