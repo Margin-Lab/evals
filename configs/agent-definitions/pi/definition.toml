@@ -6,6 +6,28 @@ description = "Repo-owned Pi coding agent definition"
 minimum = "20"
 preferred = "24"
 
+[auth]
+
+  [auth.provider_selection]
+  direct_input_field = "provider"
+  unified_model_provider_qualified = true
+
+  [[auth.providers]]
+  name = "openai"
+  required_env = ["OPENAI_API_KEY"]
+
+  [[auth.providers]]
+  name = "anthropic"
+  required_env = ["ANTHROPIC_API_KEY"]
+
+  [[auth.providers]]
+  name = "google"
+  required_env = ["GEMINI_API_KEY"]
+
+  [[auth.providers]]
+  name = "*"
+  auth_mode = "none"
+
 [config]
 schema = "schema.json"
 

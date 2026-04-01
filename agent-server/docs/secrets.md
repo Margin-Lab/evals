@@ -15,11 +15,29 @@ run_home_rel_path = ".codex/auth.json"
   home_rel_path = ".codex/auth.json"
 ```
 
+Provider-aware definitions may instead declare:
+
+```toml
+[auth.provider_selection]
+direct_input_field = "provider"
+unified_model_provider_qualified = true
+
+[[auth.providers]]
+name = "openai"
+required_env = ["OPENAI_API_KEY"]
+
+[[auth.providers]]
+name = "*"
+auth_mode = "none"
+```
+
 ## Contract
 
 At run start, the server:
 
-1. reads `manifest.auth.required_env`
+1. resolves the active required env set from either:
+   - `manifest.auth.required_env`
+   - or `auth.provider_selection` + `auth.providers` + the active config provider
 2. rejects request env overrides for those keys
 3. resolves each required key from either:
    - the server/container process environment
@@ -34,8 +52,16 @@ The same required env set is also used when preparing snapshots and trajectory h
 - `codex`: `OPENAI_API_KEY`
 - `claude-code`: `ANTHROPIC_API_KEY`
 - `gemini-cli`: `GEMINI_API_KEY` or a staged `~/.gemini/oauth_creds.json` payload
-- `opencode`: `OPENAI_API_KEY`
-- `pi`: provider-specific runtime env, not definition-managed
+- `opencode`: provider-qualified
+  - `openai/*` -> `OPENAI_API_KEY`
+  - `anthropic/*` -> `ANTHROPIC_API_KEY`
+  - `google/*` -> `GEMINI_API_KEY`
+  - `*` -> `auth_mode = "none"`
+- `pi`: provider-qualified
+  - `openai/*` -> `OPENAI_API_KEY`
+  - `anthropic/*` -> `ANTHROPIC_API_KEY`
+  - `google/*` -> `GEMINI_API_KEY`
+  - `*` -> `auth_mode = "none"`
 
 Custom definitions may declare any env keys they need.
 
@@ -64,3 +90,5 @@ Relevant API error codes:
 - Required env is resolved only at run time, not when loading a definition or config.
 - Managed Node, when enabled, is injected through `PATH`; it is not treated as a secret.
 - `auth.local_credentials` is resolved only by the caller before `POST /v1/run`. Repo-owned local CLI runs use it to discover and stage OAuth credential payloads for Codex, Claude Code, and Gemini CLI without requiring provider API keys.
+- Provider-aware definitions in this repo use env-key auth only; they do not define local credential discovery.
+- A wildcard provider entry with `auth_mode = "none"` allows arbitrary provider names with no required secret env. Any non-secret runtime variables can still be passed with `--agent-env`.

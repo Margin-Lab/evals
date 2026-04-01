@@ -419,7 +419,13 @@ func (r *Runtime) RequiredEnv(agent state.AgentRecord) []string {
 	if agent.Definition == nil {
 		return nil
 	}
-	return append([]string(nil), agent.Definition.Snapshot.Manifest.Auth.RequiredEnv...)
+	if agent.Config != nil {
+		required, err := agentdef.ResolveRequiredEnvForConfigSnapshot(agent.Definition.Snapshot, agent.Config.Snapshot)
+		if err == nil {
+			return required
+		}
+	}
+	return agentdef.ResolveDefinitionRequiredEnv(agent.Definition.Snapshot)
 }
 
 func (r *Runtime) basePaths(definition state.DefinitionRecord) hookPaths {

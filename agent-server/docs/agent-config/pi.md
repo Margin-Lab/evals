@@ -8,9 +8,11 @@ Repo-owned Pi uses:
 
 ## Required Env
 
-- none in the definition manifest
-
-Pi auth is provider-specific. The repo-owned definition leaves provider credential env handling to the selected runtime environment and example config.
+- provider-qualified auth selected from config:
+  - `openai/*` -> `OPENAI_API_KEY`
+  - `anthropic/*` -> `ANTHROPIC_API_KEY`
+  - `google/*` -> `GEMINI_API_KEY`
+  - `*` -> no required secret env
 
 ## Toolchains
 
@@ -30,6 +32,8 @@ The Pi definition schema expects:
 The default profile launches Pi in `--mode json`, sets `PI_CODING_AGENT_DIR`, and uses a run-local `--session-dir`.
 
 The unified profile requires a provider-qualified `model` such as `openai/gpt-5`, splits it into `provider` and `model`, and maps shared `reasoning_level` directly to Pi `thinking`.
+
+Unknown providers fall through to the wildcard no-auth entry. Use `--agent-env` for any manual runtime variables they need.
 
 If skills are configured, `agent-server` materializes them under `~/.agents/skills/<skill-name>/` before launch.
 
