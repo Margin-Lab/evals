@@ -87,5 +87,6 @@ process.stdout.write(JSON.stringify({
   opencode_version: "latest",
   startup_args: [],
   run_args: [],
+  provider,
   config_jsonc: `${JSON.stringify(config, null, 2)}\n`,
 }) + "\n");
