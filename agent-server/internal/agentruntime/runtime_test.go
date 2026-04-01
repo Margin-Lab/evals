@@ -387,7 +387,7 @@ func TestRepoOwnedUnifiedConfigsTranslateToDirectSnapshots(t *testing.T) {
 			agentName: "gemini-cli",
 			assertions: func(t *testing.T, snapshot agentdef.ConfigSnapshot) {
 				t.Helper()
-				if snapshot.Unified == nil || snapshot.Unified.Model != "gemini-2.5-pro" {
+				if snapshot.Unified == nil || snapshot.Unified.Model != "gemini-3-flash-preview" {
 					t.Fatalf("unexpected unified payload: %#v", snapshot.Unified)
 				}
 				if got := snapshot.Input["gemini_version"]; got != "latest" {
@@ -396,7 +396,7 @@ func TestRepoOwnedUnifiedConfigsTranslateToDirectSnapshots(t *testing.T) {
 				if got := snapshot.Input["approval_mode"]; got != "yolo" {
 					t.Fatalf("approval_mode = %#v", got)
 				}
-				if got := snapshot.Input["model"]; got != "gemini-2.5-pro" {
+				if got := snapshot.Input["model"]; got != "gemini-3-flash-preview" {
 					t.Fatalf("model = %#v", got)
 				}
 			},
@@ -1159,11 +1159,11 @@ func TestRepoOwnedGeminiPrepareRunWritesSettingsAndStreamsJSON(t *testing.T) {
 	if execSpec.Path != "bash" {
 		t.Fatalf("path = %q, want %q", execSpec.Path, "bash")
 	}
-	if len(execSpec.Args) != 2 || execSpec.Args[0] != "-lc" {
+	if len(execSpec.Args) != 2 || execSpec.Args[0] != "-c" {
 		t.Fatalf("args = %#v", execSpec.Args)
 	}
 	command := execSpec.Args[1]
-	for _, token := range []string{"--output-format stream-json", "--approval-mode yolo", "--model gemini-2.5-pro", "gemini-stream.jsonl", "gemini.stderr.log", "-p"} {
+	for _, token := range []string{"--output-format stream-json", "--approval-mode yolo", "--model gemini-3-flash-preview", "gemini-stream.jsonl", "gemini.stderr.log", "-p"} {
 		if !strings.Contains(command, token) {
 			t.Fatalf("command %q missing %q", command, token)
 		}
@@ -1261,7 +1261,7 @@ func TestRepoOwnedPiPrepareRunUsesJSONModeAndSessionDir(t *testing.T) {
 	if execSpec.Path != "bash" {
 		t.Fatalf("path = %q, want %q", execSpec.Path, "bash")
 	}
-	if len(execSpec.Args) != 2 || execSpec.Args[0] != "-lc" {
+	if len(execSpec.Args) != 2 || execSpec.Args[0] != "-c" {
 		t.Fatalf("args = %#v", execSpec.Args)
 	}
 	command := execSpec.Args[1]
