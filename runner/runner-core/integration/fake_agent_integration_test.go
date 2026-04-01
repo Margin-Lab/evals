@@ -22,7 +22,7 @@ func TestRunnerCoreWorkerWithFakeAgentServer(t *testing.T) {
 
 	executor, err := localexecutor.New(localexecutor.Config{
 		AgentServerBinary: agentServerBinary,
-		ArtifactRoot:      t.TempDir(),
+		OutputRoot:        t.TempDir(),
 		AgentPollInterval: 300 * time.Millisecond,
 	})
 	if err != nil {
