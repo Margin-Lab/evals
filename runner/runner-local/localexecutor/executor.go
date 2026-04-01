@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/marginlab/margin-eval/runner/runner-core/agentdef"
 	"github.com/marginlab/margin-eval/runner/runner-core/agentexecutor"
 	"github.com/marginlab/margin-eval/runner/runner-core/domain"
 	"github.com/marginlab/margin-eval/runner/runner-core/imageresolver"
@@ -240,7 +241,10 @@ func (e *Executor) ExecuteInstance(
 	if err != nil {
 		return fail(store.InstanceResult{}, nil, err)
 	}
-	requiredAgentEnv := append([]string(nil), run.Bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.RequiredEnv...)
+	requiredAgentEnv, err := agentdef.ResolveRequiredEnvForConfigSpec(run.Bundle.ResolvedSnapshot.Agent.Definition, run.Bundle.ResolvedSnapshot.Agent.Config)
+	if err != nil {
+		return fail(store.InstanceResult{}, nil, fmt.Errorf("resolve required agent auth: %w", err))
+	}
 	resolvedAuthFiles, err := resolveLocalAuthCredentials(
 		e.env,
 		requiredAgentEnv,

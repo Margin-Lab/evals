@@ -366,6 +366,14 @@ func compileDefinitionManifest(defFile agentDefinitionFile) agentdef.Manifest {
 			Sources:          sources,
 		})
 	}
+	providers := make([]agentdef.AuthProvider, 0, len(defFile.Auth.Providers))
+	for _, item := range defFile.Auth.Providers {
+		providers = append(providers, agentdef.AuthProvider{
+			Name:        strings.TrimSpace(item.Name),
+			AuthMode:    agentdef.AuthProviderMode(strings.TrimSpace(item.AuthMode)),
+			RequiredEnv: append([]string(nil), item.RequiredEnv...),
+		})
+	}
 	manifest := agentdef.Manifest{
 		Kind:        strings.TrimSpace(defFile.Kind),
 		Name:        strings.TrimSpace(defFile.Name),
@@ -373,6 +381,7 @@ func compileDefinitionManifest(defFile agentDefinitionFile) agentdef.Manifest {
 		Auth: agentdef.AuthSpec{
 			RequiredEnv:      append([]string(nil), defFile.Auth.RequiredEnv...),
 			LocalCredentials: localCredentials,
+			Providers:        providers,
 		},
 		Toolchains: compileToolchains(defFile.Toolchains),
 		Config: agentdef.DefinitionConfigSpec{
@@ -382,6 +391,12 @@ func compileDefinitionManifest(defFile agentDefinitionFile) agentdef.Manifest {
 		Run: agentdef.RunSpec{
 			PrepareHook: agentdef.HookRef{Path: strings.TrimSpace(defFile.Run.Prepare)},
 		},
+	}
+	if defFile.Auth.ProviderSelection != nil {
+		manifest.Auth.ProviderSelection = &agentdef.AuthProviderSelection{
+			DirectInputField:              strings.TrimSpace(defFile.Auth.ProviderSelection.DirectInputField),
+			UnifiedModelProviderQualified: defFile.Auth.ProviderSelection.UnifiedModelProviderQualified,
+		}
 	}
 	if path := strings.TrimSpace(defFile.Config.Validate); path != "" {
 		manifest.Config.ValidateHook = &agentdef.HookRef{Path: path}

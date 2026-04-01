@@ -8,9 +8,11 @@ Repo-owned Opencode uses:
 
 ## Required Env
 
-- `OPENAI_API_KEY`
-
-The repo-owned default profile targets an OpenAI-backed model through `config_jsonc`, so it is documented as requiring OpenAI credentials.
+- provider-qualified auth selected from config:
+  - `openai/*` -> `OPENAI_API_KEY`
+  - `anthropic/*` -> `ANTHROPIC_API_KEY`
+  - `google/*` -> `GEMINI_API_KEY`
+  - `*` -> no required secret env
 
 ## Toolchains
 
@@ -23,11 +25,16 @@ The Opencode definition schema expects:
 - `opencode_version`
 - `startup_args`
 - `run_args`
+- `provider`
 - `config_jsonc`
+
+`provider` is the authoritative auth selector for direct configs. `config_jsonc` must not disagree with the provider encoded in its `model` field.
 
 The default profile writes `config_jsonc` to `~/.opencode/opencode.jsonc` and sets `OPENCODE_CONFIG` before launch.
 
-The unified profile translates the shared `model` / `reasoning_level` payload into the direct Opencode config JSONC before install or run hooks execute.
+The unified profile requires `model = "provider/model"` and translates the shared `model` / `reasoning_level` payload into direct Opencode input before install or run hooks execute.
+
+Unknown providers fall through to the wildcard no-auth entry. Use `--agent-env` for any manual runtime variables they need.
 
 If skills are configured, `agent-server` materializes them under `~/.config/opencode/skills/<skill-name>/` before launch.
 

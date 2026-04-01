@@ -50,7 +50,10 @@ For all definitions, `agent-server` currently does the same high-level sequence:
 
 ### Opencode
 
-- required env: `OPENAI_API_KEY`
+- required env: provider-qualified
+  - `openai/*` -> `OPENAI_API_KEY`
+  - `anthropic/*` -> `ANTHROPIC_API_KEY`
+  - `google/*` -> `GEMINI_API_KEY`
 - definition path: `configs/agent-definitions/opencode/`
 - snapshot support: no
 - launch/bootstrap: `hooks/run-prepare.js`
@@ -58,7 +61,10 @@ For all definitions, `agent-server` currently does the same high-level sequence:
 
 ### Pi
 
-- required env: none in the definition manifest
+- required env: provider-qualified
+  - `openai/*` -> `OPENAI_API_KEY`
+  - `anthropic/*` -> `ANTHROPIC_API_KEY`
+  - `google/*` -> `GEMINI_API_KEY`
 - definition path: `configs/agent-definitions/pi/`
 - snapshot support: no
 - launch/bootstrap: `hooks/run-prepare.js`

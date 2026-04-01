@@ -31,52 +31,13 @@ func ValidateManifest(manifest Manifest) error {
 	if strings.TrimSpace(manifest.Name) == "" {
 		return fmt.Errorf("name is required")
 	}
-	requiredEnv := make(map[string]struct{}, len(manifest.Auth.RequiredEnv))
-	for i, name := range manifest.Auth.RequiredEnv {
-		trimmed := strings.TrimSpace(name)
-		if trimmed == "" {
-			return fmt.Errorf("auth.required_env[%d] is required", i)
+	if UsesProviderAuth(manifest.Auth) {
+		if err := validateProviderAwareAuth(manifest.Auth); err != nil {
+			return err
 		}
-		if !envNamePattern.MatchString(trimmed) {
-			return fmt.Errorf("auth.required_env[%d] must be a valid env name", i)
-		}
-		requiredEnv[trimmed] = struct{}{}
-	}
-	localCredentialsByEnv := make(map[string]struct{}, len(manifest.Auth.LocalCredentials))
-	localCredentialsByTarget := make(map[string]struct{}, len(manifest.Auth.LocalCredentials))
-	for i, credential := range manifest.Auth.LocalCredentials {
-		trimmedEnv := strings.TrimSpace(credential.RequiredEnv)
-		if trimmedEnv == "" {
-			return fmt.Errorf("auth.local_credentials[%d].required_env is required", i)
-		}
-		if !envNamePattern.MatchString(trimmedEnv) {
-			return fmt.Errorf("auth.local_credentials[%d].required_env must be a valid env name", i)
-		}
-		if _, ok := requiredEnv[trimmedEnv]; !ok {
-			return fmt.Errorf("auth.local_credentials[%d].required_env %q must reference auth.required_env", i, trimmedEnv)
-		}
-		if _, exists := localCredentialsByEnv[trimmedEnv]; exists {
-			return fmt.Errorf("auth.local_credentials[%d].required_env %q must not be duplicated", i, trimmedEnv)
-		}
-		localCredentialsByEnv[trimmedEnv] = struct{}{}
-		runHomeRelPath, err := sanitizeRelPath(credential.RunHomeRelPath)
-		if err != nil {
-			return fmt.Errorf("auth.local_credentials[%d].run_home_rel_path: %w", i, err)
-		}
-		if _, exists := localCredentialsByTarget[runHomeRelPath]; exists {
-			return fmt.Errorf("auth.local_credentials[%d].run_home_rel_path %q must not be duplicated", i, runHomeRelPath)
-		}
-		localCredentialsByTarget[runHomeRelPath] = struct{}{}
-		if err := validateJSONPath(credential.ValidateJSONPath); err != nil {
-			return fmt.Errorf("auth.local_credentials[%d].validate_json_path: %w", i, err)
-		}
-		if len(credential.Sources) == 0 {
-			return fmt.Errorf("auth.local_credentials[%d].sources must not be empty", i)
-		}
-		for sourceIdx, source := range credential.Sources {
-			if err := validateAuthLocalSource(i, sourceIdx, source); err != nil {
-				return err
-			}
+	} else {
+		if err := validateStaticAuth(manifest.Auth); err != nil {
+			return err
 		}
 	}
 	if err := validateHookRef("run.prepare_hook", manifest.Run.PrepareHook); err != nil {
@@ -138,6 +99,116 @@ func ValidateManifest(manifest Manifest) error {
 	}
 	if err := validateToolchains(manifest.Toolchains); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateStaticAuth(auth AuthSpec) error {
+	requiredEnv := make(map[string]struct{}, len(auth.RequiredEnv))
+	for i, name := range auth.RequiredEnv {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			return fmt.Errorf("auth.required_env[%d] is required", i)
+		}
+		if !envNamePattern.MatchString(trimmed) {
+			return fmt.Errorf("auth.required_env[%d] must be a valid env name", i)
+		}
+		requiredEnv[trimmed] = struct{}{}
+	}
+	localCredentialsByEnv := make(map[string]struct{}, len(auth.LocalCredentials))
+	localCredentialsByTarget := make(map[string]struct{}, len(auth.LocalCredentials))
+	for i, credential := range auth.LocalCredentials {
+		trimmedEnv := strings.TrimSpace(credential.RequiredEnv)
+		if trimmedEnv == "" {
+			return fmt.Errorf("auth.local_credentials[%d].required_env is required", i)
+		}
+		if !envNamePattern.MatchString(trimmedEnv) {
+			return fmt.Errorf("auth.local_credentials[%d].required_env must be a valid env name", i)
+		}
+		if _, ok := requiredEnv[trimmedEnv]; !ok {
+			return fmt.Errorf("auth.local_credentials[%d].required_env %q must reference auth.required_env", i, trimmedEnv)
+		}
+		if _, exists := localCredentialsByEnv[trimmedEnv]; exists {
+			return fmt.Errorf("auth.local_credentials[%d].required_env %q must not be duplicated", i, trimmedEnv)
+		}
+		localCredentialsByEnv[trimmedEnv] = struct{}{}
+		runHomeRelPath, err := sanitizeRelPath(credential.RunHomeRelPath)
+		if err != nil {
+			return fmt.Errorf("auth.local_credentials[%d].run_home_rel_path: %w", i, err)
+		}
+		if _, exists := localCredentialsByTarget[runHomeRelPath]; exists {
+			return fmt.Errorf("auth.local_credentials[%d].run_home_rel_path %q must not be duplicated", i, runHomeRelPath)
+		}
+		localCredentialsByTarget[runHomeRelPath] = struct{}{}
+		if err := validateJSONPath(credential.ValidateJSONPath); err != nil {
+			return fmt.Errorf("auth.local_credentials[%d].validate_json_path: %w", i, err)
+		}
+		if len(credential.Sources) == 0 {
+			return fmt.Errorf("auth.local_credentials[%d].sources must not be empty", i)
+		}
+		for sourceIdx, source := range credential.Sources {
+			if err := validateAuthLocalSource(i, sourceIdx, source); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateProviderAwareAuth(auth AuthSpec) error {
+	if len(auth.RequiredEnv) > 0 {
+		return fmt.Errorf("auth.required_env must not be set when auth.providers is used")
+	}
+	if len(auth.LocalCredentials) > 0 {
+		return fmt.Errorf("auth.local_credentials must not be set when auth.providers is used")
+	}
+	if auth.ProviderSelection == nil {
+		return fmt.Errorf("auth.provider_selection is required when auth.providers is used")
+	}
+	if strings.TrimSpace(auth.ProviderSelection.DirectInputField) == "" {
+		return fmt.Errorf("auth.provider_selection.direct_input_field is required when auth.providers is used")
+	}
+	if !auth.ProviderSelection.UnifiedModelProviderQualified {
+		return fmt.Errorf("auth.provider_selection.unified_model_provider_qualified must be true when auth.providers is used")
+	}
+	if len(auth.Providers) == 0 {
+		return fmt.Errorf("auth.providers must not be empty when auth.provider_selection is set")
+	}
+	seenProviders := make(map[string]struct{}, len(auth.Providers))
+	for i, provider := range auth.Providers {
+		name := strings.TrimSpace(provider.Name)
+		if name == "" {
+			return fmt.Errorf("auth.providers[%d].name is required", i)
+		}
+		if _, exists := seenProviders[name]; exists {
+			return fmt.Errorf("auth.providers[%d].name %q must not be duplicated", i, name)
+		}
+		seenProviders[name] = struct{}{}
+		mode := AuthProviderMode(strings.ToLower(strings.TrimSpace(string(provider.AuthMode))))
+		if mode == "" {
+			mode = AuthProviderModeEnv
+		}
+		switch mode {
+		case AuthProviderModeEnv:
+			if len(provider.RequiredEnv) == 0 {
+				return fmt.Errorf("auth.providers[%d].required_env must not be empty when auth_mode=%q", i, AuthProviderModeEnv)
+			}
+			for envIdx, raw := range provider.RequiredEnv {
+				trimmed := strings.TrimSpace(raw)
+				if trimmed == "" {
+					return fmt.Errorf("auth.providers[%d].required_env[%d] is required", i, envIdx)
+				}
+				if !envNamePattern.MatchString(trimmed) {
+					return fmt.Errorf("auth.providers[%d].required_env[%d] must be a valid env name", i, envIdx)
+				}
+			}
+		case AuthProviderModeNone:
+			if len(provider.RequiredEnv) > 0 {
+				return fmt.Errorf("auth.providers[%d].required_env must be empty when auth_mode=%q", i, AuthProviderModeNone)
+			}
+		default:
+			return fmt.Errorf("auth.providers[%d].auth_mode %q is not supported", i, strings.TrimSpace(string(provider.AuthMode)))
+		}
 	}
 	return nil
 }
@@ -250,6 +321,9 @@ func ValidateAndNormalizeConfigSpec(definition DefinitionSnapshot, config Config
 	default:
 		return ConfigSpec{}, fmt.Errorf("config.mode must be %q or %q", ConfigModeDirect, ConfigModeUnified)
 	}
+	if _, err := ResolveRequiredEnvForConfigSpec(definition, normalized); err != nil {
+		return ConfigSpec{}, err
+	}
 	return normalized, nil
 }
 
@@ -274,6 +348,9 @@ func ValidateAndNormalizeConfigSnapshot(definition DefinitionSnapshot, config Co
 		if err := validateUnifiedAgainstManifest(definition.Manifest, *normalized.Unified); err != nil {
 			return ConfigSnapshot{}, err
 		}
+	}
+	if _, err := ResolveRequiredEnvForConfigSnapshot(definition, normalized); err != nil {
+		return ConfigSnapshot{}, err
 	}
 	return normalized, nil
 }

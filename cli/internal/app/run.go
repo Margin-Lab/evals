@@ -15,6 +15,7 @@ import (
 	"github.com/marginlab/margin-eval/cli/internal/plaincontrol"
 	"github.com/marginlab/margin-eval/cli/internal/remotesuite"
 
+	"github.com/marginlab/margin-eval/runner/runner-core/agentdef"
 	"github.com/marginlab/margin-eval/runner/runner-core/engine"
 	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
 	"github.com/marginlab/margin-eval/runner/runner-core/runnerapi"
@@ -152,10 +153,14 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 			return fmt.Errorf("--auth-file-path requires the selected agent definition to declare exactly one auth.local_credentials entry; found %d", len(localCredentials))
 		}
 	}
+	requiredAgentEnv, err := agentdef.ResolveRequiredEnvForConfigSpec(bundle.ResolvedSnapshot.Agent.Definition, bundle.ResolvedSnapshot.Agent.Config)
+	if err != nil {
+		return fmt.Errorf("resolve required agent auth: %w", err)
+	}
 	if !*nonInteractive && shouldConfirmRun(a.stderr) {
 		authPreview, err := localexecutor.PreviewAuth(
 			agentEnv.Clone(),
-			bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.RequiredEnv,
+			requiredAgentEnv,
 			bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.LocalCredentials,
 			strings.TrimSpace(*authFilePath),
 		)

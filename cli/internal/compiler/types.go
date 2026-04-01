@@ -75,8 +75,10 @@ type agentDefinitionFile struct {
 }
 
 type definitionAuthFile struct {
-	RequiredEnv      []string                        `toml:"required_env"`
-	LocalCredentials []definitionAuthLocalCredential `toml:"local_credentials"`
+	RequiredEnv       []string                         `toml:"required_env"`
+	LocalCredentials  []definitionAuthLocalCredential  `toml:"local_credentials"`
+	ProviderSelection *definitionAuthProviderSelection `toml:"provider_selection"`
+	Providers         []definitionAuthProvider         `toml:"providers"`
 }
 
 type definitionAuthLocalCredential struct {
@@ -91,6 +93,17 @@ type definitionAuthLocalSource struct {
 	HomeRelPath string   `toml:"home_rel_path"`
 	Service     string   `toml:"service"`
 	Platforms   []string `toml:"platforms"`
+}
+
+type definitionAuthProviderSelection struct {
+	DirectInputField              string `toml:"direct_input_field"`
+	UnifiedModelProviderQualified bool   `toml:"unified_model_provider_qualified"`
+}
+
+type definitionAuthProvider struct {
+	Name        string   `toml:"name"`
+	AuthMode    string   `toml:"auth_mode"`
+	RequiredEnv []string `toml:"required_env"`
 }
 
 type definitionNodeToolchainFile struct {

@@ -27,9 +27,29 @@ type AuthLocalCredential struct {
 	Sources          []AuthLocalSource `json:"sources,omitempty" toml:"sources"`
 }
 
+type AuthProviderSelection struct {
+	DirectInputField              string `json:"direct_input_field,omitempty" toml:"direct_input_field"`
+	UnifiedModelProviderQualified bool   `json:"unified_model_provider_qualified,omitempty" toml:"unified_model_provider_qualified"`
+}
+
+type AuthProviderMode string
+
+const (
+	AuthProviderModeEnv  AuthProviderMode = "env"
+	AuthProviderModeNone AuthProviderMode = "none"
+)
+
+type AuthProvider struct {
+	Name        string           `json:"name" toml:"name"`
+	AuthMode    AuthProviderMode `json:"auth_mode,omitempty" toml:"auth_mode"`
+	RequiredEnv []string         `json:"required_env,omitempty" toml:"required_env"`
+}
+
 type AuthSpec struct {
-	RequiredEnv      []string              `json:"required_env,omitempty" toml:"required_env"`
-	LocalCredentials []AuthLocalCredential `json:"local_credentials,omitempty" toml:"local_credentials"`
+	RequiredEnv       []string               `json:"required_env,omitempty" toml:"required_env"`
+	LocalCredentials  []AuthLocalCredential  `json:"local_credentials,omitempty" toml:"local_credentials"`
+	ProviderSelection *AuthProviderSelection `json:"provider_selection,omitempty" toml:"provider_selection"`
+	Providers         []AuthProvider         `json:"providers,omitempty" toml:"providers"`
 }
 
 type UnifiedManifestSpec struct {

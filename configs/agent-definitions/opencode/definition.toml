@@ -3,7 +3,26 @@ name = "opencode"
 description = "Repo-owned Opencode agent definition"
 
 [auth]
-required_env = ["OPENAI_API_KEY"]
+
+  [auth.provider_selection]
+  direct_input_field = "provider"
+  unified_model_provider_qualified = true
+
+  [[auth.providers]]
+  name = "openai"
+  required_env = ["OPENAI_API_KEY"]
+
+  [[auth.providers]]
+  name = "anthropic"
+  required_env = ["ANTHROPIC_API_KEY"]
+
+  [[auth.providers]]
+  name = "google"
+  required_env = ["GEMINI_API_KEY"]
+
+  [[auth.providers]]
+  name = "*"
+  auth_mode = "none"
 
 [toolchains.node]
 minimum = "18"
@@ -11,6 +30,7 @@ preferred = "24"
 
 [config]
 schema = "schema.json"
+validate = "hooks/validate-config.js"
 
 [skills]
 home_rel_dir = ".config/opencode/skills"
