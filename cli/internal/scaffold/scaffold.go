@@ -81,6 +81,7 @@ name = %q
 description = "Describe what this case validates"
 
 image = "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+agent_cwd = "/work"
 test_cwd = "/work"
 test_timeout_seconds = 900
 `, name)
