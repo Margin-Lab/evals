@@ -159,6 +159,7 @@ func TestResolveCaseForExecutionUsesPersistedImage(t *testing.T) {
 		Image:             "",
 		ImageBuild:        &runbundle.CaseImageBuild{Context: testfixture.MinimalTestAssets(), DockerfileRelPath: "Dockerfile"},
 		InitialPrompt:     "fix",
+		AgentCwd:          "/workspace",
 		TestCommand:       []string{"bash", "-lc", "true"},
 		TestCwd:           "/work",
 		TestTimeoutSecond: 30,

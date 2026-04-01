@@ -24,12 +24,13 @@ func testBundle() runbundle.Bundle {
 				InstanceTimeoutSecond: 120,
 			},
 			Agent:       testfixture.MinimalAgent(),
-			RunDefaults: runbundle.RunDefault{Cwd: "/work", Env: map[string]string{}, PTY: runbundle.PTY{Cols: 120, Rows: 40}},
+			RunDefaults: runbundle.RunDefault{Env: map[string]string{}, PTY: runbundle.PTY{Cols: 120, Rows: 40}},
 			Cases: []runbundle.Case{
 				{
 					CaseID:            "case-1",
 					Image:             "img-1",
 					InitialPrompt:     "one",
+					AgentCwd:          "/workspace",
 					TestCommand:       []string{"true"},
 					TestCwd:           "/work",
 					TestTimeoutSecond: 30,
@@ -39,6 +40,7 @@ func testBundle() runbundle.Bundle {
 					CaseID:            "case-2",
 					Image:             "img-2",
 					InitialPrompt:     "two",
+					AgentCwd:          "/workspace",
 					TestCommand:       []string{"true"},
 					TestCwd:           "/work",
 					TestTimeoutSecond: 30,

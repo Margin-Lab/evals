@@ -201,13 +201,13 @@ INSERT INTO runs (
 		_, err = tx.Exec(ctx, `
 INSERT INTO run_instances (
   instance_id, run_id, ordinal,
-  case_id, image, initial_prompt, test_command, test_cwd, test_timeout_seconds,
+  case_id, image, initial_prompt, agent_cwd, test_command, test_cwd, test_timeout_seconds,
   state, created_at, updated_at
 ) VALUES (
   $1, $2, $3,
-  $4, $5, $6, $7, $8, $9,
-  'pending', $10, $10
-)`, instanceID, in.RunID, i, c.CaseID, c.Image, c.InitialPrompt, c.TestCommand, c.TestCwd, c.TestTimeoutSecond, in.At)
+  $4, $5, $6, $7, $8, $9, $10,
+  'pending', $11, $11
+)`, instanceID, in.RunID, i, c.CaseID, c.Image, c.InitialPrompt, c.AgentCwd, c.TestCommand, c.TestCwd, c.TestTimeoutSecond, in.At)
 		if err != nil {
 			return store.Run{}, fmt.Errorf("insert run instance: %w", err)
 		}
@@ -501,6 +501,7 @@ SELECT
   ri.case_id,
   ri.image,
   ri.initial_prompt,
+  ri.agent_cwd,
   ri.test_command,
   ri.test_cwd,
   ri.test_timeout_seconds,
@@ -547,6 +548,7 @@ SELECT
   ri.case_id,
   ri.image,
   ri.initial_prompt,
+  ri.agent_cwd,
   ri.test_command,
   ri.test_cwd,
   ri.test_timeout_seconds,
@@ -575,6 +577,7 @@ func scanInstance(row interface{ Scan(...any) error }) (store.Instance, error) {
 	var caseID string
 	var image string
 	var initialPrompt string
+	var agentCwd string
 	var testCommand []string
 	var testCwd string
 	var testTimeoutSeconds int
@@ -590,6 +593,7 @@ func scanInstance(row interface{ Scan(...any) error }) (store.Instance, error) {
 		&caseID,
 		&image,
 		&initialPrompt,
+		&agentCwd,
 		&testCommand,
 		&testCwd,
 		&testTimeoutSeconds,
@@ -616,6 +620,7 @@ func scanInstance(row interface{ Scan(...any) error }) (store.Instance, error) {
 			CaseID:            caseID,
 			Image:             image,
 			InitialPrompt:     initialPrompt,
+			AgentCwd:          agentCwd,
 			TestCommand:       testCommand,
 			TestCwd:           testCwd,
 			TestTimeoutSecond: testTimeoutSeconds,
@@ -1128,6 +1133,7 @@ SELECT
   ri.case_id,
   ri.image,
   ri.initial_prompt,
+  ri.agent_cwd,
   ri.test_command,
   ri.test_cwd,
   ri.test_timeout_seconds,
@@ -1164,6 +1170,7 @@ LIMIT 1
 	var caseID string
 	var image string
 	var initialPrompt string
+	var agentCwd string
 	var testCommand []string
 	var testCwd string
 	var testTimeoutSeconds int
@@ -1190,6 +1197,7 @@ LIMIT 1
 		&caseID,
 		&image,
 		&initialPrompt,
+		&agentCwd,
 		&testCommand,
 		&testCwd,
 		&testTimeoutSeconds,
@@ -1342,6 +1350,7 @@ VALUES ($1, 'worker', 'queued', 'running', NULL, $2)
 				CaseID:            caseID,
 				Image:             image,
 				InitialPrompt:     initialPrompt,
+				AgentCwd:          agentCwd,
 				TestCommand:       testCommand,
 				TestCwd:           testCwd,
 				TestTimeoutSecond: testTimeoutSeconds,

@@ -152,9 +152,6 @@ func validateResolvedSnapshot(s ResolvedSnapshot) error {
 	if _, err := agentdef.ValidateAndNormalizeConfigSpec(s.Agent.Definition, s.Agent.Config); err != nil {
 		return fmt.Errorf("resolved_snapshot.agent.config: %w", err)
 	}
-	if strings.TrimSpace(s.RunDefaults.Cwd) == "" {
-		return fmt.Errorf("resolved_snapshot.run_defaults.cwd is required")
-	}
 	if s.RunDefaults.PTY.Cols < 0 || s.RunDefaults.PTY.Rows < 0 {
 		return fmt.Errorf("resolved_snapshot.run_defaults.pty cols/rows must be >= 0")
 	}
@@ -188,6 +185,9 @@ func validateCase(c Case) error {
 	}
 	if strings.TrimSpace(c.InitialPrompt) == "" {
 		return fmt.Errorf("initial_prompt is required")
+	}
+	if strings.TrimSpace(c.AgentCwd) == "" {
+		return fmt.Errorf("agent_cwd is required")
 	}
 	if len(c.TestCommand) == 0 {
 		return fmt.Errorf("test_command must be non-empty")

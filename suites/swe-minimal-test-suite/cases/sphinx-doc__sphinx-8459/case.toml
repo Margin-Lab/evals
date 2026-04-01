@@ -2,6 +2,7 @@ kind = "test_case"
 name = "sphinx-doc__sphinx-8459"
 description = "Translated from SWE-bench Verified task sphinx-doc__sphinx-8459"
 image = "ghcr.io/margin-lab/evals/swe-minimal-test-suite/sphinx-doc-sphinx-8459@sha256:05e223bea9e29d20b7dccf632dbb1b7beb175adaa6e43f5b634da2caa24a64e8"
+agent_cwd = "/testbed"
 test_cwd = "/"
 test_timeout_seconds = 3000
 

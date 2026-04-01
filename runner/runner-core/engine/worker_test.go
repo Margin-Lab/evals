@@ -79,11 +79,12 @@ func testBundle() runbundle.Bundle {
 			Name:        "smoke",
 			Execution:   runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1, InstanceTimeoutSecond: 60},
 			Agent:       testfixture.MinimalAgent(),
-			RunDefaults: runbundle.RunDefault{Cwd: "/work", Env: map[string]string{}, PTY: runbundle.PTY{}},
+			RunDefaults: runbundle.RunDefault{Env: map[string]string{}, PTY: runbundle.PTY{}},
 			Cases: []runbundle.Case{{
 				CaseID:            "c1",
 				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 				InitialPrompt:     "hello",
+				AgentCwd:          "/workspace",
 				TestCommand:       []string{"bash", "-lc", "true"},
 				TestCwd:           "/work",
 				TestTimeoutSecond: 20,

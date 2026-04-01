@@ -30,7 +30,6 @@ func validBundle() Bundle {
 			},
 			Agent: minimalAgent(),
 			RunDefaults: RunDefault{
-				Cwd: "/work",
 				Env: map[string]string{"TERM": "xterm-256color"},
 				PTY: PTY{Cols: 120, Rows: 40},
 			},
@@ -38,6 +37,7 @@ func validBundle() Bundle {
 				CaseID:            "repo-build",
 				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 				InitialPrompt:     "Fix build",
+				AgentCwd:          "/workspace",
 				TestCommand:       []string{"bash", "-lc", "./test.sh"},
 				TestCwd:           "/work",
 				TestTimeoutSecond: 900,

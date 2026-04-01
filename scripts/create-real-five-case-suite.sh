@@ -45,6 +45,7 @@ kind = "test_case"
 name = "${case_name}"
 description = "${description}"
 
+agent_cwd = "/suite/cases/${case_name}"
 test_cwd = "/suite/cases/${case_name}"
 test_timeout_seconds = ${CASE_TIMEOUT_SECONDS}
 EOF
@@ -59,6 +60,7 @@ name = "${case_name}"
 description = "${description}"
 
 image = "${CASE_IMAGE}"
+agent_cwd = "/suite/cases/${case_name}"
 test_cwd = "/suite/cases/${case_name}"
 test_timeout_seconds = ${CASE_TIMEOUT_SECONDS}
 EOF
@@ -168,7 +170,7 @@ Cases:
   jsonl-validation
 
 Run note:
-  These cases set test_cwd to /suite/cases/<case>.
+  These cases set agent_cwd and test_cwd to /suite/cases/<case>.
   The jsonl-validation case is Dockerfile-backed (cases/jsonl-validation/env/Dockerfile).
   Mount the suite directory into the container when running the CLI:
 
