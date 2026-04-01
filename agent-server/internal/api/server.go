@@ -7,13 +7,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/marginlab/margin-eval/agent-server/internal/agentruntime"
 	"github.com/marginlab/margin-eval/agent-server/internal/apperr"
 	"github.com/marginlab/margin-eval/agent-server/internal/config"
 	"github.com/marginlab/margin-eval/agent-server/internal/fsutil"
 	"github.com/marginlab/margin-eval/agent-server/internal/run"
 	"github.com/marginlab/margin-eval/agent-server/internal/state"
-	"github.com/go-chi/chi/v5"
+	"github.com/marginlab/margin-eval/runner/runner-core/agentdef"
 	"nhooyr.io/websocket"
 )
 
@@ -193,7 +194,12 @@ func (s *Server) handleGetState(w http.ResponseWriter, r *http.Request) {
 		caps.SupportsSkills = manifest.Skills != nil
 		caps.SupportsAgentsMD = manifest.AgentsMD != nil
 		caps.SupportsUnifiedConfig = manifest.Config.Unified != nil
-		caps.RequiredEnv = append([]string(nil), manifest.Auth.RequiredEnv...)
+		caps.RequiredEnv = agentdef.ResolveDefinitionRequiredEnv(st.Agent.Definition.Snapshot)
+		if st.Agent.Config != nil {
+			if required, err := agentdef.ResolveRequiredEnvForConfigSnapshot(st.Agent.Definition.Snapshot, st.Agent.Config.Snapshot); err == nil {
+				caps.RequiredEnv = required
+			}
+		}
 		if manifest.AgentsMD != nil {
 			caps.AgentsMDFilename = manifest.AgentsMD.Filename
 		}

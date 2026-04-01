@@ -340,7 +340,7 @@ func TestRepoOwnedDefinitionCapabilities(t *testing.T) {
 			if state.Agent.Definition == nil || state.Agent.Definition.Snapshot.Manifest.Name != agentName {
 				t.Fatalf("definition = %#v", state.Agent.Definition)
 			}
-			requiredEnv := testfixture.RepoOwnedRequiredEnv(agentName)
+			requiredEnv := testfixture.RepoOwnedDefinitionRequiredEnv(agentName)
 			if !slices.Equal(state.Capabilities.RequiredEnv, requiredEnv) {
 				t.Fatalf("required_env = %v, want %v", state.Capabilities.RequiredEnv, requiredEnv)
 			}
@@ -350,6 +350,33 @@ func TestRepoOwnedDefinitionCapabilities(t *testing.T) {
 			wantSnapshot := agentName == "codex" || agentName == "claude-code"
 			if state.Capabilities.SupportsSnapshot != wantSnapshot {
 				t.Fatalf("supports_snapshot = %t, want %t", state.Capabilities.SupportsSnapshot, wantSnapshot)
+			}
+		})
+	}
+}
+
+func TestRepoOwnedConfigCapabilitiesResolveProviderAwareRequiredEnv(t *testing.T) {
+	ensureDockerProviderHealthy(t)
+
+	for _, agentName := range []string{"opencode", "pi"} {
+		agentName := agentName
+		t.Run(agentName, func(t *testing.T) {
+			server := startServerContainer(t, nil)
+
+			resp := server.requestJSON(t, http.MethodPut, "/v1/agent-definition", repoOwnedDefinitionRequest(t, agentName))
+			assertStatusCode(t, resp, http.StatusCreated)
+
+			configName := testfixture.RepoOwnedDefaultConfigName(agentName)
+			resp = server.requestJSON(t, http.MethodPut, "/v1/agent-config", repoOwnedConfigRequest(t, agentName, configName, "latest"))
+			assertStatusCode(t, resp, http.StatusCreated)
+
+			resp = server.requestJSON(t, http.MethodGet, "/v1/state", nil)
+			assertStatusCode(t, resp, http.StatusOK)
+			state := decodeJSON[stateResponse](t, resp.Body)
+
+			requiredEnv := testfixture.RepoOwnedRequiredEnvForConfig(agentName, configName)
+			if !slices.Equal(state.Capabilities.RequiredEnv, requiredEnv) {
+				t.Fatalf("required_env = %v, want %v", state.Capabilities.RequiredEnv, requiredEnv)
 			}
 		})
 	}

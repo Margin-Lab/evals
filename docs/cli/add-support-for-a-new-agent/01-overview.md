@@ -214,8 +214,8 @@ collect = "hooks/trajectory-collect.js"
 | Claude Code | `configs/agent-definitions/claude-code/` | `ANTHROPIC_API_KEY` |
 | Codex | `configs/agent-definitions/codex/` | `OPENAI_API_KEY` |
 | Gemini CLI | `configs/agent-definitions/gemini-cli/` | `GEMINI_API_KEY` |
-| OpenCode | `configs/agent-definitions/opencode/` | `OPENAI_API_KEY` |
-| Pi | `configs/agent-definitions/pi/` | provider-specific |
+| OpenCode | `configs/agent-definitions/opencode/` | provider-qualified (`openai/*`, `anthropic/*`, `google/*`, fallback `*` with no auth) |
+| Pi | `configs/agent-definitions/pi/` | provider-qualified (`openai/*`, `anthropic/*`, `google/*`, fallback `*` with no auth) |
 
 Study these for complete hook implementations and translate-unified examples.
 

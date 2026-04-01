@@ -7,6 +7,7 @@ mode = "direct"
 opencode_version = "latest"
 startup_args = []
 run_args = []
+provider = "openai"
 config_jsonc = """
 {
   "$schema": "https://opencode.ai/config.json",

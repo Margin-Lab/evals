@@ -40,9 +40,10 @@ Then it probes:
 
 The run hook:
 
-1. writes `config.input.config_jsonc` to `<run_home>/.opencode/opencode.jsonc`
-2. sets `OPENCODE_CONFIG=<run_home>/.opencode/opencode.jsonc`
-3. returns this launch command:
+1. uses `config.input.provider` as the authoritative provider selector for auth resolution
+2. writes `config.input.config_jsonc` to `<run_home>/.opencode/opencode.jsonc`
+3. sets `OPENCODE_CONFIG=<run_home>/.opencode/opencode.jsonc`
+4. returns this launch command:
 
 ```bash
 <bin_path> run --format=json <startup_args...> <run_args...> -- "<initial_prompt>"

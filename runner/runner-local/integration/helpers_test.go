@@ -293,5 +293,5 @@ func loadMatrixCases(t *testing.T) []agentMatrixCase {
 }
 
 func caseRequiredEnv(c agentMatrixCase) []string {
-	return testfixture.RepoOwnedRequiredEnv(c.DefinitionName)
+	return testfixture.RepoOwnedRequiredEnvForConfig(c.DefinitionName, c.ConfigName)
 }

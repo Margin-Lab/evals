@@ -40,8 +40,10 @@ type definitionFile struct {
 }
 
 type definitionAuthFile struct {
-	RequiredEnv      []string                        `toml:"required_env"`
-	LocalCredentials []definitionAuthLocalCredential `toml:"local_credentials"`
+	RequiredEnv       []string                         `toml:"required_env"`
+	LocalCredentials  []definitionAuthLocalCredential  `toml:"local_credentials"`
+	ProviderSelection *definitionAuthProviderSelection `toml:"provider_selection"`
+	Providers         []definitionAuthProvider         `toml:"providers"`
 }
 
 type definitionAuthLocalCredential struct {
@@ -56,6 +58,17 @@ type definitionAuthLocalSource struct {
 	HomeRelPath string   `toml:"home_rel_path"`
 	Service     string   `toml:"service"`
 	Platforms   []string `toml:"platforms"`
+}
+
+type definitionAuthProviderSelection struct {
+	DirectInputField              string `toml:"direct_input_field"`
+	UnifiedModelProviderQualified bool   `toml:"unified_model_provider_qualified"`
+}
+
+type definitionAuthProvider struct {
+	Name        string   `toml:"name"`
+	AuthMode    string   `toml:"auth_mode"`
+	RequiredEnv []string `toml:"required_env"`
 }
 
 type definitionNodeToolchains struct {
@@ -231,11 +244,27 @@ func RepoOwnedAgentWithConfigVersion(name, configName, version string) runbundle
 }
 
 func RepoOwnedRequiredEnv(name string) []string {
+	return RepoOwnedRequiredEnvForConfig(name, RepoOwnedDefaultConfigName(name))
+}
+
+func RepoOwnedRequiredEnvForConfig(name, configName string) []string {
+	agent, err := loadRepoOwnedAgent(name, configName)
+	if err != nil {
+		panic(err)
+	}
+	required, err := agentdef.ResolveRequiredEnvForConfigSpec(agent.Definition, agent.Config)
+	if err != nil {
+		panic(err)
+	}
+	return required
+}
+
+func RepoOwnedDefinitionRequiredEnv(name string) []string {
 	agent, err := loadRepoOwnedAgent(name, RepoOwnedDefaultConfigName(name))
 	if err != nil {
 		panic(err)
 	}
-	return append([]string(nil), agent.Definition.Manifest.Auth.RequiredEnv...)
+	return agentdef.ResolveDefinitionRequiredEnv(agent.Definition)
 }
 
 func loadRepoOwnedAgent(name, configName string) (runbundle.Agent, error) {
@@ -309,6 +338,7 @@ func loadDefinitionSnapshot(dir string) (agentdef.DefinitionSnapshot, error) {
 			Auth: agentdef.AuthSpec{
 				RequiredEnv:      append([]string(nil), file.Auth.RequiredEnv...),
 				LocalCredentials: cloneAuthLocalCredentials(file.Auth.LocalCredentials),
+				Providers:        cloneAuthProviders(file.Auth.Providers),
 			},
 			Toolchains: loadDefinitionToolchains(file.Toolchains),
 			Config: agentdef.DefinitionConfigSpec{
@@ -320,6 +350,12 @@ func loadDefinitionSnapshot(dir string) (agentdef.DefinitionSnapshot, error) {
 			},
 		},
 		Package: pkg,
+	}
+	if file.Auth.ProviderSelection != nil {
+		snapshot.Manifest.Auth.ProviderSelection = &agentdef.AuthProviderSelection{
+			DirectInputField:              strings.TrimSpace(file.Auth.ProviderSelection.DirectInputField),
+			UnifiedModelProviderQualified: file.Auth.ProviderSelection.UnifiedModelProviderQualified,
+		}
 	}
 	if path := strings.TrimSpace(file.Config.Validate); path != "" {
 		snapshot.Manifest.Config.ValidateHook = &agentdef.HookRef{Path: path}
@@ -416,6 +452,21 @@ func cloneAuthLocalCredentials(files []definitionAuthLocalCredential) []agentdef
 			RunHomeRelPath:   strings.TrimSpace(file.RunHomeRelPath),
 			ValidateJSONPath: strings.TrimSpace(file.ValidateJSONPath),
 			Sources:          sources,
+		})
+	}
+	return out
+}
+
+func cloneAuthProviders(files []definitionAuthProvider) []agentdef.AuthProvider {
+	if len(files) == 0 {
+		return nil
+	}
+	out := make([]agentdef.AuthProvider, 0, len(files))
+	for _, file := range files {
+		out = append(out, agentdef.AuthProvider{
+			Name:        strings.TrimSpace(file.Name),
+			AuthMode:    agentdef.AuthProviderMode(strings.TrimSpace(file.AuthMode)),
+			RequiredEnv: append([]string(nil), file.RequiredEnv...),
 		})
 	}
 	return out

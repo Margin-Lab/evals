@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "required": ["opencode_version", "startup_args", "run_args", "config_jsonc"],
+  "required": ["opencode_version", "startup_args", "run_args", "provider", "config_jsonc"],
   "additionalProperties": false,
   "properties": {
     "opencode_version": {
@@ -20,6 +20,10 @@
         "type": "string",
         "minLength": 1
       }
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1
     },
     "config_jsonc": {
       "type": "string",

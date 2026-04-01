@@ -98,10 +98,14 @@ go test -tags='integration integration_model' ./integration/... -v
 
 Provider credentials used by the repo-owned definitions:
 
-- `OPENAI_API_KEY` for Codex and Opencode
+- `OPENAI_API_KEY` for Codex
 - `ANTHROPIC_API_KEY` for Claude Code
 - `GEMINI_API_KEY` or reusable `~/.gemini/oauth_creds.json` for Gemini CLI
-- provider-specific env for Pi
+- provider-qualified config for Opencode and Pi:
+  - `openai/*` -> `OPENAI_API_KEY`
+  - `anthropic/*` -> `ANTHROPIC_API_KEY`
+  - `google/*` -> `GEMINI_API_KEY`
+  - `*` -> no required secret env; use `--agent-env` for manual runtime variables
 
 Repo-owned config profiles include both direct and unified examples:
 
