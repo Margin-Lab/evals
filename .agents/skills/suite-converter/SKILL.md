@@ -7,7 +7,16 @@ description: Converts test suites from external eval frameworks into the Margin 
 
 Converts downloaded eval datasets into valid Margin Eval test suites.
 
-## Target: Margin Eval Suite Structure
+## Purpose
+
+Use this skill when converting an external eval dataset into the Margin Eval suite format.
+
+The job has three parts:
+- map the source format into Margin's filesystem contract
+- preserve the source verifier's intended behavior without breaking Margin's execution model
+- validate the conversion on a small sample with `margin run` before scaling up
+
+## Target Margin Contract
 
 ```
 <suite-name>/
@@ -62,7 +71,7 @@ Key rules:
 - `test_timeout_seconds` is an integer (seconds)
 - `test_cwd` is the working directory where test.sh runs inside the container
 
-**Image handling** — exactly one of:
+Image handling, exactly one of:
 - `image = "registry/repo@sha256:<64hex>"` for a pre-built, digest-pinned image
 - Omit `image` and place a Dockerfile at `env/Dockerfile` to build at compile time
 
@@ -72,7 +81,22 @@ The full task description sent to the agent as its initial prompt. Must not be e
 
 ### tests/test.sh
 
-The grading script. This is the evaluator — there is no separate grader abstraction. Rules:
+The grading script. This is the evaluator. There is no separate grader abstraction.
+
+### env/Dockerfile
+
+Container environment. Can include supporting files alongside the Dockerfile. The entire `env/` directory is the build context.
+
+### oracle/solve.sh
+
+Optional reference solution. Not executed during normal eval runs. In the current Margin implementation, `oracle/` is informational only and is not part of the active compile/runtime path.
+
+## Conversion Invariants
+
+These rules are cross-source and should hold for every conversion.
+
+### Verifier rules
+
 - Must be executable (`chmod +x`)
 - Exit 0 = pass, non-zero = fail
 - All files in `tests/` are packaged together and staged at `{test_cwd}/tests/` in the container
@@ -83,17 +107,38 @@ The grading script. This is the evaluator — there is no separate grader abstra
 - Never leave a wrapper that always exits `0`. If the underlying test command fails, the wrapper must propagate that non-zero exit code back to Margin.
 - If the source suite expects status or report artifacts in addition to the exit code, preserve that behavior, but do not treat any single artifact format as universal.
 
-### oracle/solve.sh (optional)
+### Case identity rules
 
-Reference solution. Not executed during normal eval runs. In the current Margin implementation, `oracle/` is informational only and is not part of the active compile/runtime path.
+- `case.toml.name` must match the case directory name exactly
+- If source-name sanitization causes collisions, append a stable suffix such as part of the source task ID or UUID
 
-### env/Dockerfile
+### Validation rules
 
-Container environment. Can include supporting files (setup scripts, data generators) alongside the Dockerfile — the entire `env/` directory is the build context.
+- Do not assume the conversion is correct until a sample run succeeds without harness-level issues
+- Distinguish real task failures from conversion failures
+- If the sample exposes harness issues, fix them and rerun the sample before scaling up
 
----
+## Decision Rules
 
-## General Conversion Workflow
+### Inferring test_cwd
+
+Parse the Dockerfile for `WORKDIR` directives. Use the last `WORKDIR` value found. If none exists, default to `"/"`.
+
+### Clarifying Docker behavior
+
+If the source suite provides more than one viable environment path and the user has not explicitly said which to use, ask before converting.
+
+Common ambiguous cases:
+- The source provides both a Dockerfile-like environment and a prebuilt image reference
+- The source provides environment files that could be rebuilt, but the user may prefer to keep the original image
+- The user may want you to rebuild the image, push it to a registry, and reference the new image in `case.toml`
+
+When Docker behavior is ambiguous, ask which of these they want:
+- Preserve the original image reference in `image`
+- Convert using `env/Dockerfile`
+- Rebuild and publish a new image, then use that in `image`
+
+## Conversion Workflow
 
 1. **Identify the source format** by inspecting the input directory (look for characteristic files like `task.toml`, `case.toml`, etc.)
 2. **Choose a suite name** — derive from the dataset name or ask the user
@@ -113,25 +158,7 @@ Container environment. Can include supporting files (setup scripts, data generat
 11. **Validate verifier behavior**: confirm the converted `tests/test.sh` locates its test assets under `{test_cwd}/tests`, returns a non-zero exit code when the underlying tests fail, and does not discover the same tests from both the workspace and `tests/`
 12. **Fix and rerun before scaling up**: if the sample exposes harness issues, adjust the conversion so the verifier has a single authoritative test location, then rerun the sample before converting the full dataset
 
-### Inferring test_cwd
-
-Parse the Dockerfile for `WORKDIR` directives. Use the last `WORKDIR` value found. If none exists, default to `"/"`.
-
-### Clarifying Docker Behavior
-
-If the source suite provides more than one viable environment path and the user has not explicitly said which to use, ask before converting.
-
-Common ambiguous cases:
-- The source provides both a Dockerfile-like environment and a prebuilt image reference
-- The source provides environment files that could be rebuilt, but the user may prefer to keep the original image
-- The user may want you to rebuild the image, push it to a registry, and reference the new image in `case.toml`
-
-When Docker behavior is ambiguous, ask the user which of these they want:
-- Preserve the original image reference in `image`
-- Convert using `env/Dockerfile`
-- Rebuild/publish a new image and use that in `image`
-
-### Generating test.sh wrappers
+## Generated Wrapper Guidance
 
 If the source has test scripts (e.g., pytest files) but no `test.sh`, generate a wrapper:
 
@@ -152,9 +179,12 @@ set -e
 exit $exit_code
 ```
 
----
+Common failure signatures to look for during sample validation:
+- Path mismatch: the verifier still points at `/tests/...` instead of `{test_cwd}/tests/...`
+- Duplicate discovery: the same tests are collected from both the workspace and `tests/`
+- Masked failures: the wrapper writes artifacts but still exits `0`
 
-## Source-Specific Conversion
+## Source-Specific Adapters
 
 ### Harbor
 
@@ -181,27 +211,24 @@ Harbor datasets (downloaded via `harbor datasets download`) have this layout:
 
 Each UUID directory wraps exactly one named task subdirectory.
 
-#### Conversion Steps
+#### Harbor-specific steps
 
 1. **Scan** the input directory for UUID subdirectories (each contains one task folder)
-   2. **For each task**:
+2. **For each task**:
    a. Read `task.toml`
-   b. Use the inner directory name (not the UUID) as the case name — sanitize to be filesystem-safe (replace `/` with `-`, etc.)
-   c. If sanitization collides with an existing case name, append a stable suffix derived from the Harbor UUID
-   d. Create `cases/<case-name>/`
-   e. Generate `case.toml` per the mapping in `references/harbor-mapping.md`
-   f. Copy `instruction.md` → `prompt.md`
-   g. If Harbor provides both a reusable image path and rebuildable environment files, and the user has not chosen a Docker strategy, stop and ask which behavior they want
-   h. If `task.toml` declares `[environment].docker_image`, map it to Margin `image` when the user wants to preserve or reuse the source image
-   i. If the user wants a Dockerfile-backed case, copy `environment/` → `env/` (preserves Dockerfile + setup scripts)
-   j. If the user wants a rebuilt/published image, build from `environment/`, publish to the selected registry, and write the published image reference to Margin `image`
-   k. Copy `tests/` → `tests/`
-   l. Rewrite copied verifier paths from absolute `/tests/...` to Margin-compatible `tests/...` or `"${PWD}/tests/..."`
-   m. If the source verifier uses environment variables such as `TEST_DIR`, rewrite or override them to point at the Margin-mounted test assets instead of preserving incompatible source defaults
-   n. Ensure copied or generated verifier wrappers create any required output directories before writing artifacts
-   o. Ensure each copied or generated verifier uses a single authoritative test location; if it copies tests into the workspace, adjust the test command to avoid rediscovering `{test_cwd}/tests`, and if it runs directly from `tests/`, do not also copy those tests into the workspace
-   p. Audit copied or generated verifier wrappers for false-positive success behavior such as unconditional `exit 0`; preserve the underlying test exit code instead
-   q. If `solution/` exists, copy to `oracle/` as reference material only
+   b. Use the inner directory name, not the UUID, as the case name
+   c. Sanitize the case name to be filesystem-safe
+   d. If sanitization collides with an existing case name, append a stable suffix derived from the Harbor UUID
+   e. Create `cases/<case-name>/`
+   f. Generate `case.toml` per `references/harbor-mapping.md`
+   g. Copy `instruction.md` to `prompt.md`
+   h. If Harbor provides both a reusable image path and rebuildable environment files, and the user has not chosen a Docker strategy, stop and ask which behavior they want
+   i. If `task.toml` declares `[environment].docker_image`, map it to Margin `image` when the user wants to preserve or reuse the source image
+   j. If the user wants a Dockerfile-backed case, copy `environment/` to `env/`
+   k. If the user wants a rebuilt and published image, build from `environment/`, publish to the selected registry, and write the published image reference to Margin `image`
+   l. Copy `tests/` to `tests/`
+   m. Apply the general verifier rules above, especially path normalization, environment-variable overrides, single test location, and exit-code propagation
+   n. If `solution/` exists, copy it to `oracle/` as reference material only
 3. **Parse `WORKDIR`** from `env/Dockerfile` to set `test_cwd` when using a Dockerfile-backed environment or rebuilding/publishing a new image. If using a Harbor `docker_image` without a Dockerfile, infer `test_cwd` from the source verifier or default to `"/"`.
 4. **Generate `suite.toml`** with all case names
 5. **`chmod +x`** all `.sh` files in `tests/` and `oracle/`
@@ -227,3 +254,16 @@ harbor_memory_mb = 2048
 harbor_gpus = 0
 harbor_agent_timeout_sec = 120
 ```
+
+## Validation Checklist
+
+Before declaring a conversion complete, verify:
+- Every case has `case.toml`, `prompt.md`, `tests/test.sh`, and either `image` or `env/Dockerfile`
+- `case.toml.name` matches the directory name
+- `test_cwd` resolves to a real working directory assumption for the case
+- Required shell scripts are executable
+- The sample suite runs under `margin run`
+- The verifier reads test assets from the correct location
+- The verifier does not discover the same tests from both the workspace and `tests/`
+- The verifier propagates real failures with a non-zero exit code
+- Any remaining sample failures are real task failures, not harness failures
