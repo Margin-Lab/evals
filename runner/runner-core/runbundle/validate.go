@@ -10,7 +10,6 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-core/testassets"
 )
 
-var digestImagePattern = regexp.MustCompile(`^[^\s@]+@sha256:[a-f0-9]{64}$`)
 var gitCommitPattern = regexp.MustCompile(`^[a-f0-9]{40}$`)
 
 func Validate(b Bundle) error {
@@ -175,8 +174,8 @@ func validateCase(c Case) error {
 	if hasImage == hasBuild {
 		return fmt.Errorf("case must set exactly one of image or image_build")
 	}
-	if hasImage && !digestImagePattern.MatchString(strings.TrimSpace(c.Image)) {
-		return fmt.Errorf("image must be digest-pinned using @sha256")
+	if hasImage && !IsPinnedImageRef(c.Image) {
+		return fmt.Errorf("image must be pinned by digest (repo@sha256:... or sha256:...)")
 	}
 	if hasBuild {
 		if err := validateCaseImageBuild(*c.ImageBuild); err != nil {

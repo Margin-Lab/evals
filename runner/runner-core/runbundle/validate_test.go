@@ -47,8 +47,8 @@ func TestValidateRejectsNegativeRetryCount(t *testing.T) {
 func TestValidateRejectsMutableImageTag(t *testing.T) {
 	b := validBundle()
 	b.ResolvedSnapshot.Cases[0].Image = "ghcr.io/acme/repo:latest"
-	if err := Validate(b); err == nil || !strings.Contains(err.Error(), "digest-pinned") {
-		t.Fatalf("expected digest-pinned image error, got %v", err)
+	if err := Validate(b); err == nil || !strings.Contains(err.Error(), "pinned by digest") {
+		t.Fatalf("expected pinned image error, got %v", err)
 	}
 }
 

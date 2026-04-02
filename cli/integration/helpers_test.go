@@ -359,7 +359,7 @@ func readArtifactBody(t *testing.T, runDir string, artifact store.Artifact) stri
 
 func resolveDigestPinnedLocalImage(image string) string {
 	trimmed := strings.TrimSpace(image)
-	if trimmed == "" || strings.Contains(trimmed, "@sha256:") {
+	if trimmed == "" || runbundle.IsPinnedImageRef(trimmed) {
 		return trimmed
 	}
 	output, err := runCmdNoFail(repoRootFromCaller(), nil, "docker", "image", "inspect", trimmed, "--format", "{{.Id}}")
@@ -371,7 +371,7 @@ func resolveDigestPinnedLocalImage(image string) string {
 	if len(digest) != 64 {
 		panic("unexpected image digest for " + trimmed + ": " + digest)
 	}
-	return trimmed + "@sha256:" + digest
+	return "sha256:" + digest
 }
 
 func writeFakeRunFixture(t *testing.T, prompt, testScript string, dryRun bool) (suitePath, configPath, evalPath string) {
@@ -418,7 +418,7 @@ command = ["bash", "-lc", "echo hello"]
 	image := resolveDigestPinnedLocalImage(fakeImageTag)
 	suitePath = filepath.Join(root, "suite")
 	writeTextFile(t, filepath.Join(suitePath, "suite.toml"), "kind = \"test_suite\"\nname = \"cli-it\"\ncases = [\n  \"case-1\"\n]\n")
-writeTextFile(t, filepath.Join(suitePath, "cases", "case-1", "case.toml"), fmt.Sprintf(`kind = "test_case"
+	writeTextFile(t, filepath.Join(suitePath, "cases", "case-1", "case.toml"), fmt.Sprintf(`kind = "test_case"
 name = "case-1"
 image = %q
 agent_cwd = "/workspace"
@@ -449,7 +449,7 @@ func writeModelRunFixture(t *testing.T, definitionName, configName, version stri
 	image := resolveDigestPinnedLocalImage(realImageTag)
 	suitePath = filepath.Join(root, "suite")
 	writeTextFile(t, filepath.Join(suitePath, "suite.toml"), "kind = \"test_suite\"\nname = \"cli-model-it\"\ncases = [\n  \"case-1\"\n]\n")
-writeTextFile(t, filepath.Join(suitePath, "cases", "case-1", "case.toml"), fmt.Sprintf(`kind = "test_case"
+	writeTextFile(t, filepath.Join(suitePath, "cases", "case-1", "case.toml"), fmt.Sprintf(`kind = "test_case"
 name = "case-1"
 image = %q
 agent_cwd = "/workspace"

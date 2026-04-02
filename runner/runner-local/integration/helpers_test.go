@@ -206,7 +206,7 @@ func bundleWithCaseImage(bundle runbundle.Bundle, image string) runbundle.Bundle
 
 func resolveDigestPinnedLocalImage(image string) string {
 	trimmed := strings.TrimSpace(image)
-	if trimmed == "" || strings.Contains(trimmed, "@sha256:") {
+	if trimmed == "" || runbundle.IsPinnedImageRef(trimmed) {
 		return trimmed
 	}
 	cmd := exec.Command("docker", "image", "inspect", trimmed, "--format", "{{.Id}}")
@@ -219,7 +219,7 @@ func resolveDigestPinnedLocalImage(image string) string {
 	if len(digest) != 64 {
 		panic("unexpected image digest for " + trimmed + ": " + digest)
 	}
-	return trimmed + "@sha256:" + digest
+	return "sha256:" + digest
 }
 
 func repoRoot(t *testing.T) string {
