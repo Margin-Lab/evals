@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -13,8 +12,6 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
 	"github.com/marginlab/margin-eval/runner/runner-core/usage"
 )
-
-var digestImagePattern = regexp.MustCompile(`^[^\s@]+@sha256:[a-f0-9]{64}$`)
 
 type MemoryStore struct {
 	mu sync.Mutex
@@ -480,8 +477,8 @@ func (s *MemoryStore) UpdateInstanceImage(_ context.Context, runID, instanceID, 
 		return nil
 	}
 	resolved := strings.TrimSpace(image)
-	if !digestImagePattern.MatchString(resolved) {
-		return fmt.Errorf("image must be digest-pinned using @sha256")
+	if !runbundle.IsPinnedImageRef(resolved) {
+		return fmt.Errorf("image must be pinned by digest (repo@sha256:... or sha256:...)")
 	}
 	if inst.Case.Image == resolved {
 		return nil

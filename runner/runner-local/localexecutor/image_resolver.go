@@ -175,21 +175,24 @@ func (r *localDockerImageResolver) Cleanup(ctx context.Context, in imageresolver
 func (r *localDockerImageResolver) inspectDigestReference(ctx context.Context, tag string) (string, error) {
 	repo := imageRepository(tag)
 	digestsRaw, err := r.runDocker(ctx, "image", "inspect", tag, "--format", "{{json .RepoDigests}}")
-	if err == nil {
-		var digests []string
-		if unmarshalErr := json.Unmarshal([]byte(strings.TrimSpace(digestsRaw)), &digests); unmarshalErr == nil {
-			for _, digest := range digests {
-				trimmed := strings.TrimSpace(digest)
-				if strings.HasPrefix(trimmed, repo+"@sha256:") {
-					return trimmed, nil
-				}
-			}
-			for _, digest := range digests {
-				trimmed := strings.TrimSpace(digest)
-				if strings.Contains(trimmed, "@sha256:") {
-					return trimmed, nil
-				}
-			}
+	if err != nil {
+		return "", err
+	}
+
+	var digests []string
+	if err := json.Unmarshal([]byte(strings.TrimSpace(digestsRaw)), &digests); err != nil {
+		return "", fmt.Errorf("decode docker image repo digests for %q: %w", tag, err)
+	}
+	for _, digest := range digests {
+		trimmed := strings.TrimSpace(digest)
+		if strings.HasPrefix(trimmed, repo+"@sha256:") {
+			return trimmed, nil
+		}
+	}
+	for _, digest := range digests {
+		trimmed := strings.TrimSpace(digest)
+		if strings.Contains(trimmed, "@sha256:") {
+			return trimmed, nil
 		}
 	}
 
@@ -201,7 +204,11 @@ func (r *localDockerImageResolver) inspectDigestReference(ctx context.Context, t
 	if !strings.HasPrefix(id, "sha256:") {
 		return "", fmt.Errorf("unexpected docker image id format %q", id)
 	}
-	return repo + "@" + id, nil
+
+	// Locally built images commonly have no RepoDigests. In that case, the
+	// immutable local image ID is the runnable pinned reference; synthesizing
+	// repo@sha256:<image-id> causes Docker to treat it as a remote digest ref.
+	return id, nil
 }
 
 func (r *localDockerImageResolver) imageExists(ctx context.Context, imageRef string) (bool, error) {

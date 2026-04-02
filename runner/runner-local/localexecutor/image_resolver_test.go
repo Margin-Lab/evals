@@ -44,19 +44,19 @@ if [ "$1" = "image" ] && [ "$2" = "inspect" ]; then
     echo "Error: No such image: $target" >&2
     exit 1
   fi
-  if [ "$target" = %q ]; then
-    if [ -f %q ]; then
-      if [ "$format" = "{{json .RepoDigests}}" ]; then
-        echo "[\"marginlab-local/buildctx@sha256:%s\"]"
-        exit 0
-      fi
-      if [ "$format" = "{{.Id}}" ]; then
-        echo "sha256:%s"
-        exit 0
-      fi
-      echo "unsupported format: $format" >&2
-      exit 1
-    fi
+	if [ "$target" = %q ]; then
+	    if [ -f %q ]; then
+	      if [ "$format" = "{{json .RepoDigests}}" ]; then
+	        echo "[]"
+	        exit 0
+	      fi
+	      if [ "$format" = "{{.Id}}" ]; then
+	        echo "sha256:%s"
+	        exit 0
+	      fi
+	      echo "unsupported format: $format" >&2
+	      exit 1
+	    fi
     echo "Error: No such image: $target" >&2
     exit 1
   fi
@@ -71,7 +71,7 @@ fi
 
 echo "unexpected docker invocation: $@" >&2
 exit 1
-`, logPath, persisted, tag, statePath, digest, digest, statePath))
+`, logPath, persisted, tag, statePath, digest, statePath))
 
 	resolver, err := newLocalDockerImageResolver(dockerBin)
 	if err != nil {
@@ -81,7 +81,7 @@ exit 1
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	want := "marginlab-local/buildctx@sha256:" + digest
+	want := "sha256:" + digest
 	if got != want {
 		t.Fatalf("resolved image = %q, want %q", got, want)
 	}
@@ -100,7 +100,7 @@ exit 1
 }
 
 func TestCleanupRemovesResolvedRefAndBuildTag(t *testing.T) {
-	const resolved = "marginlab-local/buildctx@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	const resolved = "sha256:deadbeefcafebabedeadbeefcafebabedeadbeefcafebabedeadbeefcafebabe"
 
 	input := imageresolver.ResolveInput{
 		CaseID: "case_1",
@@ -162,7 +162,7 @@ if [ "$1" = "image" ] && [ "$2" = "inspect" ]; then
   if [ "$target" = %q ]; then
     if [ -f %q ]; then
       if [ "$format" = "{{json .RepoDigests}}" ]; then
-        echo "[\"marginlab-local/buildctx@sha256:%s\"]"
+        echo "[]"
         exit 0
       fi
       if [ "$format" = "{{.Id}}" ]; then
@@ -181,7 +181,7 @@ if [ "$1" = "build" ]; then
 fi
 echo "unexpected docker invocation: $@" >&2
 exit 1
-`, tag, statePath, digest, digest, statePath))
+`, tag, statePath, digest, statePath))
 
 	resolver, err := newLocalDockerImageResolver(dockerBin)
 	if err != nil {
@@ -193,6 +193,40 @@ exit 1
 	}
 	if !strings.Contains(buildLog.String(), "build output line") {
 		t.Fatalf("expected build output in build log, got:\n%s", buildLog.String())
+	}
+}
+
+func TestResolvePrefersRepoDigestWhenAvailable(t *testing.T) {
+	const digest = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	input := imageresolver.ResolveInput{
+		CaseID: "case_1",
+		ImageBuild: &runbundle.CaseImageBuild{
+			Context:           buildContextWithDockerfile(t),
+			DockerfileRelPath: "Dockerfile",
+		},
+	}
+	tag := buildTagFromBuildKey(imageresolver.BuildKey(input))
+	dockerBin := writeFakeDockerBinary(t, fmt.Sprintf(`#!/bin/sh
+set -eu
+if [ "$1" = "image" ] && [ "$2" = "inspect" ] && [ "$3" = %q ] && [ "$5" = "{{json .RepoDigests}}" ]; then
+  echo "[\"marginlab-local/buildctx@sha256:%s\"]"
+  exit 0
+fi
+echo "unexpected docker invocation: $@" >&2
+exit 1
+`, tag, digest))
+
+	resolver, err := newLocalDockerImageResolver(dockerBin)
+	if err != nil {
+		t.Fatalf("newLocalDockerImageResolver() error = %v", err)
+	}
+	got, err := resolver.Resolve(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	want := "marginlab-local/buildctx@sha256:" + digest
+	if got != want {
+		t.Fatalf("resolved image = %q, want %q", got, want)
 	}
 }
 

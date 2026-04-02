@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -31,8 +30,6 @@ type Config struct {
 type Store struct {
 	pool *pgxpool.Pool
 }
-
-var digestImagePattern = regexp.MustCompile(`^[^\s@]+@sha256:[0-9a-f]{64}$`)
 
 type rowQueryer interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
@@ -1448,8 +1445,8 @@ func (s *Store) UpdateInstanceImage(ctx context.Context, runID, instanceID, atte
 		at = time.Now().UTC()
 	}
 	resolvedImage := strings.TrimSpace(image)
-	if !digestImagePattern.MatchString(resolvedImage) {
-		return fmt.Errorf("image must be digest-pinned using @sha256")
+	if !runbundle.IsPinnedImageRef(resolvedImage) {
+		return fmt.Errorf("image must be pinned by digest (repo@sha256:... or sha256:...)")
 	}
 
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
