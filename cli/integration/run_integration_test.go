@@ -96,7 +96,58 @@ func TestCLIRunWithFakeAgentServerDryRun(t *testing.T) {
 	if run.Results.Usage.InstancesWithUsage != 0 || run.Results.Usage.InstancesWithoutUsage != 1 {
 		t.Fatalf("unexpected dry-run usage coverage: %+v", run.Results.Usage)
 	}
-	forbidArtifactRoles(t, run.Artifacts, store.ArtifactRoleTrajectory, store.ArtifactRoleTestStdout, store.ArtifactRoleTestStderr)
+	if len(run.Results.Instances) != 1 || run.Results.Instances[0].FinalState != "succeeded" {
+		t.Fatalf("unexpected dry-run instance summary: %+v", run.Results.Instances)
+	}
+	forbidArtifactRoles(t, run.Artifacts, store.ArtifactRoleTrajectory)
+	requireArtifactRole(t, summary.RunDir, run.Artifacts, store.ArtifactRoleTestStdout)
+	requireArtifactRole(t, summary.RunDir, run.Artifacts, store.ArtifactRoleTestStderr)
+}
+
+func TestCLIRunWithFakeAgentServerDryRunTestInfra(t *testing.T) {
+	ensureIntegrationEnv(t)
+	ensureFakeImageBuilt(t)
+	agentServerBinary := ensureFakeAgentServerBinaryBuilt(t)
+
+	suitePath, configPath, evalPath := writeFakeRunFixture(
+		t,
+		"fake cli dry run infra",
+		"#!/usr/bin/env bash\nexit 2\n",
+		false,
+	)
+	rootDir := t.TempDir()
+
+	result := runMargin(t, 3*time.Minute, nil,
+		append([]string{
+			"run",
+			"--suite", suitePath,
+			"--agent-config", configPath,
+			"--eval", evalPath,
+			"--root", rootDir,
+			"--agent-server-binary", agentServerBinary,
+			"--non-interactive",
+			"--dry-run",
+			"--run-timeout", "2m",
+		}, modelAgentEnvArgs()...)...,
+	)
+	if result.ExitCode != 1 {
+		t.Fatalf("margin exit code = %d, want 1\nstdout:\n%s\nstderr:\n%s", result.ExitCode, result.Stdout, result.Stderr)
+	}
+	if !strings.Contains(result.Stdout, "state: failed") {
+		t.Fatalf("stdout missing failed state:\n%s", result.Stdout)
+	}
+	if !strings.Contains(result.Stdout, "infra_fail 1") && !strings.Contains(result.Stdout, "infra_fail=1") {
+		t.Fatalf("stdout missing infra summary:\n%s", result.Stdout)
+	}
+
+	summary := parseCLIRunSummary(t, result.Stdout)
+	run := loadPersistedRun(t, rootDir, summary)
+	if run.Results.Status.InfraFailed.Count != 1 || run.Results.Status.TestFailed.Count != 0 {
+		t.Fatalf("unexpected dry-run failure breakdown: %+v", run.Results.Status)
+	}
+	if len(run.Results.Instances) != 1 || run.Results.Instances[0].FinalState != "infra_failed" {
+		t.Fatalf("unexpected dry-run infra instance summary: %+v", run.Results.Instances)
+	}
 }
 
 func TestCLIRunWithFakeAgentServerFailure(t *testing.T) {

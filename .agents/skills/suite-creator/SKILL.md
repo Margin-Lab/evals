@@ -70,7 +70,12 @@ The task description sent to the agent as its initial prompt. Must not be empty.
 
 ### tests/test.sh
 
-The grading script — this is the evaluator. Exit 0 = pass, non-zero = fail. Convention: write `echo 1 > /logs/verifier/reward.txt` on pass, `echo 0` on fail. Must be executable. All files in `tests/` are packaged together and staged at `{test_cwd}/tests/` in the container.
+The grading script — this is the evaluator. It must terminate with exactly one of:
+- `0` = pass
+- `1` = fail
+- `2` = infra
+
+Do not write `reward.txt`. The verifier process exit code is the authoritative result. The script must be executable. All files in `tests/` are packaged together and staged at `{test_cwd}/tests/` in the container.
 
 ### oracle/solve.sh (optional)
 
@@ -135,48 +140,84 @@ A good prompt is specific enough that a competent developer could complete the t
 
 `tests/test.sh` determines pass/fail. The grading approach depends on what's being tested:
 
+Use a simple explicit verdict API in every new harness:
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+pass()  { printf 'VERDICT: PASS\n'; exit 0; }
+fail()  { printf 'VERDICT: FAIL\n'; exit 1; }
+infra() { printf 'VERDICT: INFRA\n' >&2; exit 2; }
+```
+
+Policy:
+- return `pass` or `fail` only when the harness reached a trustworthy verdict about the candidate
+- return `infra` when the harness cannot reach a trustworthy verdict for reasons not attributable to the candidate
+- missing candidate artifact, candidate compile/import/runtime failure, candidate timeout after candidate logic starts, and wrong output are all `fail`
+- verifier/bootstrap/parser/config failures are `infra`
+
 **File/output verification** — check that the agent produced the right files with the right content:
 ```bash
 #!/bin/bash
-pytest /tests/test_outputs.py -rA
+set -euo pipefail
 
-if [ $? -eq 0 ]; then
-  echo 1 > /logs/verifier/reward.txt
-else
-  echo 0 > /logs/verifier/reward.txt
+pass()  { exit 0; }
+fail()  { exit 1; }
+infra() { exit 2; }
+
+if [ ! -f /app/output.json ]; then
+  fail
 fi
+
+set +e
+pytest tests/test_outputs.py -rA
+exit_code=$?
+set -e
+
+case "$exit_code" in
+  0) pass ;;
+  1) fail ;;
+  *) infra ;;
+esac
 ```
 
 **Test suite pass-through** — run the project's own test suite against the agent's changes:
 ```bash
 #!/bin/bash
-cd /app
-npm test
+set -euo pipefail
 
-if [ $? -eq 0 ]; then
-  echo 1 > /logs/verifier/reward.txt
-else
-  echo 0 > /logs/verifier/reward.txt
-fi
+pass()  { exit 0; }
+fail()  { exit 1; }
+infra() { exit 2; }
+
+cd /app
+set +e
+npm test
+exit_code=$?
+set -e
+
+case "$exit_code" in
+  0) pass ;;
+  1) fail ;;
+  *) infra ;;
+esac
 ```
 
 **Custom validation** — for tasks where correctness is more nuanced:
 ```bash
 #!/bin/bash
-python /tests/validate.py
-
-if [ $? -eq 0 ]; then
-  echo 1 > /logs/verifier/reward.txt
-else
-  echo 0 > /logs/verifier/reward.txt
-fi
+set -euo pipefail
+python tests/validate.py
 ```
 
 Guidelines for grading scripts:
 - Install test dependencies inside the script (they run in a separate context from the agent)
 - Test observable outcomes, not implementation details — the agent should be free to solve the problem however it sees fit
 - Make sure the script is deterministic — same agent output should always produce the same verdict
-- Keep the reward.txt write as the last meaningful action
+- Keep terminal verdict paths explicit and easy to audit
+- Prefer verifier-level changes over Dockerfile changes when clarifying verdict semantics
+- If a parser or verifier cannot interpret the result, default to `infra` unless you can directly attribute the failure to the candidate
 
 ### 6. Write the reference solution (optional)
 
@@ -213,7 +254,8 @@ Check every case:
 If possible, build the Docker image and verify:
 1. The container starts and the workspace is set up correctly
 2. Running `oracle/solve.sh` followed by `tests/test.sh` exits 0
-3. Running `tests/test.sh` without the solution exits non-zero
+3. Running `tests/test.sh` without the solution exits 1
+4. An induced verifier/setup failure exits 2
 
 ---
 

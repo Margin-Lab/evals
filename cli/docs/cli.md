@@ -71,7 +71,7 @@ margin run \
 
 When `--resume-from` is set, the CLI loads `runs/<run-id>/internal/bundle.json` from the selected `--root` and does not accept `--suite`, `--agent-config`, or `--eval`.
 
-To validate setup without starting the agent or spending tokens, add `--dry-run`:
+To skip agent execution while still running the case tests and avoiding token usage, add `--dry-run`:
 
 ```bash
 margin run \
@@ -81,7 +81,7 @@ margin run \
   --dry-run
 ```
 
-Dry-run validates the prelaunch path through `run.prepare`, skill materialization, auth-file setup, and `agents.md` writing, then skips agent execution and case tests.
+Dry-run validates the prelaunch path through `run.prepare`, skill materialization, auth-file setup, and `agents.md` writing, skips agent execution, and still runs the case tests against the pristine workspace.
 
 The `margin` binary embeds the supported Linux `agent-server` payloads and extracts the required one into the user cache on demand.
 

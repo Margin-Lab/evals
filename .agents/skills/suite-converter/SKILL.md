@@ -100,14 +100,37 @@ These rules are cross-source and should hold for every conversion.
 ### Verifier rules
 
 - Must be executable (`chmod +x`)
-- Exit 0 = pass, non-zero = fail
+- Exit `0` = pass, `1` = fail, `2` = infra
+- Do not write `reward.txt`. The verifier process exit code is the authoritative result.
 - All files in `tests/` are packaged together and staged at `{test_cwd}/tests/` in the container
 - If the source suite uses absolute test-asset paths such as `/tests/...`, rewrite them to Margin-compatible paths such as `tests/...` or `"${PWD}/tests/..."`.
 - If the source verifier derives test-asset paths from environment variables, normalize or override those variables to Margin-compatible values. Do not rely only on fallback expressions when the source environment may already set an incompatible path such as `/tests`.
 - Ensure the verifier creates any directories it expects before writing output artifacts.
 - Use exactly one authoritative test location. If the verifier copies tests from `tests/` into the workspace, its test command must avoid rediscovering the mounted `tests/` tree. If it runs tests directly from `tests/`, do not also copy them into the workspace.
-- Never leave a wrapper that always exits `0`. If the underlying test command fails, the wrapper must propagate that non-zero exit code back to Margin.
+- Never leave a wrapper that always exits `0`. Every verifier must terminate through explicit `pass`, `fail`, or `infra` paths.
 - If the source suite expects status or report artifacts in addition to the exit code, preserve that behavior, but do not treat any single artifact format as universal.
+
+### Verdict policy
+
+Use this attribution rule across conversions:
+- `pass`: the harness reached a trustworthy verdict and the candidate satisfied the task
+- `fail`: the harness reached a trustworthy verdict and the candidate did not satisfy the task
+- `infra`: the harness could not reach a trustworthy verdict for reasons not attributable to the candidate
+
+Classify these as `fail`:
+- missing candidate-owned artifact
+- candidate compile/import/build/runtime failure
+- candidate timeout after candidate logic begins
+- wrong output, failed assertions, malformed candidate-generated output
+- candidate-caused repo state that prevents intended test execution
+
+Classify these as `infra`:
+- verifier/bootstrap/parser dependency failure
+- suite-owned config or hidden test asset is missing or malformed
+- verifier cannot interpret logs or required verifier artifacts are missing
+- harness-side timeout before candidate evaluation meaningfully begins
+
+If a parser or verifier layer cannot produce a trustworthy verdict, default to `infra` unless the harness already has direct evidence of a candidate-caused failure.
 
 ### Case identity rules
 
@@ -128,6 +151,10 @@ These rules are cross-source and should hold for every conversion.
 - Do not assume the conversion is correct until a sample run succeeds without harness-level issues
 - Distinguish real task failures from conversion failures
 - If the sample exposes harness issues, fix them and rerun the sample before scaling up
+- Validate all three terminal states when practical:
+  - a known-good sample yields `0`
+  - a known-bad or unsolved sample yields `1`
+  - an induced verifier/setup failure yields `2`
 
 ## Decision Rules
 
@@ -158,6 +185,8 @@ When Docker behavior is ambiguous, ask which of these they want:
 - Convert using `env/Dockerfile`
 - Rebuild and publish a new image, then use that in `image`
 
+Do not modify Dockerfiles just to express pass/fail/infra policy unless the user explicitly asks for environment changes. Prefer verifier-level changes for verdict semantics.
+
 ## Conversion Workflow
 
 1. **Identify the source format** by inspecting the input directory (look for characteristic files like `task.toml`, `case.toml`, etc.)
@@ -187,23 +216,28 @@ If the source has test scripts (e.g., pytest files) but no `test.sh`, generate a
 #!/bin/bash
 set -euo pipefail
 
-<dependency installation commands>
+pass()  { printf 'VERDICT: PASS\n'; exit 0; }
+fail()  { printf 'VERDICT: FAIL\n'; exit 1; }
+infra() { printf 'VERDICT: INFRA\n' >&2; exit 2; }
+
+<dependency installation commands or bootstrap checks>
 
 set +e
 <test runner command, e.g., pytest tests/test_outputs.py -rA>
 exit_code=$?
 set -e
 
-# If the source suite expects extra status/report artifacts, write them here
-# based on $exit_code.
-
-exit $exit_code
+case "$exit_code" in
+  0) pass ;;
+  1) fail ;;
+  *) infra ;;
+esac
 ```
 
 Common failure signatures to look for during sample validation:
 - Path mismatch: the verifier still points at `/tests/...` instead of `{test_cwd}/tests/...`
 - Duplicate discovery: the same tests are collected from both the workspace and `tests/`
-- Masked failures: the wrapper writes artifacts but still exits `0`
+- Masked failures: the wrapper reaches an ambiguous state but still exits `0` or `1`
 
 ## Source-Specific Adapters
 

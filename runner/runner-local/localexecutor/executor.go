@@ -48,6 +48,9 @@ const (
 	maxReadySummaryLength     = 512
 	maxTestAssetsArchiveByte  = 64 << 20
 	imageCleanupTimeout       = 15 * time.Second
+	testExitCodePass          = 0
+	testExitCodeFail          = 1
+	testExitCodeInfra         = 2
 )
 
 type Config struct {
@@ -470,23 +473,6 @@ func (e *Executor) ExecuteInstance(
 	if err != nil {
 		return fail(result, artifacts, err)
 	}
-	if run.Bundle.ResolvedSnapshot.Execution.Mode == runbundle.ExecutionModeDryRun {
-		_ = logs.Step(
-			store.ArtifactRoleAgentControl,
-			"tests.skipped_dry_run",
-			"completed",
-			"Dry-run mode completed prelaunch validation; skipping case test execution and token usage.",
-			map[string]string{
-				"execution_mode": string(run.Bundle.ResolvedSnapshot.Execution.Mode),
-				"case_id":        caseSpec.CaseID,
-			},
-		)
-		if err := updateState(domain.InstanceStateCollecting); err != nil {
-			return fail(store.InstanceResult{}, artifacts, err)
-		}
-		result.FinalState = domain.InstanceStateSucceeded
-		return result, artifacts, nil
-	}
 
 	if err := updateState(domain.InstanceStateTesting); err != nil {
 		return fail(store.InstanceResult{}, artifacts, err)
@@ -509,10 +495,24 @@ func (e *Executor) ExecuteInstance(
 	case priorFinalState.IsTerminal() && priorFinalState != domain.InstanceStateSucceeded:
 		// Preserve an earlier terminal failure classification from agent execution.
 		result.FinalState = priorFinalState
-	case testExitCode != 0:
-		result.FinalState = domain.InstanceStateTestFailed
 	default:
-		result.FinalState = domain.InstanceStateSucceeded
+		result.FinalState = classifyTestFinalState(testExitCode)
+		if result.FinalState == domain.InstanceStateInfraFailed {
+			if result.ErrorCode == "" {
+				if testExitCode == testExitCodeInfra {
+					result.ErrorCode = "TEST_INFRA"
+				} else {
+					result.ErrorCode = "INVALID_TEST_EXIT_CODE"
+				}
+			}
+			if result.ErrorMessage == "" {
+				if testExitCode == testExitCodeInfra {
+					result.ErrorMessage = "case test script reported infra failure"
+				} else {
+					result.ErrorMessage = fmt.Sprintf("case test script exited with unsupported status %d; expected 0, 1, or 2", testExitCode)
+				}
+			}
+		}
 	}
 
 	if err := updateState(domain.InstanceStateCollecting); err != nil {
@@ -527,6 +527,19 @@ func (e *Executor) ExecuteInstance(
 	result.TestStderrRef = stderrRef
 	artifacts = append(artifacts, testArtifacts...)
 	return result, artifacts, nil
+}
+
+func classifyTestFinalState(testExitCode int) domain.InstanceState {
+	switch testExitCode {
+	case testExitCodePass:
+		return domain.InstanceStateSucceeded
+	case testExitCodeFail:
+		return domain.InstanceStateTestFailed
+	case testExitCodeInfra:
+		return domain.InstanceStateInfraFailed
+	default:
+		return domain.InstanceStateInfraFailed
+	}
 }
 
 func resolveCaseForExecution(run store.Run, inst store.Instance) (runbundle.Case, error) {
