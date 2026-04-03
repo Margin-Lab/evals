@@ -1482,6 +1482,9 @@ func TestRepoOwnedOpencodeCollectTrajectoryProducesATIF(t *testing.T) {
 		`{"type":"text","part":{"type":"text","text":"Inspecting the repository"}}`,
 		`{"type":"tool_use","part":{"type":"tool","callID":"call_1","tool":"bash","state":{"input":{"command":"ls"},"output":"file1\nfile2"}}}`,
 		`{"type":"step_finish","part":{"tokens":{"input":12,"output":6,"reasoning":2,"cache":{"read":4,"write":1}},"cost":0.42}}`,
+		`{"type":"step_start","sessionID":"opencode-session","timestamp":1741608001000}`,
+		`{"type":"text","part":{"type":"text","text":"Applying the fix"}}`,
+		`{"type":"step_finish","part":{"tokens":{"input":14,"output":3,"reasoning":0,"cache":{"read":5,"write":0}},"cost":0.11}}`,
 	})
 
 	raw, err := runtime.CollectTrajectory(context.Background(), agent, runCtx)
@@ -1498,8 +1501,8 @@ func TestRepoOwnedOpencodeCollectTrajectoryProducesATIF(t *testing.T) {
 	if traj.Agent.Name != "opencode" {
 		t.Fatalf("unexpected agent = %+v", traj.Agent)
 	}
-	if len(traj.Steps) != 2 {
-		t.Fatalf("steps = %d, want 2", len(traj.Steps))
+	if len(traj.Steps) != 3 {
+		t.Fatalf("steps = %d, want 3", len(traj.Steps))
 	}
 	if text, ok := traj.Steps[0].Message.Text(); !ok || text != "fix the bug" {
 		t.Fatalf("unexpected user message = %q", text)
@@ -1507,13 +1510,22 @@ func TestRepoOwnedOpencodeCollectTrajectoryProducesATIF(t *testing.T) {
 	if len(traj.Steps[1].ToolCalls) != 1 || traj.Steps[1].ToolCalls[0].FunctionName != "bash" {
 		t.Fatalf("unexpected tool call step = %+v", traj.Steps[1])
 	}
-	if traj.FinalMetrics == nil || traj.FinalMetrics.TotalPromptTokens == nil || *traj.FinalMetrics.TotalPromptTokens != 16 {
+	if traj.Steps[1].Metrics == nil || traj.Steps[1].Metrics.PromptTokens == nil || *traj.Steps[1].Metrics.PromptTokens != 16 {
+		t.Fatalf("unexpected first prompt snapshot = %+v", traj.Steps[1].Metrics)
+	}
+	if traj.Steps[2].Metrics == nil || traj.Steps[2].Metrics.PromptTokens == nil || *traj.Steps[2].Metrics.PromptTokens != 19 {
+		t.Fatalf("unexpected second prompt snapshot = %+v", traj.Steps[2].Metrics)
+	}
+	if traj.FinalMetrics == nil {
+		t.Fatalf("expected final metrics")
+	}
+	if traj.FinalMetrics.TotalPromptTokens != nil {
 		t.Fatalf("unexpected prompt totals = %+v", traj.FinalMetrics)
 	}
-	if traj.FinalMetrics.TotalCompletionTokens == nil || *traj.FinalMetrics.TotalCompletionTokens != 6 {
+	if traj.FinalMetrics.TotalCompletionTokens == nil || *traj.FinalMetrics.TotalCompletionTokens != 9 {
 		t.Fatalf("unexpected completion totals = %+v", traj.FinalMetrics)
 	}
-	if traj.FinalMetrics.TotalCachedTokens == nil || *traj.FinalMetrics.TotalCachedTokens != 4 {
+	if traj.FinalMetrics.TotalCachedTokens != nil {
 		t.Fatalf("unexpected cached totals = %+v", traj.FinalMetrics)
 	}
 }
@@ -1569,7 +1581,7 @@ func TestRepoOwnedPiCollectTrajectoryProducesATIF(t *testing.T) {
 	imageData := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0b8AAAAASUVORK5CYII="
 	writeJSONLLines(t, filepath.Join(runCtx.ArtifactsDir, "pi-events.jsonl"), []string{
 		`{"type":"session","id":"pi-session","cwd":"/workspace"}`,
-		`{"type":"agent_end","messages":[{"role":"user","content":"fix the bug","timestamp":1741608000000},{"role":"assistant","model":"openai/gpt-5","timestamp":1741608001000,"usage":{"input":12,"output":6,"cacheRead":2,"cacheWrite":1,"cost":{"total":0.42}},"content":[{"type":"thinking","thinking":"Plan the fix"},{"type":"text","text":"Inspecting the repository"},{"type":"toolCall","id":"toolu_1","name":"bash","arguments":{"command":"ls"}}]},{"role":"toolResult","toolCallId":"toolu_1","content":[{"type":"text","text":"file1\nfile2"},{"type":"image","mimeType":"image/png","data":"` + imageData + `"}]},{"role":"assistant","model":"openai/gpt-5","timestamp":1741608002000,"usage":{"input":4,"output":3,"cacheRead":0,"cacheWrite":0,"cost":{"total":0.11}},"content":[{"type":"text","text":"Done"}]}]}`,
+		`{"type":"agent_end","messages":[{"role":"user","content":"fix the bug","timestamp":1741608000000},{"role":"assistant","model":"openai/gpt-5","timestamp":1741608001000,"usage":{"input":12,"output":6,"cacheRead":2,"cacheWrite":1,"cost":{"total":0.42}},"content":[{"type":"thinking","thinking":"Plan the fix"},{"type":"text","text":"Inspecting the repository"},{"type":"toolCall","id":"toolu_1","name":"bash","arguments":{"command":"ls"}}]},{"role":"toolResult","toolCallId":"toolu_1","content":[{"type":"text","text":"file1\nfile2"},{"type":"image","mimeType":"image/png","data":"` + imageData + `"}]},{"role":"assistant","model":"openai/gpt-5","timestamp":1741608002000,"usage":{"input":14,"output":3,"cacheRead":5,"cacheWrite":0,"cost":{"total":0.11}},"content":[{"type":"text","text":"Done"}]}]}`,
 	})
 
 	raw, err := runtime.CollectTrajectory(context.Background(), agent, runCtx)
@@ -1601,13 +1613,22 @@ func TestRepoOwnedPiCollectTrajectoryProducesATIF(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(runCtx.ArtifactsDir, "images", "step_2_obs_0_img_0.png")); err != nil {
 		t.Fatalf("materialized observation image missing: %v", err)
 	}
-	if traj.FinalMetrics == nil || traj.FinalMetrics.TotalPromptTokens == nil || *traj.FinalMetrics.TotalPromptTokens != 18 {
+	if traj.Steps[1].Metrics == nil || traj.Steps[1].Metrics.PromptTokens == nil || *traj.Steps[1].Metrics.PromptTokens != 14 {
+		t.Fatalf("unexpected first prompt snapshot = %+v", traj.Steps[1].Metrics)
+	}
+	if traj.Steps[2].Metrics == nil || traj.Steps[2].Metrics.PromptTokens == nil || *traj.Steps[2].Metrics.PromptTokens != 19 {
+		t.Fatalf("unexpected second prompt snapshot = %+v", traj.Steps[2].Metrics)
+	}
+	if traj.FinalMetrics == nil {
+		t.Fatalf("expected final metrics")
+	}
+	if traj.FinalMetrics.TotalPromptTokens != nil {
 		t.Fatalf("unexpected prompt totals = %+v", traj.FinalMetrics)
 	}
 	if traj.FinalMetrics.TotalCompletionTokens == nil || *traj.FinalMetrics.TotalCompletionTokens != 9 {
 		t.Fatalf("unexpected completion totals = %+v", traj.FinalMetrics)
 	}
-	if traj.FinalMetrics.TotalCachedTokens == nil || *traj.FinalMetrics.TotalCachedTokens != 2 {
+	if traj.FinalMetrics.TotalCachedTokens != nil {
 		t.Fatalf("unexpected cached totals = %+v", traj.FinalMetrics)
 	}
 }
