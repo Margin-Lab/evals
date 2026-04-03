@@ -1501,7 +1501,7 @@ func validRemoteSuiteRunBundle(t *testing.T) runbundle.Bundle {
 				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 				InitialPrompt:     "prompt",
 				AgentCwd:          "/workspace",
-				TestCommand:       []string{"bash", "-lc", "tests/test.sh"},
+				TestCommand:       []string{"bash", "-c", "tests/test.sh"},
 				TestCwd:           "/work",
 				TestTimeoutSecond: 1,
 				TestAssets: runbundle.TestAssets{
