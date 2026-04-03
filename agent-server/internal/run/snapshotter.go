@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/creack/pty"
 	"github.com/marginlab/margin-eval/agent-server/internal/agentruntime"
 	"github.com/marginlab/margin-eval/agent-server/internal/apperr"
 	"github.com/marginlab/margin-eval/agent-server/internal/config"
-	"github.com/creack/pty"
 )
 
 type snapshotter struct {
@@ -30,7 +30,10 @@ type snapshotCaptureResult struct {
 	Truncated bool
 }
 
-const maxSnapshotTerminalPendingBytes = 128
+const (
+	maxSnapshotTerminalPendingBytes = 128
+	snapshotExitDrainTimeout        = 100 * time.Millisecond
+)
 
 var (
 	cprResponse           = []byte("\x1b[1;1R")
@@ -78,8 +81,10 @@ func (s *snapshotter) Capture(ctx context.Context, input snapshotCaptureInput) (
 		waitDone <- cmd.Wait()
 	}()
 
-	idleTimer := time.NewTimer(s.cfg.SnapshotIdleTimeout)
-	defer stopTimer(idleTimer)
+	var idleTimer *time.Timer
+	var idleTimerCh <-chan time.Time
+	var exitDrainTimer *time.Timer
+	var exitDrainTimerCh <-chan time.Time
 	hardTimer := time.NewTimer(s.cfg.SnapshotHardTimeout)
 	defer stopTimer(hardTimer)
 
@@ -104,14 +109,30 @@ func (s *snapshotter) Capture(ctx context.Context, input snapshotCaptureInput) (
 		case <-hardTimer.C:
 			hardTimeout = true
 			done = true
-		case <-idleTimer.C:
+		case <-idleTimerCh:
 			done = true
+		case <-exitDrainTimerCh:
+			if ptyFile != nil {
+				_ = ptyFile.Close()
+				ptyFile = nil
+			}
+			exitDrainTimerCh = nil
 		case waitErr := <-waitDone:
 			processExited = true
 			if waitErr != nil {
 				// Non-zero exit is expected when we interrupt snapshot TUIs.
 			}
 			waitDone = nil
+			if readDone == nil {
+				done = true
+				continue
+			}
+			if exitDrainTimer == nil {
+				exitDrainTimer = time.NewTimer(snapshotExitDrainTimeout)
+			} else {
+				resetTimer(exitDrainTimer, snapshotExitDrainTimeout)
+			}
+			exitDrainTimerCh = exitDrainTimer.C
 		case chunk, ok := <-chunks:
 			if !ok {
 				chunks = nil
@@ -130,20 +151,39 @@ func (s *snapshotter) Capture(ctx context.Context, input snapshotCaptureInput) (
 				done = true
 				continue
 			}
-			resetTimer(idleTimer, s.cfg.SnapshotIdleTimeout)
+			if idleTimer == nil {
+				idleTimer = time.NewTimer(s.cfg.SnapshotIdleTimeout)
+				idleTimerCh = idleTimer.C
+			} else {
+				resetTimer(idleTimer, s.cfg.SnapshotIdleTimeout)
+			}
+			if processExited {
+				if exitDrainTimer == nil {
+					exitDrainTimer = time.NewTimer(snapshotExitDrainTimeout)
+				} else {
+					resetTimer(exitDrainTimer, snapshotExitDrainTimeout)
+				}
+				exitDrainTimerCh = exitDrainTimer.C
+			}
 		case err := <-readDone:
 			if !isBenignSnapshotReadError(err) {
 				streamErr = err
 			}
 			readDone = nil
+			stopTimer(exitDrainTimer)
+			exitDrainTimerCh = nil
 			if chunks == nil {
 				done = true
 			}
 		}
 	}
 
+	defer stopTimer(idleTimer)
+	defer stopTimer(exitDrainTimer)
 	close(stopRead)
-	_ = ptyFile.Close()
+	if ptyFile != nil {
+		_ = ptyFile.Close()
+	}
 
 	if !processExited {
 		if err := s.stopSnapshotProcess(waitDone, cmd.Process.Pid); err != nil {
