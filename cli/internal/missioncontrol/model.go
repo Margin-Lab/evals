@@ -42,6 +42,7 @@ type logRenderMode int
 const (
 	logRenderRaw logRenderMode = iota
 	logRenderStructuredKV
+	logRenderJSONL
 )
 
 type logStreamSpec struct {
@@ -80,7 +81,7 @@ var logStreams = []logStreamSpec{
 		ID:     logStreamAgentPTY,
 		Label:  "Agent PTY",
 		Roles:  []string{store.ArtifactRoleAgentPTY},
-		Render: logRenderRaw,
+		Render: logRenderJSONL,
 	},
 	{
 		ID:     logStreamTestOutput,
@@ -272,17 +273,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			statusParts = append(statusParts, msg.status)
 		}
 		m.logStatus = strings.Join(statusParts, "; ")
+		parsed, parseErr := parseLogContent(msg.stream.Render, msg.content)
+		if parseErr != nil {
+			m.logStatus = fmt.Sprintf("failed to parse %s: %v", msg.stream.Label, parseErr)
+			m.setTextLogContent("", msg.stream.Render)
+			return m, nil
+		}
 		if msg.stream.Render == logRenderStructuredKV {
-			records, parseErr := parseStructuredLogRecords(msg.content.Text, msg.content.Truncated)
-			if parseErr != nil {
-				m.logStatus = fmt.Sprintf("failed to parse %s: %v", msg.stream.Label, parseErr)
-				m.setLogContent("")
-				return m, nil
-			}
-			m.setStructuredLogContent(records)
+			m.setStructuredLogContent(parsed.Records)
 		} else {
-			normalized := normalizeLogText(msg.content.Text)
-			m.setLogContent(normalized)
+			m.setTextLogContent(parsed.Text, msg.stream.Render)
 		}
 		return m, nil
 	case stateLogsLoadedMsg:
@@ -313,21 +313,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if section.Content.Truncated {
 				m.logTruncated = true
 			}
-			if section.Stream.Render == logRenderStructuredKV {
-				records, parseErr := parseStructuredLogRecords(section.Content.Text, section.Content.Truncated)
-				if parseErr != nil {
-					statusParts = append(statusParts, fmt.Sprintf("failed to parse %s: %v", section.Title, parseErr))
-					sections = append(sections, stateLogSection{
-						Title:        section.Title,
-						Render:       section.Stream.Render,
-						EmptyMessage: emptyMessage,
-					})
-					continue
-				}
+			parsed, parseErr := parseLogContent(section.Stream.Render, section.Content)
+			if parseErr != nil {
+				statusParts = append(statusParts, fmt.Sprintf("failed to parse %s: %v", section.Title, parseErr))
 				sections = append(sections, stateLogSection{
 					Title:        section.Title,
 					Render:       section.Stream.Render,
-					Records:      records,
 					EmptyMessage: emptyMessage,
 				})
 				continue
@@ -335,7 +326,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			sections = append(sections, stateLogSection{
 				Title:        section.Title,
 				Render:       section.Stream.Render,
-				Text:         normalizeLogText(section.Content.Text),
+				Text:         parsed.Text,
+				Records:      parsed.Records,
 				EmptyMessage: emptyMessage,
 			})
 		}
@@ -866,10 +858,14 @@ func (m *model) moveSelectedInstance(delta int) tea.Cmd {
 }
 
 func (m *model) setLogContent(value string) {
+	m.setTextLogContent(value, logRenderRaw)
+}
+
+func (m *model) setTextLogContent(value string, render logRenderMode) {
 	m.logSections = nil
 	m.logText = value
 	m.logRecords = nil
-	m.logActiveRender = logRenderRaw
+	m.logActiveRender = render
 	m.invalidateLogViewportContent()
 }
 
@@ -979,6 +975,47 @@ func normalizeLogText(input string) string {
 	return cleaned
 }
 
+func completeLogLines(input string, truncated bool) []string {
+	cleaned := normalizeLogText(input)
+	if cleaned == "" {
+		return nil
+	}
+	if truncated && !strings.HasSuffix(cleaned, "\n") {
+		lastNewline := strings.LastIndex(cleaned, "\n")
+		if lastNewline < 0 {
+			return nil
+		}
+		cleaned = cleaned[:lastNewline+1]
+	}
+	return strings.Split(cleaned, "\n")
+}
+
+type parsedLogContent struct {
+	Text    string
+	Records []structuredLogRecord
+}
+
+func parseLogContent(render logRenderMode, content ArtifactText) (parsedLogContent, error) {
+	switch render {
+	case logRenderRaw:
+		return parsedLogContent{Text: normalizeLogText(content.Text)}, nil
+	case logRenderStructuredKV:
+		records, err := parseStructuredLogRecords(content.Text, content.Truncated)
+		if err != nil {
+			return parsedLogContent{}, err
+		}
+		return parsedLogContent{Records: records}, nil
+	case logRenderJSONL:
+		text, err := formatJSONLText(content.Text, content.Truncated)
+		if err != nil {
+			return parsedLogContent{}, err
+		}
+		return parsedLogContent{Text: text}, nil
+	default:
+		return parsedLogContent{}, fmt.Errorf("unsupported log render mode %d", render)
+	}
+}
+
 func sanitizeStructuredInlineText(input string) string {
 	cleaned := stripANSISequences(normalizeLogText(input))
 	cleaned = strings.ReplaceAll(cleaned, "\n", " ")
@@ -1024,15 +1061,7 @@ func sanitizeStructuredLogRecord(record structuredLogRecord) structuredLogRecord
 }
 
 func parseStructuredLogRecords(input string, truncated bool) ([]structuredLogRecord, error) {
-	cleaned := normalizeLogText(input)
-	if truncated && !strings.HasSuffix(cleaned, "\n") {
-		lastNewline := strings.LastIndex(cleaned, "\n")
-		if lastNewline < 0 {
-			return nil, nil
-		}
-		cleaned = cleaned[:lastNewline+1]
-	}
-	lines := strings.Split(cleaned, "\n")
+	lines := completeLogLines(input, truncated)
 	records := make([]structuredLogRecord, 0, len(lines))
 	for idx, line := range lines {
 		if line == "" {
