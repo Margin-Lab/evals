@@ -435,11 +435,13 @@ func renderStateLogSectionBody(section stateLogSection, width int) string {
 			return mutedStyle.Render(emptyDash(section.EmptyMessage))
 		}
 		return renderStructuredLogCards(section.Records, width)
-	default:
+	case logRenderJSONL, logRenderRaw:
 		if section.Text == "" {
 			return mutedStyle.Render(emptyDash(section.EmptyMessage))
 		}
 		return wrapTextHardWithLineNumbers(section.Text, width)
+	default:
+		return mutedStyle.Render(emptyDash(section.EmptyMessage))
 	}
 }
 

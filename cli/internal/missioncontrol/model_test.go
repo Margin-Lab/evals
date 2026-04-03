@@ -1316,6 +1316,103 @@ func TestRuntimeStreamRejectsPlaintextPayload(t *testing.T) {
 	}
 }
 
+func TestFormatJSONLTextPrettyPrintsEachLine(t *testing.T) {
+	input := strings.Join([]string{
+		`{"type":"assistant","payload":{"text":"hello"}}`,
+		`["a",{"b":2}]`,
+	}, "\n") + "\n"
+
+	got, err := formatJSONLText(input, false)
+	if err != nil {
+		t.Fatalf("formatJSONLText() error = %v", err)
+	}
+
+	want := strings.Join([]string{
+		"{",
+		`  "type": "assistant",`,
+		`  "payload": {`,
+		`    "text": "hello"`,
+		`  }`,
+		"}",
+		"",
+		"[",
+		`  "a",`,
+		"  {",
+		`    "b": 2`,
+		"  }",
+		"]",
+	}, "\n")
+	if got != want {
+		t.Fatalf("unexpected pretty JSONL output:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+func TestFormatJSONLTextDropsIncompleteTailWhenTruncated(t *testing.T) {
+	input := "{\"ok\":true}\n{\"partial\":"
+
+	got, err := formatJSONLText(input, true)
+	if err != nil {
+		t.Fatalf("formatJSONLText() error = %v", err)
+	}
+
+	want := strings.Join([]string{
+		"{",
+		`  "ok": true`,
+		"}",
+	}, "\n")
+	if got != want {
+		t.Fatalf("unexpected truncated JSONL output:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+func TestAgentPTYStreamUsesJSONLRender(t *testing.T) {
+	m := newModel(context.Background(), Config{
+		RunID:            "run_1",
+		Source:           &fakeMissionSource{},
+		PollInterval:     20 * time.Millisecond,
+		TextPreviewLimit: DefaultTextPreviewLimit,
+	})
+	m.logKey = "pty_1"
+	_, _ = m.Update(logLoadedMsg{
+		key:    "pty_1",
+		stream: mustLogStreamByID(t, logStreamAgentPTY),
+		content: ArtifactText{
+			Text: `{"event":"assistant","payload":{"text":"hello"}}` + "\n",
+		},
+	})
+
+	if m.logActiveRender != logRenderJSONL {
+		t.Fatalf("expected agent PTY stream to use JSONL render mode, got %d", m.logActiveRender)
+	}
+	if !strings.Contains(m.logText, `  "event": "assistant"`) {
+		t.Fatalf("expected pretty-printed JSONL content, got:\n%s", m.logText)
+	}
+}
+
+func TestAgentPTYStreamRejectsInvalidJSONL(t *testing.T) {
+	m := newModel(context.Background(), Config{
+		RunID:            "run_1",
+		Source:           &fakeMissionSource{},
+		PollInterval:     20 * time.Millisecond,
+		TextPreviewLimit: DefaultTextPreviewLimit,
+	})
+	m.logKey = "pty_2"
+	_, _ = m.Update(logLoadedMsg{
+		key:    "pty_2",
+		stream: mustLogStreamByID(t, logStreamAgentPTY),
+		content: ArtifactText{
+			Text: "not-json\n",
+		},
+	})
+
+	if !strings.Contains(m.logStatus, "failed to parse") {
+		t.Fatalf("expected parse failure status, got %q", m.logStatus)
+	}
+	if m.logText != "" {
+		t.Fatalf("expected no rendered text after JSONL parse failure, got %q", m.logText)
+	}
+}
+
 func TestStructuredLogsStripTerminalControlsWhileScrolled(t *testing.T) {
 	m := &model{
 		focusedPane:   paneRight,
