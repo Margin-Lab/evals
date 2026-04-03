@@ -349,6 +349,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logStatus = strings.Join(statusParts, "; ")
 		m.setStateLogSections(sections)
 		return m, nil
+	case tea.MouseMsg:
+		return m, m.handleMouseMsg(msg)
 	case tea.KeyMsg:
 		if m.confirmQuit {
 			switch strings.ToLower(msg.String()) {
@@ -861,6 +863,24 @@ func (m *model) toggleFocusedPane() {
 	m.focusedPane = paneLeft
 }
 
+func (m *model) focusPane(p paneType) {
+	m.focusedPane = p
+}
+
+func (m *model) selectInstance(idx int) tea.Cmd {
+	if len(m.snapshot.Instances) == 0 {
+		return nil
+	}
+	idx = maxInt(0, minInt(idx, len(m.snapshot.Instances)-1))
+	if idx == m.selectedIdx {
+		return nil
+	}
+
+	m.selectedIdx = idx
+	m.autoStateSelect = true
+	return m.maybeLoadSelectedLog()
+}
+
 func (m *model) moveSelectedInstance(delta int) tea.Cmd {
 	if len(m.snapshot.Instances) == 0 || delta == 0 {
 		return nil
@@ -868,13 +888,7 @@ func (m *model) moveSelectedInstance(delta int) tea.Cmd {
 
 	m.selectedIdx = maxInt(0, minInt(m.selectedIdx, len(m.snapshot.Instances)-1))
 	nextIdx := maxInt(0, minInt(m.selectedIdx+delta, len(m.snapshot.Instances)-1))
-	if nextIdx == m.selectedIdx {
-		return nil
-	}
-
-	m.selectedIdx = nextIdx
-	m.autoStateSelect = true
-	return m.maybeLoadSelectedLog()
+	return m.selectInstance(nextIdx)
 }
 
 func (m *model) setLogContent(value string) {
@@ -1133,9 +1147,23 @@ func (m *model) cycleSelectedState(delta int) tea.Cmd {
 		idx += len(visible)
 	}
 
-	m.autoStateSelect = false
-	m.selectedState = visible[idx].ID
-	return m.maybeLoadSelectedLog()
+	return m.selectState(visible[idx].ID)
+}
+
+func (m *model) selectState(state simplifiedState) tea.Cmd {
+	visible := m.visibleSimplifiedStateSpecs()
+	for _, spec := range visible {
+		if spec.ID != state {
+			continue
+		}
+		if m.selectedState == state && !m.autoStateSelect {
+			return nil
+		}
+		m.autoStateSelect = false
+		m.selectedState = state
+		return m.maybeLoadSelectedLog()
+	}
+	return nil
 }
 
 func (m *model) updateLogViewport(msg tea.Msg) tea.Cmd {

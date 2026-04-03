@@ -609,13 +609,36 @@ func TestRenderBodyUsesPaneGapBetweenBorders(t *testing.T) {
 		},
 	}
 
-	out := plainText(m.renderBody(120, 20))
+	out := plainText(m.renderBody(m.computeScreenLayout()))
 	lines := strings.Split(out, "\n")
 	if len(lines) == 0 {
 		t.Fatal("expected rendered body output")
 	}
 	if !strings.Contains(lines[0], "╮  ╭") {
 		t.Fatalf("expected top borders to be separated by a two-space pane gap, got:\n%s", lines[0])
+	}
+}
+
+func TestScreenLayoutBodyStartsImmediatelyAfterHeader(t *testing.T) {
+	m := &model{
+		snapshotLoaded: true,
+		snapshot: runnerapi.RunSnapshot{
+			Run: store.Run{RunID: "run_1"},
+			Instances: []runnerapi.InstanceSnapshot{{
+				Instance: store.Instance{
+					InstanceID: "inst_1",
+					Ordinal:    0,
+					State:      domain.InstanceStatePending,
+					Case:       runbundle.Case{CaseID: "case_1"},
+				},
+			}},
+		},
+	}
+
+	layout := m.computeScreenLayout()
+	headerHeight := lipgloss.Height(m.renderHeader(layout.Width))
+	if layout.BodyRect.Y != headerHeight {
+		t.Fatalf("expected body to start immediately after header at row %d, got %d", headerHeight, layout.BodyRect.Y)
 	}
 }
 
@@ -665,6 +688,40 @@ func TestTabKeySwitchesPaneFocus(t *testing.T) {
 	}
 }
 
+func TestMouseClickLeftPaneFocusesLeft(t *testing.T) {
+	m := &model{
+		focusedPane:    paneRight,
+		snapshotLoaded: true,
+		snapshot: runnerapi.RunSnapshot{
+			Instances: []runnerapi.InstanceSnapshot{{Instance: store.Instance{InstanceID: "inst_1"}}},
+		},
+	}
+
+	layout := m.computeScreenLayout()
+	x, y := layout.LeftPane.Outer.center()
+	_, _ = m.Update(tea.MouseMsg{X: x, Y: y, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	if m.focusedPane != paneLeft {
+		t.Fatalf("expected left pane to take focus, got %d", m.focusedPane)
+	}
+}
+
+func TestMouseClickRightPaneFocusesRight(t *testing.T) {
+	m := &model{
+		focusedPane:    paneLeft,
+		snapshotLoaded: true,
+		snapshot: runnerapi.RunSnapshot{
+			Instances: []runnerapi.InstanceSnapshot{{Instance: store.Instance{InstanceID: "inst_1"}}},
+		},
+	}
+
+	layout := m.computeScreenLayout()
+	x, y := layout.RightPane.Pane.Outer.center()
+	_, _ = m.Update(tea.MouseMsg{X: x, Y: y, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	if m.focusedPane != paneRight {
+		t.Fatalf("expected right pane to take focus, got %d", m.focusedPane)
+	}
+}
+
 func TestUpDownNavigateInstancesInLeftPane(t *testing.T) {
 	m := &model{
 		focusedPane: paneLeft,
@@ -683,6 +740,34 @@ func TestUpDownNavigateInstancesInLeftPane(t *testing.T) {
 	_, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
 	if m.selectedIdx != 0 {
 		t.Fatalf("expected instance 0 after up in left pane, got %d", m.selectedIdx)
+	}
+}
+
+func TestMouseClickInstanceRowSelectsInstance(t *testing.T) {
+	m := &model{
+		snapshotLoaded: true,
+		snapshot: runnerapi.RunSnapshot{
+			Instances: []runnerapi.InstanceSnapshot{
+				{Instance: store.Instance{InstanceID: "inst_1"}},
+				{Instance: store.Instance{InstanceID: "inst_2"}},
+			},
+		},
+	}
+
+	layout := m.computeScreenLayout()
+	if len(layout.InstanceRows) < 2 {
+		t.Fatalf("expected at least 2 visible instance rows, got %d", len(layout.InstanceRows))
+	}
+	x, y := layout.InstanceRows[1].Rect.center()
+	_, _ = m.Update(tea.MouseMsg{X: x, Y: y, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	if m.focusedPane != paneLeft {
+		t.Fatalf("expected left pane focus after instance click, got %d", m.focusedPane)
+	}
+	if m.selectedIdx != 1 {
+		t.Fatalf("expected second instance after click, got %d", m.selectedIdx)
+	}
+	if !m.autoStateSelect {
+		t.Fatalf("expected auto state selection to be enabled after instance click")
 	}
 }
 
@@ -705,6 +790,45 @@ func TestLeftRightNavigateStatesInRightPane(t *testing.T) {
 	// Instance should not have moved
 	if m.selectedIdx != 0 {
 		t.Fatalf("expected instance idx to stay 0, got %d", m.selectedIdx)
+	}
+}
+
+func TestMouseClickStateBoxSelectsState(t *testing.T) {
+	m := &model{
+		focusedPane:    paneLeft,
+		snapshotLoaded: true,
+		selectedState:  simplifiedStatePending,
+		snapshot: runnerapi.RunSnapshot{
+			Instances: []runnerapi.InstanceSnapshot{{
+				Instance: store.Instance{
+					InstanceID: "inst_1",
+					State:      domain.InstanceStateTesting,
+				},
+			}},
+		},
+	}
+
+	layout := m.computeScreenLayout()
+	var target *stateBoxLayout
+	for i := range layout.RightPane.StateBoxes {
+		if layout.RightPane.StateBoxes[i].State == simplifiedStateTestingAgent {
+			target = &layout.RightPane.StateBoxes[i]
+			break
+		}
+	}
+	if target == nil {
+		t.Fatalf("expected testing state box to be visible")
+	}
+	x, y := target.Rect.center()
+	_, _ = m.Update(tea.MouseMsg{X: x, Y: y, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	if m.focusedPane != paneRight {
+		t.Fatalf("expected right pane focus after state click, got %d", m.focusedPane)
+	}
+	if m.selectedState != simplifiedStateTestingAgent {
+		t.Fatalf("expected testing state selected after click, got %s", m.selectedState)
+	}
+	if m.autoStateSelect {
+		t.Fatalf("expected manual state selection to disable auto state selection")
 	}
 }
 
@@ -1546,6 +1670,42 @@ func TestLogsPauseFollowWhenUserScrolls(t *testing.T) {
 	}
 	if m.logViewport.AtBottom() {
 		t.Fatalf("expected viewport to remain off-bottom while follow is paused")
+	}
+}
+
+func TestMouseWheelScrollsLogsOnlyInsideLogPane(t *testing.T) {
+	m := &model{
+		focusedPane:    paneRight,
+		snapshotLoaded: true,
+		selectedState:  simplifiedStateTestingAgent,
+		snapshot: runnerapi.RunSnapshot{
+			Instances: []runnerapi.InstanceSnapshot{{
+				Instance: store.Instance{
+					InstanceID: "inst_1",
+					State:      domain.InstanceStateTesting,
+				},
+			}},
+		},
+	}
+
+	m.setLogContent(strings.Repeat("line\n", 50))
+	_ = m.View()
+	layout := m.computeScreenLayout()
+	if layout.RightPane.LogRect.isZero() {
+		t.Fatalf("expected non-zero log rect")
+	}
+
+	logX, logY := layout.RightPane.LogRect.center()
+	_, _ = m.Update(tea.MouseMsg{X: logX, Y: logY, Button: tea.MouseButtonWheelDown, Action: tea.MouseActionPress})
+	if m.logViewport.YOffset == 0 {
+		t.Fatalf("expected wheel in log pane to scroll viewport")
+	}
+
+	offsetAfterLogScroll := m.logViewport.YOffset
+	leftX, leftY := layout.LeftPane.Outer.center()
+	_, _ = m.Update(tea.MouseMsg{X: leftX, Y: leftY, Button: tea.MouseButtonWheelDown, Action: tea.MouseActionPress})
+	if m.logViewport.YOffset != offsetAfterLogScroll {
+		t.Fatalf("expected wheel outside log pane not to scroll viewport, before=%d after=%d", offsetAfterLogScroll, m.logViewport.YOffset)
 	}
 }
 
