@@ -49,6 +49,9 @@ The run hook:
 <bin_path> run --format=json <startup_args...> <run_args...> -- "<initial_prompt>"
 ```
 
+Stdout is tee'd to `<artifacts_dir>/opencode.jsonl`, and stderr is tee'd to
+`<artifacts_dir>/opencode.stderr.log` while remaining visible on the PTY.
+
 There is no extra preflight subprocess in the repo-owned definition.
 
 ## Snapshot Support
@@ -60,4 +63,4 @@ Opencode does not define `snapshot.prepare`.
 
 ## Trajectory Collect
 
-The repo-owned trajectory hook parses the JSON lines written to the run PTY log, synthesizes the initial user step from `run.initial_prompt`, converts the result to `ATIF-v1.6`, and returns the ATIF payload on stdout.
+The repo-owned trajectory hook parses the JSON lines written to `<artifacts_dir>/opencode.jsonl`, falls back to the PTY log when needed, synthesizes the initial user step from `run.initial_prompt`, converts the result to `ATIF-v1.6`, and returns the ATIF payload on stdout.

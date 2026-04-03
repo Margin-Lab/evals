@@ -14,15 +14,22 @@ func formatJSONLText(input string, truncated bool) (string, error) {
 	}
 
 	blocks := make([]string, 0, len(lines))
+	var firstErr error
 	for idx, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
 		formatted, err := formatJSONValue(line)
 		if err != nil {
-			return "", fmt.Errorf("jsonl parse error at line %d: %w", idx+1, err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("jsonl parse error at line %d: %w", idx+1, err)
+			}
+			continue
 		}
 		blocks = append(blocks, formatted)
+	}
+	if len(blocks) == 0 && firstErr != nil {
+		return "", firstErr
 	}
 	return strings.Join(blocks, "\n\n"), nil
 }
