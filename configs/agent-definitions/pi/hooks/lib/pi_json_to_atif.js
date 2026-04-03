@@ -145,9 +145,7 @@ function loadTrajectory(inputPath, artifactsDir, version) {
   }
 
   let nextStepID = 1;
-  let totalPromptTokens = 0;
   let totalCompletionTokens = 0;
-  let totalCachedTokens = 0;
   let totalCostUSD = 0;
   let agentModelName = "";
   const steps = [];
@@ -173,9 +171,7 @@ function loadTrajectory(inputPath, artifactsDir, version) {
       if (!agentModelName && typeof message.model === "string") {
         agentModelName = message.model;
       }
-      totalPromptTokens += Number(step.metrics.prompt_tokens || 0);
       totalCompletionTokens += Number(step.metrics.completion_tokens || 0);
-      totalCachedTokens += Number(step.metrics.cached_tokens || 0);
       totalCostUSD += Number(step.metrics.cost_usd || 0);
       pendingToolStep = step.tool_calls && step.tool_calls.length > 0 ? step : null;
       continue;
@@ -207,9 +203,7 @@ function loadTrajectory(inputPath, artifactsDir, version) {
     },
     steps,
     final_metrics: {
-      total_prompt_tokens: totalPromptTokens,
       total_completion_tokens: totalCompletionTokens,
-      total_cached_tokens: totalCachedTokens || undefined,
       total_cost_usd: totalCostUSD || undefined,
       total_steps: steps.length,
     },

@@ -36,6 +36,23 @@ Validation uses the shared ATIF decoder in `runner-core/trajectory` and currentl
 - tool call / observation reference integrity
 - valid text and multimodal content shapes
 
+## Usage Metrics Contract
+
+ATIF usage fields have two different scopes:
+
+- `steps[].metrics.*`
+  - step-local metrics for the emitted agent step
+  - for prompt-side fields, some agents only expose the prompt size of that one request, not cumulative run spend
+- `final_metrics.*`
+  - whole-run totals only
+  - hooks must only populate these fields when the native source exposes a trustworthy run-total value or another contract-safe derivation
+
+Rules for repo-owned hooks:
+
+- do not synthesize run totals by summing prompt or cached-token step snapshots when those step values already include prior context
+- if a trustworthy run total is unavailable for a metric, omit that `final_metrics` field
+- consumers must treat missing `final_metrics` token fields as unknown; do not reconstruct prompt or completion totals from step metrics
+
 ## Repo-Owned Definitions
 
 The repo-owned Codex, Claude Code, Gemini CLI, Opencode, and Pi definitions all emit `ATIF-v1.6`.
