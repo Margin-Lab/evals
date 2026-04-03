@@ -267,7 +267,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logTruncated = msg.content.Truncated
 		statusParts := make([]string, 0, 2)
 		if msg.content.Truncated {
-			statusParts = append(statusParts, fmt.Sprintf("showing first %d bytes", m.textPreviewLimit))
+			statusParts = append(statusParts, truncatedPreviewStatus(msg.content, m.textPreviewLimit))
 		}
 		if msg.status != "" {
 			statusParts = append(statusParts, msg.status)
@@ -733,6 +733,7 @@ func loadCombinedLogContent(ctx context.Context, src Source, targets []logArtifa
 	sections := make([]string, 0, len(targets))
 	errors := make([]string, 0, len(targets))
 	anyTruncated := false
+	anyTail := false
 	anyLoaded := false
 
 	for _, target := range targets {
@@ -748,6 +749,9 @@ func loadCombinedLogContent(ctx context.Context, src Source, targets []logArtifa
 		if content.Truncated {
 			header += " (truncated)"
 			anyTruncated = true
+		}
+		if content.Tail {
+			anyTail = true
 		}
 		header += " ==="
 		body := normalizeLogText(content.Text)
@@ -776,6 +780,7 @@ func loadCombinedLogContent(ctx context.Context, src Source, targets []logArtifa
 	return ArtifactText{
 		Text:      combined.String(),
 		Truncated: anyTruncated,
+		Tail:      anyTail,
 	}, status, nil
 }
 
@@ -1036,6 +1041,13 @@ func fallbackTextRenderForParseError(render logRenderMode, content ArtifactText)
 		return parsedLogContent{}, false
 	}
 	return parsedLogContent{Text: normalizeLogText(content.Text)}, true
+}
+
+func truncatedPreviewStatus(content ArtifactText, limit int64) string {
+	if content.Tail {
+		return fmt.Sprintf("showing last %d bytes", limit)
+	}
+	return fmt.Sprintf("showing first %d bytes", limit)
 }
 
 func sanitizeStructuredInlineText(input string) string {
