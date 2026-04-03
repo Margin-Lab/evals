@@ -275,6 +275,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logStatus = strings.Join(statusParts, "; ")
 		parsed, parseErr := parseLogContent(msg.stream.Render, msg.content)
 		if parseErr != nil {
+			if fallback, ok := fallbackTextRenderForParseError(msg.stream.Render, msg.content); ok {
+				m.logStatus = fmt.Sprintf("failed to parse %s as JSONL; showing raw output: %v", msg.stream.Label, parseErr)
+				m.setTextLogContent(fallback.Text, logRenderRaw)
+				return m, nil
+			}
 			m.logStatus = fmt.Sprintf("failed to parse %s: %v", msg.stream.Label, parseErr)
 			m.setTextLogContent("", msg.stream.Render)
 			return m, nil
@@ -315,6 +320,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			parsed, parseErr := parseLogContent(section.Stream.Render, section.Content)
 			if parseErr != nil {
+				if fallback, ok := fallbackTextRenderForParseError(section.Stream.Render, section.Content); ok {
+					statusParts = append(statusParts, fmt.Sprintf("failed to parse %s as JSONL; showing raw output: %v", section.Title, parseErr))
+					sections = append(sections, stateLogSection{
+						Title:        section.Title,
+						Render:       logRenderRaw,
+						Text:         fallback.Text,
+						EmptyMessage: emptyMessage,
+					})
+					continue
+				}
 				statusParts = append(statusParts, fmt.Sprintf("failed to parse %s: %v", section.Title, parseErr))
 				sections = append(sections, stateLogSection{
 					Title:        section.Title,
@@ -1014,6 +1029,13 @@ func parseLogContent(render logRenderMode, content ArtifactText) (parsedLogConte
 	default:
 		return parsedLogContent{}, fmt.Errorf("unsupported log render mode %d", render)
 	}
+}
+
+func fallbackTextRenderForParseError(render logRenderMode, content ArtifactText) (parsedLogContent, bool) {
+	if render != logRenderJSONL {
+		return parsedLogContent{}, false
+	}
+	return parsedLogContent{Text: normalizeLogText(content.Text)}, true
 }
 
 func sanitizeStructuredInlineText(input string) string {

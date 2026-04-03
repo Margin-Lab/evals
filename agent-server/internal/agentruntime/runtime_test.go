@@ -1228,6 +1228,80 @@ func TestRepoOwnedGeminiPrepareRunWritesSettingsAndStreamsJSON(t *testing.T) {
 	}
 }
 
+func TestRepoOwnedOpencodePrepareRunKeepsJSONStreamOnStdout(t *testing.T) {
+	stateDir := t.TempDir()
+	definitionDir := filepath.Join(stateDir, "definition")
+	installDir := filepath.Join(stateDir, "install")
+	runHome := filepath.Join(stateDir, "run-home")
+	artifactsDir := filepath.Join(stateDir, "artifacts")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatalf("mkdir install dir: %v", err)
+	}
+	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+		t.Fatalf("mkdir artifacts dir: %v", err)
+	}
+
+	agentBundle := testfixture.RepoOwnedAgent("opencode")
+	if err := materializeDefinition(agentBundle.Definition, definitionDir); err != nil {
+		t.Fatalf("materializeDefinition() error = %v", err)
+	}
+
+	runtime := &Runtime{
+		cfg: config.Config{StateDir: stateDir},
+		nodeRuntime: &fakeManagedNodeRuntime{
+			info: runtimeTestManagedNodeInfo(filepath.Join(t.TempDir(), "managed-bin"), "/managed/bin/node", "/managed/bin/npm", "/managed/bin/npx"),
+		},
+	}
+	definitionRecord := state.DefinitionRecord{
+		Snapshot:      agentBundle.Definition,
+		PackageHash:   agentBundle.Definition.Package.ArchiveTGZSHA256,
+		DefinitionDir: definitionDir,
+		InstallDir:    installDir,
+	}
+	configSnapshot, err := runtime.ValidateConfig(definitionRecord, agentBundle.Config)
+	if err != nil {
+		t.Fatalf("ValidateConfig() error = %v", err)
+	}
+	agent := state.AgentRecord{
+		Definition: &definitionRecord,
+		Config:     &state.ConfigRecord{Snapshot: configSnapshot},
+		Install: &state.InstallInfo{
+			InstalledAt: time.Now().UTC(),
+			Result: map[string]any{
+				"bin_path": filepath.Join(installDir, "bin", "opencode"),
+			},
+		},
+	}
+
+	execSpec, err := runtime.PrepareRun(context.Background(), agent, RunContext{
+		RunID:         "run_1",
+		SessionID:     "session_1",
+		CWD:           "/workspace",
+		RunHome:       runHome,
+		ArtifactsDir:  artifactsDir,
+		Env:           map[string]string{"PATH": "/usr/bin"},
+		InitialPrompt: "inspect the repository",
+	})
+	if err != nil {
+		t.Fatalf("PrepareRun() error = %v", err)
+	}
+	if execSpec.Path != "bash" {
+		t.Fatalf("path = %q, want %q", execSpec.Path, "bash")
+	}
+	if len(execSpec.Args) != 2 || execSpec.Args[0] != "-c" {
+		t.Fatalf("args = %#v", execSpec.Args)
+	}
+	command := execSpec.Args[1]
+	for _, token := range []string{"run", "--format=json", "opencode.jsonl", "opencode.stderr.log"} {
+		if !strings.Contains(command, token) {
+			t.Fatalf("command %q missing %q", command, token)
+		}
+	}
+	if strings.Contains(command, "2>&1 | tee") {
+		t.Fatalf("command %q unexpectedly merges stderr into stdout", command)
+	}
+}
+
 func TestRepoOwnedPiPrepareRunUsesJSONModeAndSessionDir(t *testing.T) {
 	stateDir := t.TempDir()
 	definitionDir := filepath.Join(stateDir, "definition")
