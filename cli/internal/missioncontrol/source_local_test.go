@@ -139,6 +139,36 @@ func TestLocalSourceReadArtifactTextPTYUsesTail(t *testing.T) {
 	if out.Text != "stuvwxyz" || !out.Truncated {
 		t.Fatalf("unexpected PTY tail payload: %+v", out)
 	}
+	if !out.Tail {
+		t.Fatalf("expected PTY preview to be marked as tail")
+	}
+}
+
+func TestLocalSourceReadArtifactTextLiveTestOutputUsesTail(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "instances", "inst_1", "test", "test_stdout.txt")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir fixture dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("abcdefghijklmnopqrstuvwxyz"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	src, err := NewLocalSource(&fakeSnapshotSource{}, tmp)
+	if err != nil {
+		t.Fatalf("new local source: %v", err)
+	}
+	out, err := src.ReadArtifactText(context.Background(), store.Artifact{
+		ArtifactID: "live-inst_1-test-stdout",
+		Role:       store.ArtifactRoleTestStdout,
+		StoreKey:   "instances/inst_1/test/test_stdout.txt",
+	}, 8)
+	if err != nil {
+		t.Fatalf("read artifact text: %v", err)
+	}
+	if out.Text != "stuvwxyz" || !out.Truncated || !out.Tail {
+		t.Fatalf("unexpected live test tail payload: %+v", out)
+	}
 }
 
 func TestLocalSourceInjectsLiveExecutionArtifacts(t *testing.T) {
@@ -191,6 +221,56 @@ func TestLocalSourceInjectsLiveExecutionArtifacts(t *testing.T) {
 	}
 	if !foundPTY {
 		t.Fatalf("expected injected live pty artifact")
+	}
+}
+
+func TestLocalSourceInjectsLiveTestArtifacts(t *testing.T) {
+	tmp := t.TempDir()
+	runID := "run_1"
+	instanceID := "run_1-inst-0001"
+	stdoutPath := filepath.Join(tmp, filepath.FromSlash(mustStoreKey(t, instanceID, store.ArtifactRoleTestStdout)))
+	stderrPath := filepath.Join(tmp, filepath.FromSlash(mustStoreKey(t, instanceID, store.ArtifactRoleTestStderr)))
+	if err := os.MkdirAll(filepath.Dir(stdoutPath), 0o755); err != nil {
+		t.Fatalf("mkdir live test dir: %v", err)
+	}
+	if err := os.WriteFile(stdoutPath, []byte("stdout\n"), 0o644); err != nil {
+		t.Fatalf("write live stdout: %v", err)
+	}
+	if err := os.WriteFile(stderrPath, []byte("stderr\n"), 0o644); err != nil {
+		t.Fatalf("write live stderr: %v", err)
+	}
+
+	fake := &fakeSnapshotSource{
+		runSnapshot: runnerapi.RunSnapshot{
+			Run: store.Run{RunID: runID, State: domain.RunStateRunning},
+			Instances: []runnerapi.InstanceSnapshot{{
+				Instance: store.Instance{InstanceID: instanceID, State: domain.InstanceStateTesting},
+			}},
+		},
+	}
+	src, err := NewLocalSource(fake, tmp)
+	if err != nil {
+		t.Fatalf("new local source: %v", err)
+	}
+	snapshot, err := src.GetRunSnapshot(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("get run snapshot: %v", err)
+	}
+	foundStdout := false
+	foundStderr := false
+	for _, art := range snapshot.Instances[0].Artifacts {
+		if art.Role == store.ArtifactRoleTestStdout && strings.HasPrefix(art.ArtifactID, liveArtifactIDPrefix) {
+			foundStdout = true
+		}
+		if art.Role == store.ArtifactRoleTestStderr && strings.HasPrefix(art.ArtifactID, liveArtifactIDPrefix) {
+			foundStderr = true
+		}
+	}
+	if !foundStdout {
+		t.Fatalf("expected injected live test stdout artifact")
+	}
+	if !foundStderr {
+		t.Fatalf("expected injected live test stderr artifact")
 	}
 }
 

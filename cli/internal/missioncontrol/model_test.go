@@ -944,7 +944,7 @@ func TestCombinedTestOutputOrdersStdoutBeforeStderr(t *testing.T) {
 func TestCombinedTestOutputAggregatesTruncationAndPartialErrors(t *testing.T) {
 	source := &fakeMissionSource{
 		texts: map[string]ArtifactText{
-			"art_stdout": {Text: "out line\n", Truncated: true},
+			"art_stdout": {Text: "out line\n", Truncated: true, Tail: true},
 		},
 		errs: map[string]error{
 			"art_stderr": fmt.Errorf("boom"),
@@ -971,6 +971,9 @@ func TestCombinedTestOutputAggregatesTruncationAndPartialErrors(t *testing.T) {
 	}
 	if !content.Truncated {
 		t.Fatalf("expected combined content to be marked truncated")
+	}
+	if !content.Tail {
+		t.Fatalf("expected combined content to preserve tail preview mode")
 	}
 	if !strings.Contains(content.Text, "=== stdout (truncated) ===") {
 		t.Fatalf("expected truncated stdout section, got %q", content.Text)
