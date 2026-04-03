@@ -24,7 +24,7 @@ The Claude Code definition schema expects:
 - `settings_json`
 - optional `mcp_json`
 
-The default profile writes `settings_json` to `~/.claude/settings.json`. If `mcp_json` is provided, it is written to `~/.mcp.json` for the run.
+The default profile writes `settings_json` to `~/.claude/settings.json`. If `mcp_json` is provided, it is merged into `~/.claude/.claude.json` for the run.
 
 The unified profile translates the shared `model` / `reasoning_level` payload into Claude Code startup args and generated settings JSON before the direct validation hook runs.
 

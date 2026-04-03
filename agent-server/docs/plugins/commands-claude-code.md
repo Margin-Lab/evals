@@ -41,15 +41,22 @@ Then it probes:
 The run hook:
 
 1. writes `config.input.settings_json` to `<run_home>/.claude/settings.json`
-2. optionally writes `config.input.mcp_json` to `<run_home>/.mcp.json`
+2. optionally merges `config.input.mcp_json` into `<run_home>/.claude/.claude.json`
 3. writes `<run_home>/.claude.json` to mark onboarding complete
    - when `ANTHROPIC_API_KEY` is present, it also caches approval for the active API key
    - when `<run_home>/.claude/.credentials.json` was materialized by the caller, no API-key cache is written
 4. sets `DISABLE_AUTOUPDATER=1`
-5. returns this launch command:
+5. launches Claude in stream-json mode, leaving stdout on the PTY so `agent-server` captures the JSON stream in `pty.log`
+6. tees stderr to an artifact file
 
 ```bash
 <bin_path> --dangerously-skip-permissions --verbose --output-format=stream-json --session-id <session_id> <startup_args...> <run_args...> -p "<initial_prompt>"
+```
+
+Wrapped as:
+
+```bash
+bash -c '<command> 2> >(tee <artifacts_dir>/claude.stderr.log >&2)'
 ```
 
 ## Snapshot Prepare
@@ -57,7 +64,7 @@ The run hook:
 The snapshot hook returns:
 
 ```bash
-<bin_path> --dangerously-skip-permissions -c
+<bin_path> --dangerously-skip-permissions --resume <session_id> -p "Repeat your last assistant response exactly and nothing else."
 ```
 
 It also keeps `DISABLE_AUTOUPDATER=1` and `CLAUDE_CONFIG_DIR=<run_home>/.claude` in the snapshot env.
