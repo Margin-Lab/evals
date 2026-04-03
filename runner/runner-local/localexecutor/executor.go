@@ -3,8 +3,6 @@ package localexecutor
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -481,13 +479,13 @@ func (e *Executor) ExecuteInstance(
 	if err := e.stageCaseTestAssets(ctx, containerID, caseSpec); err != nil {
 		return fail(store.InstanceResult{}, artifacts, err)
 	}
-	testExitCode, testStdout, testStderr, err := e.executeCaseTest(ctx, containerID, caseSpec)
+	testResult, err := e.executeCaseTest(ctx, run.RunID, inst.InstanceID, containerID, caseSpec)
 	if err != nil {
-		return fail(store.InstanceResult{}, artifacts, err)
+		return fail(store.InstanceResult{}, append(artifacts, testResult.Artifacts...), err)
 	}
 	testEndedAt := time.Now().UTC()
 
-	result.TestExitCode = intPtr(testExitCode)
+	result.TestExitCode = intPtr(testResult.ExitCode)
 	result.TestStartedAt = timePtr(testStartedAt)
 	result.TestEndedAt = timePtr(testEndedAt)
 	priorFinalState := result.FinalState
@@ -496,20 +494,20 @@ func (e *Executor) ExecuteInstance(
 		// Preserve an earlier terminal failure classification from agent execution.
 		result.FinalState = priorFinalState
 	default:
-		result.FinalState = classifyTestFinalState(testExitCode)
+		result.FinalState = classifyTestFinalState(testResult.ExitCode)
 		if result.FinalState == domain.InstanceStateInfraFailed {
 			if result.ErrorCode == "" {
-				if testExitCode == testExitCodeInfra {
+				if testResult.ExitCode == testExitCodeInfra {
 					result.ErrorCode = "TEST_INFRA"
 				} else {
 					result.ErrorCode = "INVALID_TEST_EXIT_CODE"
 				}
 			}
 			if result.ErrorMessage == "" {
-				if testExitCode == testExitCodeInfra {
+				if testResult.ExitCode == testExitCodeInfra {
 					result.ErrorMessage = "case test script reported infra failure"
 				} else {
-					result.ErrorMessage = fmt.Sprintf("case test script exited with unsupported status %d; expected 0, 1, or 2", testExitCode)
+					result.ErrorMessage = fmt.Sprintf("case test script exited with unsupported status %d; expected 0, 1, or 2", testResult.ExitCode)
 				}
 			}
 		}
@@ -519,13 +517,9 @@ func (e *Executor) ExecuteInstance(
 		return fail(store.InstanceResult{}, artifacts, err)
 	}
 
-	testArtifacts, stdoutRef, stderrRef, err := e.persistTestArtifacts(run.RunID, inst.InstanceID, testStdout, testStderr)
-	if err != nil {
-		return fail(store.InstanceResult{}, artifacts, err)
-	}
-	result.TestStdoutRef = stdoutRef
-	result.TestStderrRef = stderrRef
-	artifacts = append(artifacts, testArtifacts...)
+	result.TestStdoutRef = testResult.StdoutRef
+	result.TestStderrRef = testResult.StderrRef
+	artifacts = append(artifacts, testResult.Artifacts...)
 	return result, artifacts, nil
 }
 
@@ -1080,34 +1074,62 @@ func readContainerID(path string) (string, error) {
 	return containerID, nil
 }
 
-func (e *Executor) executeCaseTest(ctx context.Context, containerID string, tc runbundle.Case) (int, []byte, []byte, error) {
+func (e *Executor) executeCaseTest(ctx context.Context, runID, instanceID, containerID string, tc runbundle.Case) (testExecutionResult, error) {
 	timeout := time.Duration(tc.TestTimeoutSecond) * time.Second
 	if timeout <= 0 {
-		return 0, nil, nil, fmt.Errorf("case test_timeout_seconds must be > 0")
+		return testExecutionResult{}, fmt.Errorf("case test_timeout_seconds must be > 0")
 	}
 	testCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	capture, err := newTestOutputCapture(e.outputRoot, runID, instanceID)
+	if err != nil {
+		return testExecutionResult{}, err
+	}
+	defer capture.close()
 
 	args := []string{"exec", "-w", tc.TestCwd, containerID}
 	args = append(args, tc.TestCommand...)
 
 	cmd := exec.CommandContext(testCtx, e.dockerBinary, args...)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
+	cmd.Stdout = capture.stdoutFile
+	cmd.Stderr = capture.stderrFile
+	err = cmd.Run()
+
+	result := testExecutionResult{}
+	switch {
+	case err == nil:
+		result.ExitCode = 0
+	case errors.Is(testCtx.Err(), context.DeadlineExceeded):
+		result.ExitCode = 124
+	default:
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			result.ExitCode = exitErr.ExitCode()
+		}
+	}
+
+	artifacts, stdoutRef, stderrRef, finalizeErr := capture.finalize()
+	result.Artifacts = artifacts
+	result.StdoutRef = stdoutRef
+	result.StderrRef = stderrRef
+	if finalizeErr != nil {
+		if err != nil {
+			return result, fmt.Errorf("docker %s failed: %w; finalize streamed test output artifacts: %v", strings.Join(args, " "), err, finalizeErr)
+		}
+		return result, fmt.Errorf("finalize streamed test output artifacts: %w", finalizeErr)
+	}
 	if err == nil {
-		return 0, stdout.Bytes(), stderr.Bytes(), nil
+		return result, nil
 	}
 	if errors.Is(testCtx.Err(), context.DeadlineExceeded) {
-		return 124, stdout.Bytes(), stderr.Bytes(), nil
+		return result, nil
 	}
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
-		return exitErr.ExitCode(), stdout.Bytes(), stderr.Bytes(), nil
+		return result, nil
 	}
-	return 0, nil, nil, fmt.Errorf("docker %s failed: %w", strings.Join(args, " "), err)
+	return result, fmt.Errorf("docker %s failed: %w", strings.Join(args, " "), err)
 }
 
 func (e *Executor) stageCaseTestAssets(ctx context.Context, containerID string, tc runbundle.Case) error {
@@ -1151,56 +1173,6 @@ func (e *Executor) ensureCaseWorkingDir(ctx context.Context, containerID string,
 		return fmt.Errorf("prepare case working directory %q: %w", testCwd, err)
 	}
 	return nil
-}
-
-func (e *Executor) persistTestArtifacts(runID, instanceID string, stdout, stderr []byte) ([]store.Artifact, string, string, error) {
-	stdoutPath, stdoutStoreKey, _, ok := runfs.AbsoluteArtifactPath(e.outputRoot, runID, instanceID, store.ArtifactRoleTestStdout)
-	if !ok {
-		return nil, "", "", fmt.Errorf("resolve test stdout artifact path")
-	}
-	stderrPath, stderrStoreKey, _, ok := runfs.AbsoluteArtifactPath(e.outputRoot, runID, instanceID, store.ArtifactRoleTestStderr)
-	if !ok {
-		return nil, "", "", fmt.Errorf("resolve test stderr artifact path")
-	}
-	if err := os.MkdirAll(filepath.Dir(stdoutPath), 0o755); err != nil {
-		return nil, "", "", fmt.Errorf("create test artifact dir: %w", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(stderrPath), 0o755); err != nil {
-		return nil, "", "", fmt.Errorf("create test artifact dir: %w", err)
-	}
-
-	if err := os.WriteFile(stdoutPath, stdout, 0o644); err != nil {
-		return nil, "", "", fmt.Errorf("write test stdout artifact: %w", err)
-	}
-	if err := os.WriteFile(stderrPath, stderr, 0o644); err != nil {
-		return nil, "", "", fmt.Errorf("write test stderr artifact: %w", err)
-	}
-
-	stdoutHash := sha256.Sum256(stdout)
-	stderrHash := sha256.Sum256(stderr)
-	artifacts := []store.Artifact{
-		{
-			ArtifactID:  "art-" + sanitizeID(instanceID) + "-test-stdout",
-			Role:        store.ArtifactRoleTestStdout,
-			Ordinal:     0,
-			StoreKey:    stdoutStoreKey,
-			URI:         "file://" + stdoutPath,
-			ContentType: "text/plain",
-			ByteSize:    int64(len(stdout)),
-			SHA256:      hex.EncodeToString(stdoutHash[:]),
-		},
-		{
-			ArtifactID:  "art-" + sanitizeID(instanceID) + "-test-stderr",
-			Role:        store.ArtifactRoleTestStderr,
-			Ordinal:     1,
-			StoreKey:    stderrStoreKey,
-			URI:         "file://" + stderrPath,
-			ContentType: "text/plain",
-			ByteSize:    int64(len(stderr)),
-			SHA256:      hex.EncodeToString(stderrHash[:]),
-		},
-	}
-	return artifacts, stdoutStoreKey, stderrStoreKey, nil
 }
 
 func (e *Executor) rebaseStoredArtifacts(instanceID string, artifacts []store.Artifact) {

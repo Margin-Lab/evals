@@ -23,6 +23,7 @@ type Source interface {
 type ArtifactText struct {
 	Text      string
 	Truncated bool
+	Tail      bool
 }
 
 // Config defines runtime wiring for the mission-control TUI.

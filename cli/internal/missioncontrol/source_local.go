@@ -22,8 +22,17 @@ type LocalSource struct {
 	runDir    string
 }
 
-func isPTYLogRole(role string) bool {
-	return strings.EqualFold(strings.TrimSpace(role), store.ArtifactRoleAgentPTY)
+const liveArtifactIDPrefix = "live-"
+
+func shouldTailArtifactPreview(artifact store.Artifact) bool {
+	switch strings.TrimSpace(artifact.Role) {
+	case store.ArtifactRoleAgentPTY:
+		return true
+	case store.ArtifactRoleTestStdout, store.ArtifactRoleTestStderr:
+		return strings.HasPrefix(strings.TrimSpace(artifact.ArtifactID), liveArtifactIDPrefix)
+	default:
+		return false
+	}
 }
 
 func NewLocalSource(snapshots datasource.Source, runDir string) (*LocalSource, error) {
@@ -58,7 +67,7 @@ func (s *LocalSource) ReadArtifactText(_ context.Context, artifact store.Artifac
 	if err != nil {
 		return ArtifactText{}, err
 	}
-	if isPTYLogRole(artifact.Role) {
+	if shouldTailArtifactPreview(artifact) {
 		return readTextFileTail(path, maxBytes)
 	}
 	return readTextFile(path, maxBytes)
@@ -140,7 +149,7 @@ func readTextFileTail(path string, maxBytes int64) (ArtifactText, error) {
 		data = data[len(data)-int(maxBytes):]
 		truncated = true
 	}
-	return ArtifactText{Text: string(data), Truncated: truncated}, nil
+	return ArtifactText{Text: string(data), Truncated: truncated, Tail: true}, nil
 }
 
 func (s *LocalSource) injectLiveArtifacts(snapshot *runnerapi.RunSnapshot) {
@@ -153,6 +162,8 @@ func (s *LocalSource) injectLiveArtifacts(snapshot *runnerapi.RunSnapshot) {
 		store.ArtifactRoleAgentControl,
 		store.ArtifactRoleAgentRuntime,
 		store.ArtifactRoleAgentPTY,
+		store.ArtifactRoleTestStdout,
+		store.ArtifactRoleTestStderr,
 	}
 	for i := range snapshot.Instances {
 		inst := &snapshot.Instances[i]
@@ -178,7 +189,7 @@ func (s *LocalSource) injectLiveArtifacts(snapshot *runnerapi.RunSnapshot) {
 				continue
 			}
 			inst.Artifacts = append(inst.Artifacts, store.Artifact{
-				ArtifactID:  fmt.Sprintf("live-%s-%s", instanceID, strings.ReplaceAll(role, "_", "-")),
+				ArtifactID:  fmt.Sprintf("%s%s-%s", liveArtifactIDPrefix, instanceID, strings.ReplaceAll(role, "_", "-")),
 				RunID:       strings.TrimSpace(snapshot.Run.RunID),
 				InstanceID:  instanceID,
 				Role:        role,

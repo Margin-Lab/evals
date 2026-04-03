@@ -274,6 +274,62 @@ func TestClassifyTestFinalState(t *testing.T) {
 	}
 }
 
+func TestExecuteCaseTestStreamsOutputToArtifacts(t *testing.T) {
+	outputRoot := t.TempDir()
+	dockerBin := writeFakeDockerBinary(t, `#!/bin/sh
+set -eu
+if [ "$1" != "exec" ]; then
+  echo "unexpected docker invocation: $*" >&2
+  exit 1
+fi
+printf 'test stdout line\n'
+printf 'test stderr line\n' >&2
+exit 1
+`)
+	exec := &Executor{
+		dockerBinary: dockerBin,
+		outputRoot:   outputRoot,
+	}
+
+	result, err := exec.executeCaseTest(context.Background(), "run_1", "inst_1", "container-123", runbundle.Case{
+		TestCwd:           "/workspace",
+		TestCommand:       []string{"sh", "-lc", "echo ignored"},
+		TestTimeoutSecond: 30,
+	})
+	if err != nil {
+		t.Fatalf("executeCaseTest() error = %v", err)
+	}
+	if result.ExitCode != 1 {
+		t.Fatalf("exit code = %d, want 1", result.ExitCode)
+	}
+	if result.StdoutRef != "instances/inst_1/test/test_stdout.txt" {
+		t.Fatalf("stdout ref = %q", result.StdoutRef)
+	}
+	if result.StderrRef != "instances/inst_1/test/test_stderr.txt" {
+		t.Fatalf("stderr ref = %q", result.StderrRef)
+	}
+	if len(result.Artifacts) != 2 {
+		t.Fatalf("artifact count = %d, want 2", len(result.Artifacts))
+	}
+
+	stdoutPath := filepath.Join(outputRoot, "runs", "run_1", filepath.FromSlash(result.StdoutRef))
+	stderrPath := filepath.Join(outputRoot, "runs", "run_1", filepath.FromSlash(result.StderrRef))
+	stdoutBody, err := os.ReadFile(stdoutPath)
+	if err != nil {
+		t.Fatalf("read stdout artifact: %v", err)
+	}
+	stderrBody, err := os.ReadFile(stderrPath)
+	if err != nil {
+		t.Fatalf("read stderr artifact: %v", err)
+	}
+	if string(stdoutBody) != "test stdout line\n" {
+		t.Fatalf("stdout artifact = %q", string(stdoutBody))
+	}
+	if string(stderrBody) != "test stderr line\n" {
+		t.Fatalf("stderr artifact = %q", string(stderrBody))
+	}
+}
+
 func TestNewRejectsCleanupWhenResolverDoesNotSupportCleanup(t *testing.T) {
 	_, err := New(Config{
 		AgentServerBinary:  writeTempBinary(t),
