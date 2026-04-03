@@ -888,8 +888,12 @@ func TestRepoOwnedClaudePrepareRunSetsSkipDangerousPromptFlag(t *testing.T) {
 	definitionDir := filepath.Join(stateDir, "definition")
 	installDir := filepath.Join(stateDir, "install")
 	runHome := filepath.Join(stateDir, "run-home")
+	artifactsDir := filepath.Join(stateDir, "artifacts")
 	if err := os.MkdirAll(installDir, 0o755); err != nil {
 		t.Fatalf("mkdir install dir: %v", err)
+	}
+	if err := os.MkdirAll(artifactsDir, 0o755); err != nil {
+		t.Fatalf("mkdir artifacts dir: %v", err)
 	}
 
 	claude := testfixture.RepoOwnedAgent("claude-code")
@@ -927,16 +931,39 @@ func TestRepoOwnedClaudePrepareRunSetsSkipDangerousPromptFlag(t *testing.T) {
 		},
 	}
 
-	if _, err := runtime.PrepareRun(context.Background(), agent, RunContext{
+	execSpec, err := runtime.PrepareRun(context.Background(), agent, RunContext{
 		RunID:         "run_1",
 		SessionID:     "session_1",
 		CWD:           "/workspace",
 		RunHome:       runHome,
-		ArtifactsDir:  "/artifacts",
+		ArtifactsDir:  artifactsDir,
 		Env:           map[string]string{"PATH": "/usr/bin", "ANTHROPIC_API_KEY": "test-api-key-12345678901234567890"},
 		InitialPrompt: "fix the bug",
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("PrepareRun() error = %v", err)
+	}
+	if execSpec.Path != "bash" {
+		t.Fatalf("path = %q, want %q", execSpec.Path, "bash")
+	}
+	if len(execSpec.Args) != 2 || execSpec.Args[0] != "-c" {
+		t.Fatalf("args = %#v", execSpec.Args)
+	}
+	command := execSpec.Args[1]
+	for _, token := range []string{
+		"--dangerously-skip-permissions",
+		"--verbose",
+		"--output-format=stream-json",
+		"--session-id",
+		"claude.stderr.log",
+		"-p",
+	} {
+		if !strings.Contains(command, token) {
+			t.Fatalf("command %q missing %q", command, token)
+		}
+	}
+	if strings.Contains(command, "claude-stream.jsonl") {
+		t.Fatalf("command %q unexpectedly writes a separate Claude stdout transcript", command)
 	}
 
 	settingsBytes, err := os.ReadFile(filepath.Join(runHome, ".claude", "settings.json"))
