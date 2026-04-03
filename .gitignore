@@ -44,3 +44,6 @@ configs/example-eval-configs/**/*.pyc
 .marginlab-local/
 .marginlab-swebenchpro-oauth/
 cli/internal/agentserverembed/generated/
+
+# Run data
+runs/
