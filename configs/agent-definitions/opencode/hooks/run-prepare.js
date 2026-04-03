@@ -24,6 +24,7 @@ fs.mkdirSync(path.dirname(configPath), { recursive: true });
 fs.writeFileSync(configPath, cfg.config_jsonc, "utf8");
 const binPath = install.bin_path || path.join(paths.install_dir, "bin", "opencode");
 const outputPath = path.join(paths.artifacts_dir, "opencode.jsonl");
+const stderrPath = path.join(paths.artifacts_dir, "opencode.stderr.log");
 const env = { ...run.env, OPENCODE_CONFIG: configPath, OPENCODE_FAKE_VCS: "git" };
 const command = [
   binPath,
@@ -34,7 +35,11 @@ const command = [
   "--",
   run.initial_prompt,
 ].map(shellQuote).join(" ");
-const shellCommand = `set -euo pipefail\n${command} 2>&1 | tee ${shellQuote(outputPath)}`;
+const shellCommand = [
+  "set -euo pipefail",
+  `mkdir -p ${shellQuote(path.dirname(outputPath))}`,
+  `${command} > >(tee ${shellQuote(outputPath)}) 2> >(tee ${shellQuote(stderrPath)} >&2)`,
+].join("\n");
 process.stdout.write(JSON.stringify({
   path: "bash",
   args: ["-c", shellCommand],

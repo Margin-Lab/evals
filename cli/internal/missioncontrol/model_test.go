@@ -1365,6 +1365,32 @@ func TestFormatJSONLTextDropsIncompleteTailWhenTruncated(t *testing.T) {
 	}
 }
 
+func TestFormatJSONLTextIgnoresLeadingNonJSONLinesWhenJSONExists(t *testing.T) {
+	input := strings.Join([]string{
+		"Performing one time database migration, may take a few minutes...",
+		"sqlite-migration:done",
+		"Database migration complete.",
+		`{"event":"assistant","payload":{"text":"hello"}}`,
+	}, "\n") + "\n"
+
+	got, err := formatJSONLText(input, false)
+	if err != nil {
+		t.Fatalf("formatJSONLText() error = %v", err)
+	}
+
+	want := strings.Join([]string{
+		"{",
+		`  "event": "assistant",`,
+		`  "payload": {`,
+		`    "text": "hello"`,
+		`  }`,
+		"}",
+	}, "\n")
+	if got != want {
+		t.Fatalf("unexpected mixed JSONL output:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
 func TestAgentPTYStreamUsesJSONLRender(t *testing.T) {
 	m := newModel(context.Background(), Config{
 		RunID:            "run_1",
@@ -1405,11 +1431,14 @@ func TestAgentPTYStreamRejectsInvalidJSONL(t *testing.T) {
 		},
 	})
 
-	if !strings.Contains(m.logStatus, "failed to parse") {
+	if !strings.Contains(m.logStatus, "showing raw output") {
 		t.Fatalf("expected parse failure status, got %q", m.logStatus)
 	}
-	if m.logText != "" {
-		t.Fatalf("expected no rendered text after JSONL parse failure, got %q", m.logText)
+	if m.logActiveRender != logRenderRaw {
+		t.Fatalf("expected raw fallback render mode, got %d", m.logActiveRender)
+	}
+	if m.logText != "not-json\n" {
+		t.Fatalf("expected raw fallback content, got %q", m.logText)
 	}
 }
 
