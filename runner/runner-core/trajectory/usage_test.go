@@ -39,7 +39,7 @@ func TestExtractUsageMetricsPrefersFinalMetrics(t *testing.T) {
 	}
 }
 
-func TestExtractUsageMetricsFallsBackToStepMetrics(t *testing.T) {
+func TestExtractUsageMetricsWithoutFinalMetricsLeavesTokenCountsUnknown(t *testing.T) {
 	got := ExtractUsageMetrics(Trajectory{
 		Steps: []Step{
 			{
@@ -63,10 +63,44 @@ func TestExtractUsageMetricsFallsBackToStepMetrics(t *testing.T) {
 	if got == nil {
 		t.Fatalf("expected usage metrics")
 	}
-	if got.InputTokens == nil || *got.InputTokens != 12 {
-		t.Fatalf("unexpected input tokens: %#v", got.InputTokens)
+	if got.InputTokens != nil {
+		t.Fatalf("expected unknown input tokens, got %#v", got.InputTokens)
 	}
-	if got.OutputTokens == nil || *got.OutputTokens != 5 {
+	if got.OutputTokens != nil {
+		t.Fatalf("expected unknown output tokens, got %#v", got.OutputTokens)
+	}
+	if got.ToolCalls == nil || *got.ToolCalls != 1 {
+		t.Fatalf("unexpected tool calls: %#v", got.ToolCalls)
+	}
+}
+
+func TestExtractUsageMetricsTreatsMissingFinalMetricFieldsAsUnknown(t *testing.T) {
+	completionTokens := int64(8)
+
+	got := ExtractUsageMetrics(Trajectory{
+		Steps: []Step{
+			{
+				ToolCalls: []ToolCall{
+					{ToolCallID: "call-1", FunctionName: "shell", Arguments: map[string]any{}},
+				},
+				Metrics: &Metrics{
+					PromptTokens:     int64Ptr(99),
+					CompletionTokens: int64Ptr(77),
+				},
+			},
+		},
+		FinalMetrics: &FinalMetrics{
+			TotalCompletionTokens: &completionTokens,
+		},
+	})
+
+	if got == nil {
+		t.Fatalf("expected usage metrics")
+	}
+	if got.InputTokens != nil {
+		t.Fatalf("expected unknown input tokens, got %#v", got.InputTokens)
+	}
+	if got.OutputTokens == nil || *got.OutputTokens != completionTokens {
 		t.Fatalf("unexpected output tokens: %#v", got.OutputTokens)
 	}
 	if got.ToolCalls == nil || *got.ToolCalls != 1 {
