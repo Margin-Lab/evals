@@ -23,14 +23,14 @@ func TestSnapshotterCaptureIdle(t *testing.T) {
 
 	root := t.TempDir()
 	scriptPath := filepath.Join(root, "snapshot.sh")
-	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nprintf '\\033[31mhello\\033[0m'\nsleep 1\n"), 0o755); err != nil {
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nprintf '\\033[31mhello\\033[0m'\nsleep 10\n"), 0o755); err != nil {
 		t.Fatalf("write script: %v", err)
 	}
 
 	s := newSnapshotter(config.Config{
 		SnapshotMaxBytes:    2 * 1024 * 1024,
-		SnapshotHardTimeout: 2 * time.Second,
-		SnapshotIdleTimeout: 1 * time.Second,
+		SnapshotHardTimeout: 15 * time.Second,
+		SnapshotIdleTimeout: 200 * time.Millisecond,
 		SnapshotStopGrace:   300 * time.Millisecond,
 	})
 
@@ -85,6 +85,42 @@ func TestSnapshotterCaptureTruncatesAtMaxBytes(t *testing.T) {
 	}
 	if len(out.Content) != 64 {
 		t.Fatalf("content size = %d, want 64", len(out.Content))
+	}
+}
+
+func TestSnapshotterCaptureWaitsForFirstByteBeforeIdleTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("snapshot PTY tests are unix-only")
+	}
+
+	root := t.TempDir()
+	scriptPath := filepath.Join(root, "snapshot.sh")
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nsleep 0.3\nprintf 'ready'\nsleep 0.3\n"), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	s := newSnapshotter(config.Config{
+		SnapshotMaxBytes:    2 * 1024 * 1024,
+		SnapshotHardTimeout: 2 * time.Second,
+		SnapshotIdleTimeout: 100 * time.Millisecond,
+		SnapshotStopGrace:   300 * time.Millisecond,
+	})
+
+	out, err := s.Capture(context.Background(), snapshotCaptureInput{
+		ExecSpec: agentruntime.ExecSpec{
+			Path: scriptPath,
+			Dir:  root,
+		},
+		PTY: PTYSize{Cols: 100, Rows: 30},
+	})
+	if err != nil {
+		t.Fatalf("Capture() error = %v", err)
+	}
+	if string(out.Content) != "ready" {
+		t.Fatalf("content = %q, want %q", string(out.Content), "ready")
+	}
+	if out.Truncated {
+		t.Fatalf("snapshot should not be truncated")
 	}
 }
 
