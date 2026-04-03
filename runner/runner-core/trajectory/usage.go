@@ -18,44 +18,17 @@ func ExtractUsageMetrics(traj Trajectory) *usage.Metrics {
 }
 
 func totalPromptTokens(traj Trajectory) *int64 {
-	if traj.FinalMetrics != nil && traj.FinalMetrics.TotalPromptTokens != nil {
-		return int64Ptr(*traj.FinalMetrics.TotalPromptTokens)
+	if traj.FinalMetrics == nil || traj.FinalMetrics.TotalPromptTokens == nil {
+		return nil
 	}
-	return sumStepMetrics(traj, func(m *Metrics) *int64 {
-		if m == nil {
-			return nil
-		}
-		return m.PromptTokens
-	})
+	return int64Ptr(*traj.FinalMetrics.TotalPromptTokens)
 }
 
 func totalCompletionTokens(traj Trajectory) *int64 {
-	if traj.FinalMetrics != nil && traj.FinalMetrics.TotalCompletionTokens != nil {
-		return int64Ptr(*traj.FinalMetrics.TotalCompletionTokens)
-	}
-	return sumStepMetrics(traj, func(m *Metrics) *int64 {
-		if m == nil {
-			return nil
-		}
-		return m.CompletionTokens
-	})
-}
-
-func sumStepMetrics(traj Trajectory, pick func(*Metrics) *int64) *int64 {
-	var total int64
-	var found bool
-	for _, step := range traj.Steps {
-		value := pick(step.Metrics)
-		if value == nil {
-			continue
-		}
-		found = true
-		total += *value
-	}
-	if !found {
+	if traj.FinalMetrics == nil || traj.FinalMetrics.TotalCompletionTokens == nil {
 		return nil
 	}
-	return int64Ptr(total)
+	return int64Ptr(*traj.FinalMetrics.TotalCompletionTokens)
 }
 
 func int64Ptr(v int64) *int64 {

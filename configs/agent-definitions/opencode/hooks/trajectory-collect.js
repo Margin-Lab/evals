@@ -101,9 +101,7 @@ function buildSteps(initialPrompt, events, modelName) {
   let currentTurn = null;
   let sessionId = null;
   let totalCost = 0;
-  let totalPromptTokens = 0;
   let totalCompletionTokens = 0;
-  let totalCachedTokens = 0;
 
   for (const event of events) {
     if (!sessionId && typeof event.sessionID === "string" && event.sessionID.trim()) {
@@ -172,13 +170,6 @@ function buildSteps(initialPrompt, events, modelName) {
     const cachedTokens = cache.read;
     const costUSD = finish.cost;
     totalCost += costUSD || 0;
-    if (Number.isInteger(promptTokens)) {
-      totalPromptTokens += promptTokens;
-    }
-    if (Number.isInteger(cachedTokens)) {
-      totalPromptTokens += cachedTokens;
-      totalCachedTokens += cachedTokens;
-    }
     if (Number.isInteger(completionTokens)) {
       totalCompletionTokens += completionTokens;
     }
@@ -209,9 +200,9 @@ function buildSteps(initialPrompt, events, modelName) {
   }
 
   const finalMetrics = compactDict({
-    total_prompt_tokens: totalPromptTokens || null,
+    // Opencode exposes request-sized prompt/cache snapshots per step.
+    // Do not sum them into a misleading run total.
     total_completion_tokens: totalCompletionTokens || null,
-    total_cached_tokens: totalCachedTokens || null,
     total_cost_usd: totalCost || null,
     total_steps: steps.length,
   }) || { total_steps: steps.length };
