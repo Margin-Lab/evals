@@ -28,20 +28,11 @@ func (m *model) View() string {
 		return m.loadingSpinner.View() + " Loading run snapshot..."
 	}
 
-	width := m.width
-	if width <= 0 {
-		width = 120
-	}
-	height := m.height
-	if height <= 0 {
-		height = 40
-	}
-
+	layout := m.computeScreenLayout()
+	width := layout.Width
 	header := m.renderHeader(width)
 	footer := m.renderFooter(width)
-	usedHeight := lipgloss.Height(header) + lipgloss.Height(footer) + 2 // join newlines
-	paneHeight := maxInt(10, height-usedHeight)
-	body := m.renderBody(width, paneHeight)
+	body := m.renderBody(layout)
 
 	out := strings.Join([]string{header, body, footer}, "\n")
 	if m.confirmQuit {
@@ -110,20 +101,8 @@ func (m *model) renderHeader(width int) string {
 // Body (two-pane layout)
 // ---------------------------------------------------------------------------
 
-func (m *model) renderBody(width, height int) string {
+func (m *model) renderBody(layout screenLayout) string {
 	paneGap := "  "
-	paneGapWidth := lipgloss.Width(paneGap)
-	availableWidth := width - paneGapWidth
-
-	leftWidth := maxInt(30, availableWidth/4)
-	if leftWidth > availableWidth-20 {
-		leftWidth = maxInt(30, availableWidth/2)
-	}
-	rightWidth := maxInt(20, availableWidth-leftWidth)
-
-	leftInnerHeight := maxInt(1, height-4)
-	rightInnerHeight := maxInt(1, height-4)
-
 	leftBorder := paneBorderStyle
 	rightBorder := paneBorderFocusedStyle
 	if m.focusedPane == paneLeft {
@@ -131,10 +110,10 @@ func (m *model) renderBody(width, height int) string {
 		rightBorder = paneBorderStyle
 	}
 
-	left := leftBorder.Width(leftWidth - 2).Height(height - 2).
-		Render(m.renderInstances(leftWidth-4, leftInnerHeight))
-	right := rightBorder.Width(rightWidth - 2).Height(height - 2).
-		Render(m.renderRightPane(rightWidth-4, rightInnerHeight))
+	left := leftBorder.Width(layout.LeftPane.Outer.Width - 2).Height(layout.LeftPane.Outer.Height - 2).
+		Render(m.renderInstances(layout.LeftPane.Inner.Width, layout.LeftPane.Inner.Height))
+	right := rightBorder.Width(layout.RightPane.Pane.Outer.Width - 2).Height(layout.RightPane.Pane.Outer.Height - 2).
+		Render(m.renderRightPane(layout.RightPane.Pane.Inner.Width, layout.RightPane.Pane.Inner.Height))
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, paneGap, right)
 }
 
@@ -217,7 +196,7 @@ func (m *model) renderInstances(width, height int) string {
 		}
 
 		if i == m.selectedIdx {
-			row = instanceSelectedStyle.Render(row)
+			row = instanceSelectedStyle.Render(padRight(row, width))
 		}
 		lines = append(lines, row)
 	}
@@ -323,56 +302,7 @@ func renderErrorBanner(inst *runnerapi.InstanceSnapshot, width int) string {
 // Index comparisons use the global simplifiedStates slice which is ordered by
 // lifecycle progression (pending → building → ... → terminal).
 func (m *model) renderStateBreadcrumb(width int, current simplifiedState) string {
-	specs := m.visibleSimplifiedStateSpecs()
-	currentIdx := simplifiedStateIndexByID(current)
-
-	boxedParts := make([]string, 0, len(specs)*2)
-	compactParts := make([]string, 0, len(specs))
-	for i, spec := range specs {
-		specIdx := simplifiedStateIndexByID(spec.ID)
-
-		var icon string
-		var boxStyle lipgloss.Style
-		var contentStyle lipgloss.Style
-
-		switch {
-		case spec.ID == current:
-			icon = "●"
-			contentStyle = lipgloss.NewStyle().Foreground(colorPrimary).Bold(true)
-		case specIdx < currentIdx:
-			icon = "✓"
-			contentStyle = okStyle
-		default:
-			icon = "○"
-			contentStyle = mutedStyle
-		}
-
-		switch {
-		case spec.ID == m.selectedState:
-			boxStyle = breadcrumbBoxSelectedStyle
-		case spec.ID == current:
-			boxStyle = breadcrumbBoxCurrentStyle
-		case specIdx < currentIdx:
-			boxStyle = breadcrumbBoxCompletedStyle
-		default:
-			boxStyle = breadcrumbBoxFutureStyle
-		}
-
-		label := icon + " " + spec.ShortLabel
-		boxedParts = append(boxedParts, boxStyle.Render(contentStyle.Render(label)))
-		if spec.ID == m.selectedState {
-			contentStyle = contentStyle.Bold(true)
-		}
-		compactParts = append(compactParts, contentStyle.Render(label))
-		if i < len(specs)-1 {
-			boxedParts = append(boxedParts, breadcrumbArrowStyle.Render(" → "))
-		}
-	}
-	boxed := lipgloss.JoinHorizontal(lipgloss.Center, boxedParts...)
-	if width <= 0 || lipgloss.Width(boxed) <= width {
-		return boxed
-	}
-	return wrapBreadcrumbCompact(compactParts, width)
+	return m.buildStateBreadcrumbLayout(width, current, 0, 0).Rendered
 }
 
 func (m *model) renderSelectedStateLogs(width, height int) string {
@@ -661,21 +591,41 @@ func truncateText(value string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	r := []rune(value)
-	if len(r) <= width {
+	if lipgloss.Width(value) <= width {
 		return value
 	}
 	if width <= 1 {
-		return string(r[:width])
+		for _, r := range value {
+			if lipgloss.Width(string(r)) > width {
+				return ""
+			}
+			return string(r)
+		}
+		return ""
 	}
-	return string(r[:width-1]) + "…"
+	targetWidth := width - lipgloss.Width("…")
+	if targetWidth < 0 {
+		targetWidth = 0
+	}
+
+	var out strings.Builder
+	currentWidth := 0
+	for _, r := range value {
+		rw := lipgloss.Width(string(r))
+		if currentWidth+rw > targetWidth {
+			break
+		}
+		out.WriteRune(r)
+		currentWidth += rw
+	}
+	return out.String() + "…"
 }
 
 func padRight(value string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	visible := len([]rune(value))
+	visible := lipgloss.Width(value)
 	if visible >= width {
 		return truncateText(value, width)
 	}

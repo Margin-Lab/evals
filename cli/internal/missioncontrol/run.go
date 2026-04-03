@@ -24,7 +24,7 @@ func Run(ctx context.Context, cfg Config) (Outcome, error) {
 	}
 
 	m := newModel(ctx, cfg)
-	program := tea.NewProgram(m, tea.WithAltScreen())
+	program := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	finalModel, err := program.Run()
 	if err != nil {
 		return Outcome{}, err
