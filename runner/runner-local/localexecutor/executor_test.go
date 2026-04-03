@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/marginlab/margin-eval/runner/runner-core/domain"
 	"github.com/marginlab/margin-eval/runner/runner-core/imageresolver"
 	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
 	"github.com/marginlab/margin-eval/runner/runner-core/store"
@@ -213,6 +214,63 @@ func TestResolveCaseImageUsesConfiguredResolver(t *testing.T) {
 	}
 	if stub.lastInput.ImageBuild == nil {
 		t.Fatalf("expected resolver input image_build")
+	}
+}
+
+func TestClassifyTestFinalState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		exitCode int
+		want     store.InstanceResult
+	}{
+		{
+			name:     "pass",
+			exitCode: 0,
+			want:     store.InstanceResult{FinalState: domain.InstanceStateSucceeded},
+		},
+		{
+			name:     "fail",
+			exitCode: 1,
+			want:     store.InstanceResult{FinalState: domain.InstanceStateTestFailed},
+		},
+		{
+			name:     "infra",
+			exitCode: 2,
+			want: store.InstanceResult{
+				FinalState:   domain.InstanceStateInfraFailed,
+				ErrorCode:    "TEST_INFRA",
+				ErrorMessage: "case test script reported infra failure",
+			},
+		},
+		{
+			name:     "unexpected",
+			exitCode: 3,
+			want: store.InstanceResult{
+				FinalState:   domain.InstanceStateInfraFailed,
+				ErrorCode:    "INVALID_TEST_EXIT_CODE",
+				ErrorMessage: "case test script exited with unsupported status 3; expected 0, 1, or 2",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := store.InstanceResult{FinalState: classifyTestFinalState(tt.exitCode)}
+			if got.FinalState == domain.InstanceStateInfraFailed {
+				if tt.exitCode == testExitCodeInfra {
+					got.ErrorCode = "TEST_INFRA"
+					got.ErrorMessage = "case test script reported infra failure"
+				} else if tt.exitCode != testExitCodePass && tt.exitCode != testExitCodeFail {
+					got.ErrorCode = "INVALID_TEST_EXIT_CODE"
+					got.ErrorMessage = fmt.Sprintf("case test script exited with unsupported status %d; expected 0, 1, or 2", tt.exitCode)
+				}
+			}
+			if got.FinalState != tt.want.FinalState || got.ErrorCode != tt.want.ErrorCode || got.ErrorMessage != tt.want.ErrorMessage {
+				t.Fatalf("result = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
 

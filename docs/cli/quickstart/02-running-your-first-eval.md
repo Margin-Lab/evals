@@ -36,7 +36,7 @@ This run uses a minimal test suite, token usage will be low but not zero. The pr
 Press enter on the pre-run confirmation screen to start the eval. By default, run output is saved to `runs/<run-id>/` under your current working directory.
 
 ### Dry runs
-Sometimes you may want to confirm an eval suite and agent definition will run properly without actually consuming tokens. Margin supports a `--dry-run` mode that runs the full eval pipeline end-to-end but skips the agent execution step:
+Sometimes you may want to confirm an eval suite and agent definition will run properly without actually consuming tokens. Margin supports a `--dry-run` mode that skips agent execution but still runs the case tests against the pristine workspace:
 
 ```bash
 margin run \
