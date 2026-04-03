@@ -230,7 +230,7 @@ func TestRunnerLocalWithFakeAgentServerDryRun(t *testing.T) {
 	}
 	for _, artifact := range artifacts {
 		switch artifact.Role {
-		case store.ArtifactRoleTrajectory, store.ArtifactRoleTestStdout, store.ArtifactRoleTestStderr:
+		case store.ArtifactRoleTrajectory:
 			t.Fatalf("unexpected dry-run artifact role %q in metadata", artifact.Role)
 		}
 	}

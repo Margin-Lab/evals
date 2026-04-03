@@ -58,7 +58,7 @@ func TestBuildSummarizesResultsUsageAndRuntime(t *testing.T) {
 		{
 			InstanceID:    "inst_2",
 			FinalState:    domain.InstanceStateTestFailed,
-			TestExitCode:  intPtr(2),
+			TestExitCode:  intPtr(1),
 			ProvisionedAt: timePtr(startedAt.Add(11 * time.Second)),
 			AgentEndedAt:  timePtr(startedAt.Add(46 * time.Second)),
 			Usage:         metrics(20, 5, 1),
