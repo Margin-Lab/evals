@@ -235,7 +235,7 @@ func compileCase(caseDir, expectedName string) (runbundle.Case, error) {
 		ImageBuild:        imageBuild,
 		InitialPrompt:     prompt,
 		AgentCwd:          strings.TrimSpace(c.AgentCwd),
-		TestCommand:       []string{"bash", "-lc", "tests/test.sh"},
+		TestCommand:       []string{"bash", "-c", "tests/test.sh"},
 		TestCwd:           strings.TrimSpace(c.TestCwd),
 		TestTimeoutSecond: c.TestTimeoutSeconds,
 		TestAssets:        packedAssets,

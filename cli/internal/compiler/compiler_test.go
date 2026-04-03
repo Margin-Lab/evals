@@ -60,7 +60,7 @@ instance_timeout_seconds = 600
 	if !reflect.DeepEqual(gotCases, wantCases) {
 		t.Fatalf("case order = %#v, want %#v", gotCases, wantCases)
 	}
-	if bundle.ResolvedSnapshot.Cases[0].TestCommand[2] != "tests/test.sh" {
+	if !reflect.DeepEqual(bundle.ResolvedSnapshot.Cases[0].TestCommand, []string{"bash", "-c", "tests/test.sh"}) {
 		t.Fatalf("unexpected test command: %#v", bundle.ResolvedSnapshot.Cases[0].TestCommand)
 	}
 	if bundle.ResolvedSnapshot.Agent.Definition.Manifest.Name != "shell-agent" {
