@@ -2,6 +2,17 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+function shellQuote(value) {
+  const text = String(value);
+  if (text.length === 0) {
+    return "''";
+  }
+  if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(text)) {
+    return text;
+  }
+  return `'${text.replace(/'/g, `'\"'\"'`)}'`;
+}
+
 function ensureSkipDangerousModePermissionPrompt(settingsPath) {
   let settings = {};
   if (fs.existsSync(settingsPath)) {
@@ -18,6 +29,7 @@ const paths = ctx.paths;
 const install = ctx.install || {};
 const runHome = paths.run_home;
 const claudeDir = path.join(runHome, ".claude");
+const stderrPath = path.join(paths.artifacts_dir, "claude.stderr.log");
 fs.mkdirSync(claudeDir, { recursive: true });
 const binPath = install.bin_path || path.join(paths.install_dir, "bin", "claude");
 
@@ -38,13 +50,28 @@ if (apiKey) {
 }
 fs.writeFileSync(path.join(claudeDir, ".claude.json"), JSON.stringify(claudeState, null, 2) + "\n", "utf8");
 
-const args = [
+const command = [
+  shellQuote(binPath),
   "--dangerously-skip-permissions",
+  "--verbose",
+  "--output-format=stream-json",
   "--session-id",
-  run.session_id,
-  ...(cfg.startup_args || []),
-  ...(cfg.run_args || []),
+  shellQuote(run.session_id),
+  ...(cfg.startup_args || []).map(shellQuote),
+  ...(cfg.run_args || []).map(shellQuote),
   "-p",
-  run.initial_prompt,
-];
-process.stdout.write(JSON.stringify({ path: binPath, args, env, dir: run.cwd }) + "\n");
+  shellQuote(run.initial_prompt),
+].join(" ");
+
+const shellCommand = [
+  "set -euo pipefail",
+  `mkdir -p ${shellQuote(path.dirname(stderrPath))}`,
+  `${command} 2> >(tee ${shellQuote(stderrPath)} >&2)`,
+].join("\n");
+
+process.stdout.write(JSON.stringify({
+  path: "bash",
+  args: ["-c", shellCommand],
+  env,
+  dir: run.cwd,
+}) + "\n");
