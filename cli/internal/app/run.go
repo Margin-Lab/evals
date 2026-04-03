@@ -78,7 +78,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	authFilePath := fs.String("auth-file-path", "", "override local OAuth credential file path for the selected agent")
 	nonInteractive := fs.Bool("non-interactive", false, "skip Mission Control TUI and print plain progress logs")
 	pruneBuiltImage := fs.Int("prune-built-image", 0, "enable lazy-built cleanup and globally prune all unused Docker images from the selected daemon every N completed executed instances (0 disables)")
-	dryRun := fs.Bool("dry-run", false, "skip agent execution after prelaunch setup")
+	dryRun := fs.Bool("dry-run", false, "skip agent execution but still run case tests on the pristine workspace")
 
 	runTimeout := fs.Duration("run-timeout", 0, "timeout waiting for run completion")
 	var agentEnv envFlag

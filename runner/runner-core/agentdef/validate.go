@@ -360,20 +360,23 @@ func validateToolchains(spec ToolchainSpec) error {
 		return nil
 	}
 	node := spec.Node
-	for fieldName, raw := range map[string]string{
-		"minimum":   node.Minimum,
-		"preferred": node.Preferred,
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{name: "minimum", value: node.Minimum},
+		{name: "preferred", value: node.Preferred},
 	} {
-		value := strings.TrimSpace(raw)
+		value := strings.TrimSpace(field.value)
 		if value == "" {
-			return fmt.Errorf("toolchains.node.%s is required", fieldName)
+			return fmt.Errorf("toolchains.node.%s is required", field.name)
 		}
 		if strings.ContainsAny(value, " \t\r\n") {
-			return fmt.Errorf("toolchains.node.%s must not contain whitespace", fieldName)
+			return fmt.Errorf("toolchains.node.%s must not contain whitespace", field.name)
 		}
 		for _, ch := range value {
 			if ch < '0' || ch > '9' {
-				return fmt.Errorf("toolchains.node.%s must contain digits only", fieldName)
+				return fmt.Errorf("toolchains.node.%s must contain digits only", field.name)
 			}
 		}
 	}

@@ -48,7 +48,7 @@ margin update
 
 ### Run first evals
 
-Dry-run your first eval (no token usage)
+Dry-run your first eval (no token usage; tests still run)
 ```bash
 margin run \
   --suite git::https://github.com/Margin-Lab/test-suites.git//swe-minimal-test-suite \

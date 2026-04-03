@@ -88,13 +88,20 @@ During sample validation, inspect failures for signs of duplicate collection or 
 
 ## Verifier Exit Semantics
 
-Margin determines pass/fail from the verifier process exit code. A converted wrapper must not hide failures by always exiting `0`.
+Margin determines the authoritative verifier result from the verifier process exit code:
+- `0` = pass
+- `1` = fail
+- `2` = infra
+
+A converted wrapper must not hide failures by always exiting `0`, and it must not collapse verifier/setup failures into ordinary task failures.
 
 When converting verifiers:
 
-- capture the underlying test command exit code
+- capture the underlying test command or parser verdict
 - preserve any suite-specific status or report artifacts the source verifier expects
-- return the same exit code from `tests/test.sh`
+- map candidate-caused failures to `1`
+- map verifier/setup/parser inability to reach a trustworthy verdict to `2`
+- do not write `reward.txt`
 
 Bad pattern to fix during conversion:
 
@@ -113,10 +120,11 @@ some-test-command
 exit_code=$?
 set -e
 
-# If the source suite expects additional status/report artifacts, write them
-# here based on $exit_code.
-
-exit $exit_code
+case "$exit_code" in
+  0) exit 0 ;;
+  1) exit 1 ;;
+  *) exit 2 ;;
+esac
 ```
 
 ## Metadata Semantics
