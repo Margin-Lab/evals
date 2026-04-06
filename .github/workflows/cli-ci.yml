@@ -9,6 +9,7 @@ on:
       - "cli/**"
       - "runner/runner-core/**"
       - "runner/runner-local/**"
+      - "scripts/build-margin.sh"
       - "scripts/build-cli-agent-server.sh"
       - "scripts/prepare-embedded-agent-server.sh"
   push:
@@ -21,6 +22,7 @@ on:
       - "cli/**"
       - "runner/runner-core/**"
       - "runner/runner-local/**"
+      - "scripts/build-margin.sh"
       - "scripts/build-cli-agent-server.sh"
       - "scripts/prepare-embedded-agent-server.sh"
 
@@ -75,6 +77,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          build_datetime="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           rm -rf dist/cli-ci
           mkdir -p dist/cli-ci
 
@@ -82,9 +85,7 @@ jobs:
             IFS=/ read -r goos goarch <<<"$target"
             output="${GITHUB_WORKSPACE}/dist/cli-ci/margin_${goos}_${goarch}"
             echo "Building ${goos}/${goarch} -> ${output}"
-            (
-              cd cli
-              CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -o "$output" ./cmd/margin
-            )
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" MARGIN_VERSION="ci" BUILD_DATETIME="$build_datetime" \
+              bash scripts/build-margin.sh --output "$output"
             test -x "$output"
           done

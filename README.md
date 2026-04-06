@@ -38,6 +38,7 @@ curl -fsSL https://raw.githubusercontent.com/Margin-Lab/evals/main/scripts/insta
 Check your installation is ready to run an eval
 
 ```bash
+margin --version
 margin check
 ```
 Update an installer-managed binary:
