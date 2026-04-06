@@ -102,6 +102,8 @@ function buildSteps(initialPrompt, events, modelName) {
   let sessionId = null;
   let totalCost = 0;
   let totalCompletionTokens = 0;
+  let maxPromptTokens = null;
+  let maxCachedTokens = null;
 
   for (const event of events) {
     if (!sessionId && typeof event.sessionID === "string" && event.sessionID.trim()) {
@@ -173,6 +175,13 @@ function buildSteps(initialPrompt, events, modelName) {
     if (Number.isInteger(completionTokens)) {
       totalCompletionTokens += completionTokens;
     }
+    if (Number.isInteger(promptTokens) || Number.isInteger(cachedTokens)) {
+      const promptSnapshot = (promptTokens || 0) + (cachedTokens || 0);
+      maxPromptTokens = maxPromptTokens === null ? promptSnapshot : Math.max(maxPromptTokens, promptSnapshot);
+    }
+    if (Number.isInteger(cachedTokens)) {
+      maxCachedTokens = maxCachedTokens === null ? cachedTokens : Math.max(maxCachedTokens, cachedTokens);
+    }
 
     const metrics = compactDict({
       prompt_tokens: promptTokens !== undefined || cachedTokens !== undefined
@@ -200,9 +209,9 @@ function buildSteps(initialPrompt, events, modelName) {
   }
 
   const finalMetrics = compactDict({
-    // Opencode exposes request-sized prompt/cache snapshots per step.
-    // Do not sum them into a misleading run total.
+    total_prompt_tokens: maxPromptTokens,
     total_completion_tokens: totalCompletionTokens || null,
+    total_cached_tokens: maxCachedTokens,
     total_cost_usd: totalCost || null,
     total_steps: steps.length,
   }) || { total_steps: steps.length };
