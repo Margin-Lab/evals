@@ -5,6 +5,12 @@ The CLI now works with two explicit resources:
 - `agent_definition`
 - `agent_config`
 
+Print the installed CLI version with:
+
+```bash
+margin --version
+```
+
 Initialize them with:
 
 ```bash

@@ -177,7 +177,7 @@ EOF
   echo "  suite: ${MARGIN_HOME}/suites/swe-minimal-test-suite"
   echo "  agent-config: ${MARGIN_HOME}/configs/example-agent-configs/codex-unified"
   echo "  eval: ${MARGIN_HOME}/configs/example-eval-configs/default.toml"
-  echo "Run 'margin help' to verify the install and 'margin update' for manual updates."
+  echo "Run 'margin --version' or 'margin help' to verify the install and 'margin update' for manual updates."
 }
 
 main "$@"

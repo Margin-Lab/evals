@@ -11,10 +11,7 @@ echo "Preparing embedded agent-server payloads..."
 "${ROOT_DIR}/scripts/prepare-embedded-agent-server.sh"
 
 echo "Building CLI binary..."
-(
-  cd "${ROOT_DIR}/cli"
-  go build -o "${BIN_DIR}/margin" ./cmd/margin
-)
+"${ROOT_DIR}/scripts/build-margin.sh" --output "${BIN_DIR}/margin"
 
 echo "Build complete:"
 echo "  ${BIN_DIR}/margin"
