@@ -22,6 +22,9 @@ func (a *App) Run(ctx context.Context, args []string) error {
 		a.printUsage()
 		return nil
 	}
+	if args[0] == "--version" {
+		return a.runVersion(args[1:])
+	}
 
 	switch args[0] {
 	case "help", "-h", "--help":
@@ -64,6 +67,9 @@ func (a *App) runInit(args []string) error {
 
 func (a *App) printUsage() {
 	fmt.Fprintln(a.stdout, strings.TrimSpace(`margin - Robust, easy agent evals
+
+Global flags:
+  margin --version
 
 Commands:
 Preflight command:

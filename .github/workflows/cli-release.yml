@@ -50,8 +50,8 @@ jobs:
           set -euo pipefail
 
           tag="${GITHUB_REF_NAME}"
+          build_datetime="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           dist_dir="${RUNNER_TEMP}/cli-release"
-          ldflags="-X github.com/marginlab/margin-eval/cli/internal/buildinfo.Version=${tag}"
           rm -rf "$dist_dir"
           mkdir -p "$dist_dir"
 
@@ -64,10 +64,8 @@ jobs:
             mkdir -p "$stage_dir"
 
             echo "Building ${goos}/${goarch} -> ${archive_name}"
-            (
-              cd cli
-              CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build -ldflags "$ldflags" -o "${stage_dir}/margin" ./cmd/margin
-            )
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" MARGIN_VERSION="$tag" BUILD_DATETIME="$build_datetime" \
+              bash scripts/build-margin.sh --output "${stage_dir}/margin"
 
             cp -R configs "${stage_dir}/configs"
             mkdir -p "${stage_dir}/suites"
