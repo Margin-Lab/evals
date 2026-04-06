@@ -52,6 +52,8 @@ func NewLocalSource(snapshots datasource.Source, runDir string) (*LocalSource, e
 
 func (s *LocalSource) GetRunSnapshot(ctx context.Context, runID string) (runnerapi.RunSnapshot, error) {
 	snapshot, err := s.snapshots.GetRunSnapshot(ctx, runID, runnerapi.SnapshotOptions{
+		IncludeBundle:            true,
+		IncludeInstanceEvents:    true,
 		IncludeInstanceResults:   true,
 		IncludeInstanceArtifacts: true,
 	})

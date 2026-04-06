@@ -36,7 +36,7 @@ func (f *fakeSnapshotSource) GetInstanceSnapshot(context.Context, string, runner
 	return runnerapi.InstanceSnapshot{}, nil
 }
 
-func TestLocalSourceGetRunSnapshotIncludesResultAndArtifacts(t *testing.T) {
+func TestLocalSourceGetRunSnapshotIncludesBundleEventsResultsAndArtifacts(t *testing.T) {
 	fake := &fakeSnapshotSource{runSnapshot: runnerapi.RunSnapshot{Run: store.Run{RunID: "run_1", State: domain.RunStateRunning}}}
 	src, err := NewLocalSource(fake, "")
 	if err != nil {
@@ -46,8 +46,8 @@ func TestLocalSourceGetRunSnapshotIncludesResultAndArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get run snapshot: %v", err)
 	}
-	if !fake.runOpts.IncludeInstanceResults || !fake.runOpts.IncludeInstanceArtifacts {
-		t.Fatalf("expected results+artifacts options, got %+v", fake.runOpts)
+	if !fake.runOpts.IncludeBundle || !fake.runOpts.IncludeInstanceEvents || !fake.runOpts.IncludeInstanceResults || !fake.runOpts.IncludeInstanceArtifacts {
+		t.Fatalf("expected bundle+events+results+artifacts options, got %+v", fake.runOpts)
 	}
 }
 

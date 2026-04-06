@@ -512,6 +512,78 @@ func TestRenderInstancesIncludesStateColumn(t *testing.T) {
 	}
 }
 
+func TestRenderInstancesIncludesRetryCounter(t *testing.T) {
+	m := &model{
+		snapshotLoaded: true,
+		snapshot: runnerapi.RunSnapshot{
+			Run: store.Run{
+				Bundle: runbundle.Bundle{
+					ResolvedSnapshot: runbundle.ResolvedSnapshot{
+						Execution: runbundle.Execution{RetryCount: 2},
+					},
+				},
+			},
+			Instances: []runnerapi.InstanceSnapshot{
+				{
+					Instance: store.Instance{
+						Ordinal: 7,
+						State:   domain.InstanceStateAgentRunning,
+						Case: runbundle.Case{
+							CaseID: "case_with_retry",
+						},
+					},
+					Events: []store.InstanceEvent{
+						{Source: "reaper"},
+						{Source: "retry"},
+					},
+				},
+			},
+		},
+	}
+
+	out := m.renderInstances(70, 8)
+	plain := plainText(out)
+	assertLinesWithinWidth(t, out, 70)
+	if !strings.Contains(plain, "r1/2") {
+		t.Fatalf("expected retry counter in instance row, got:\n%s", plain)
+	}
+	if !strings.Contains(plain, "case_with_retry") {
+		t.Fatalf("expected case id in row with retry counter, got:\n%s", plain)
+	}
+}
+
+func TestRenderInstancesHidesRetryCounterBeforeFirstRetry(t *testing.T) {
+	m := &model{
+		snapshotLoaded: true,
+		snapshot: runnerapi.RunSnapshot{
+			Run: store.Run{
+				Bundle: runbundle.Bundle{
+					ResolvedSnapshot: runbundle.ResolvedSnapshot{
+						Execution: runbundle.Execution{RetryCount: 2},
+					},
+				},
+			},
+			Instances: []runnerapi.InstanceSnapshot{
+				{
+					Instance: store.Instance{
+						Ordinal: 7,
+						State:   domain.InstanceStateAgentRunning,
+						Case: runbundle.Case{
+							CaseID: "case_without_retry",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	out := m.renderInstances(70, 8)
+	plain := plainText(out)
+	if strings.Contains(plain, "r0/2") {
+		t.Fatalf("did not expect retry counter before first retry, got:\n%s", plain)
+	}
+}
+
 func TestRenderRightPaneUsesSimplifiedStateLabels(t *testing.T) {
 	m := &model{
 		snapshotLoaded: true,
@@ -542,6 +614,70 @@ func TestRenderRightPaneUsesSimplifiedStateLabels(t *testing.T) {
 	}
 	if strings.Contains(out, "infra_failed") {
 		t.Fatalf("did not expect exact internal state in right pane, got:\n%s", out)
+	}
+}
+
+func TestRenderRightPaneIncludesRetryCounter(t *testing.T) {
+	m := &model{
+		snapshotLoaded: true,
+		selectedState:  simplifiedStateRunningAgent,
+		snapshot: runnerapi.RunSnapshot{
+			Run: store.Run{
+				Bundle: runbundle.Bundle{
+					ResolvedSnapshot: runbundle.ResolvedSnapshot{
+						Execution: runbundle.Execution{RetryCount: 2},
+					},
+				},
+			},
+			Instances: []runnerapi.InstanceSnapshot{{
+				Instance: store.Instance{
+					InstanceID: "inst_1",
+					State:      domain.InstanceStateAgentRunning,
+					Case: runbundle.Case{
+						CaseID: "case_1",
+					},
+				},
+				Events: []store.InstanceEvent{
+					{Source: "retry"},
+				},
+			}},
+		},
+	}
+
+	out := plainText(m.renderRightPane(120, 20))
+	assertLinesWithinWidth(t, out, 120)
+	if !strings.Contains(out, "retry: 1/2") {
+		t.Fatalf("expected retry counter in right pane, got:\n%s", out)
+	}
+}
+
+func TestRenderRightPaneHidesRetryCounterBeforeFirstRetry(t *testing.T) {
+	m := &model{
+		snapshotLoaded: true,
+		selectedState:  simplifiedStateRunningAgent,
+		snapshot: runnerapi.RunSnapshot{
+			Run: store.Run{
+				Bundle: runbundle.Bundle{
+					ResolvedSnapshot: runbundle.ResolvedSnapshot{
+						Execution: runbundle.Execution{RetryCount: 2},
+					},
+				},
+			},
+			Instances: []runnerapi.InstanceSnapshot{{
+				Instance: store.Instance{
+					InstanceID: "inst_1",
+					State:      domain.InstanceStateAgentRunning,
+					Case: runbundle.Case{
+						CaseID: "case_1",
+					},
+				},
+			}},
+		},
+	}
+
+	out := plainText(m.renderRightPane(120, 20))
+	if strings.Contains(out, "retry: 0/2") {
+		t.Fatalf("did not expect retry counter before first retry, got:\n%s", out)
 	}
 }
 
