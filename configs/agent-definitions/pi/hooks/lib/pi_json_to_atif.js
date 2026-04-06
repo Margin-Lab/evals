@@ -147,6 +147,8 @@ function loadTrajectory(inputPath, artifactsDir, version) {
   let nextStepID = 1;
   let totalCompletionTokens = 0;
   let totalCostUSD = 0;
+  let maxPromptTokens = null;
+  let maxCachedTokens = null;
   let agentModelName = "";
   const steps = [];
   let pendingToolStep = null;
@@ -173,6 +175,16 @@ function loadTrajectory(inputPath, artifactsDir, version) {
       }
       totalCompletionTokens += Number(step.metrics.completion_tokens || 0);
       totalCostUSD += Number(step.metrics.cost_usd || 0);
+      if (Number.isInteger(step.metrics.prompt_tokens)) {
+        maxPromptTokens = maxPromptTokens === null
+          ? step.metrics.prompt_tokens
+          : Math.max(maxPromptTokens, step.metrics.prompt_tokens);
+      }
+      if (Number.isInteger(step.metrics.cached_tokens)) {
+        maxCachedTokens = maxCachedTokens === null
+          ? step.metrics.cached_tokens
+          : Math.max(maxCachedTokens, step.metrics.cached_tokens);
+      }
       pendingToolStep = step.tool_calls && step.tool_calls.length > 0 ? step : null;
       continue;
     }
@@ -203,7 +215,9 @@ function loadTrajectory(inputPath, artifactsDir, version) {
     },
     steps,
     final_metrics: {
+      total_prompt_tokens: maxPromptTokens || undefined,
       total_completion_tokens: totalCompletionTokens,
+      total_cached_tokens: maxCachedTokens || undefined,
       total_cost_usd: totalCostUSD || undefined,
       total_steps: steps.length,
     },

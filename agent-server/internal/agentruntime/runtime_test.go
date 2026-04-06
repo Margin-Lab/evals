@@ -1394,7 +1394,7 @@ func TestRepoOwnedCodexCollectTrajectoryProducesATIF(t *testing.T) {
 		`{"type":"response_item","timestamp":"2026-03-10T12:00:02Z","payload":{"type":"message","role":"assistant","content":[{"text":"I will inspect the files."}]}}`,
 		`{"type":"response_item","timestamp":"2026-03-10T12:00:03Z","payload":{"type":"function_call","call_id":"call_1","name":"shell","arguments":"{\"command\":\"ls\"}"}}`,
 		`{"type":"response_item","timestamp":"2026-03-10T12:00:04Z","payload":{"type":"function_call_output","call_id":"call_1","output":"{\"output\":\"file1\\nfile2\"}"}}`,
-		`{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"output_tokens":5,"cached_input_tokens":2,"total_tokens":17},"total_cost":0.12}}}`,
+		`{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"output_tokens":5,"cached_input_tokens":2,"total_tokens":17},"last_token_usage":{"input_tokens":10,"output_tokens":5,"cached_input_tokens":2},"total_cost":0.12}}}`,
 	})
 
 	raw, err := runtime.CollectTrajectory(context.Background(), agent, runCtx)
@@ -1464,7 +1464,7 @@ func TestRepoOwnedClaudeCollectTrajectoryProducesATIF(t *testing.T) {
 	if len(traj.Steps[2].ToolCalls) != 1 || traj.Steps[2].ToolCalls[0].FunctionName != "Bash" {
 		t.Fatalf("unexpected tool call step = %+v", traj.Steps[2])
 	}
-	if traj.FinalMetrics == nil || traj.FinalMetrics.TotalPromptTokens == nil || *traj.FinalMetrics.TotalPromptTokens != 33 {
+	if traj.FinalMetrics == nil || traj.FinalMetrics.TotalPromptTokens == nil || *traj.FinalMetrics.TotalPromptTokens != 23 {
 		t.Fatalf("unexpected prompt totals = %+v", traj.FinalMetrics)
 	}
 	if traj.FinalMetrics.TotalCompletionTokens == nil || *traj.FinalMetrics.TotalCompletionTokens != 12 {
@@ -1519,13 +1519,13 @@ func TestRepoOwnedOpencodeCollectTrajectoryProducesATIF(t *testing.T) {
 	if traj.FinalMetrics == nil {
 		t.Fatalf("expected final metrics")
 	}
-	if traj.FinalMetrics.TotalPromptTokens != nil {
+	if traj.FinalMetrics.TotalPromptTokens == nil || *traj.FinalMetrics.TotalPromptTokens != 19 {
 		t.Fatalf("unexpected prompt totals = %+v", traj.FinalMetrics)
 	}
 	if traj.FinalMetrics.TotalCompletionTokens == nil || *traj.FinalMetrics.TotalCompletionTokens != 9 {
 		t.Fatalf("unexpected completion totals = %+v", traj.FinalMetrics)
 	}
-	if traj.FinalMetrics.TotalCachedTokens != nil {
+	if traj.FinalMetrics.TotalCachedTokens == nil || *traj.FinalMetrics.TotalCachedTokens != 5 {
 		t.Fatalf("unexpected cached totals = %+v", traj.FinalMetrics)
 	}
 }
@@ -1622,13 +1622,13 @@ func TestRepoOwnedPiCollectTrajectoryProducesATIF(t *testing.T) {
 	if traj.FinalMetrics == nil {
 		t.Fatalf("expected final metrics")
 	}
-	if traj.FinalMetrics.TotalPromptTokens != nil {
+	if traj.FinalMetrics.TotalPromptTokens == nil || *traj.FinalMetrics.TotalPromptTokens != 19 {
 		t.Fatalf("unexpected prompt totals = %+v", traj.FinalMetrics)
 	}
 	if traj.FinalMetrics.TotalCompletionTokens == nil || *traj.FinalMetrics.TotalCompletionTokens != 9 {
 		t.Fatalf("unexpected completion totals = %+v", traj.FinalMetrics)
 	}
-	if traj.FinalMetrics.TotalCachedTokens != nil {
+	if traj.FinalMetrics.TotalCachedTokens == nil || *traj.FinalMetrics.TotalCachedTokens != 5 {
 		t.Fatalf("unexpected cached totals = %+v", traj.FinalMetrics)
 	}
 }
