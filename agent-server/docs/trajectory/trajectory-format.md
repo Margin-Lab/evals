@@ -42,16 +42,19 @@ ATIF usage fields have two different scopes:
 
 - `steps[].metrics.*`
   - step-local metrics for the emitted agent step
-  - for prompt-side fields, some agents only expose the prompt size of that one request, not cumulative run spend
+  - for prompt-side fields, repo-owned hooks treat these as single-request prompt snapshots
 - `final_metrics.*`
-  - whole-run totals only
-  - hooks must only populate these fields when the native source exposes a trustworthy run-total value or another contract-safe derivation
+  - canonical summary values for the run
+  - for prompt-side fields, the canonical summary is the largest observed single-request prompt snapshot so it stays comparable to the model context window
+  - for completion-side fields, hooks may still expose whole-run totals when the native source supports them
 
 Rules for repo-owned hooks:
 
-- do not synthesize run totals by summing prompt or cached-token step snapshots when those step values already include prior context
-- if a trustworthy run total is unavailable for a metric, omit that `final_metrics` field
-- consumers must treat missing `final_metrics` token fields as unknown; do not reconstruct prompt or completion totals from step metrics
+- do not synthesize prompt or cached-token summaries by summing step snapshots when those step values already include prior context
+- populate `final_metrics.total_prompt_tokens` with the largest trustworthy prompt snapshot for the run
+- populate `final_metrics.total_cached_tokens` with the largest trustworthy cached-token snapshot for the run when available
+- if a trustworthy summary is unavailable for a metric, omit that `final_metrics` field
+- consumers must read token counts from `final_metrics` only; do not reconstruct them from step metrics
 
 ## Repo-Owned Definitions
 
