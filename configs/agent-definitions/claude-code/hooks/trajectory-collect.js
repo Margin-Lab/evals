@@ -435,9 +435,9 @@ function buildFinalMetrics(steps) {
     total_cache_read_input_tokens: cacheReadSeen ? cacheReadTotal : null,
   });
   return compactDict({
-    total_prompt_tokens: promptValues.length > 0 ? promptValues.reduce((sum, value) => sum + value, 0) : null,
+    total_prompt_tokens: promptValues.length > 0 ? Math.max(...promptValues) : null,
     total_completion_tokens: completionValues.length > 0 ? completionValues.reduce((sum, value) => sum + value, 0) : null,
-    total_cached_tokens: cachedValues.length > 0 ? cachedValues.reduce((sum, value) => sum + value, 0) : null,
+    total_cached_tokens: cachedValues.length > 0 ? Math.max(...cachedValues) : null,
     total_steps: steps.length,
     extra: finalExtra,
   }) || { total_steps: steps.length };

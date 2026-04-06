@@ -297,18 +297,26 @@ function buildFinalMetrics(rawEvents, totalSteps) {
       continue;
     }
     const usage = info.total_token_usage;
-    if (!usage || typeof usage !== "object" || Array.isArray(usage)) {
+    const lastUsage = info.last_token_usage;
+    if ((!usage || typeof usage !== "object" || Array.isArray(usage)) &&
+      (!lastUsage || typeof lastUsage !== "object" || Array.isArray(lastUsage))) {
       continue;
     }
+    const promptUsage = lastUsage && typeof lastUsage === "object" && !Array.isArray(lastUsage)
+      ? lastUsage
+      : null;
+    const aggregateUsage = usage && typeof usage === "object" && !Array.isArray(usage)
+      ? usage
+      : null;
     const extra = compactDict({
-      reasoning_output_tokens: usage.reasoning_output_tokens,
-      total_tokens: usage.total_tokens,
+      reasoning_output_tokens: aggregateUsage?.reasoning_output_tokens,
+      total_tokens: aggregateUsage?.total_tokens,
       last_token_usage: info.last_token_usage,
     });
     return compactDict({
-      total_prompt_tokens: usage.input_tokens,
-      total_completion_tokens: usage.output_tokens,
-      total_cached_tokens: usage.cached_input_tokens,
+      total_prompt_tokens: promptUsage?.input_tokens,
+      total_completion_tokens: aggregateUsage?.output_tokens,
+      total_cached_tokens: promptUsage?.cached_input_tokens,
       total_cost_usd: info.total_cost || info.cost_usd,
       total_steps: totalSteps,
       extra,
