@@ -157,50 +157,77 @@ func (m *model) renderInstances(width, height int) string {
 
 	end := minInt(m.instancesOffset+visibleRows, total)
 	for i := m.instancesOffset; i < end; i++ {
-		item := m.snapshot.Instances[i]
-		icon := instanceStateIcon(item.Instance.State)
-		caseID := strings.TrimSpace(item.Instance.Case.CaseID)
-		if caseID == "" {
-			caseID = "(no-case-id)"
-		}
+		lines = append(lines, m.renderInstanceRow(m.snapshot.Instances[i], width, i == m.selectedIdx))
+	}
+	return strings.Join(lines, "\n")
+}
 
-		cursor := "  "
-		if i == m.selectedIdx {
-			cursor = "▸ "
-		}
+func (m *model) renderInstanceRow(item runnerapi.InstanceSnapshot, width int, selected bool) string {
+	icon := instanceStateIcon(item.Instance.State)
+	caseID := strings.TrimSpace(item.Instance.Case.CaseID)
+	if caseID == "" {
+		caseID = "(no-case-id)"
+	}
 
-		ordinal := fmt.Sprintf("%03d", item.Instance.Ordinal)
-		prefix := fmt.Sprintf("%s%s %s  ", cursor, icon, ordinal)
-		prefixWidth := lipgloss.Width(prefix)
-		var row string
-		if prefixWidth >= width {
-			row = padRight(truncateText(prefix, width), width)
-		} else {
-			state := simplifiedStateLabelForInstanceState(item.Instance.State)
-			remaining := width - prefixWidth
-			stateWidth := minInt(20, maxInt(10, remaining/3))
-			if stateWidth > remaining {
-				stateWidth = remaining
+	cursor := "  "
+	if selected {
+		cursor = "▸ "
+	}
+
+	ordinal := fmt.Sprintf("%03d", item.Instance.Ordinal)
+	prefix := fmt.Sprintf("%s%s %s  ", cursor, icon, ordinal)
+	prefixWidth := lipgloss.Width(prefix)
+	row := padRight(truncateText(prefix, width), width)
+	if prefixWidth < width {
+		remaining := width - prefixWidth
+		state := simplifiedStateLabelForInstanceState(item.Instance.State)
+		retryLabel := retrySummaryStyle(m.retrySummary(&item), item.Instance.State)
+		retryWidth := lipgloss.Width(retryLabel)
+		retryGap := 0
+		if retryWidth > 0 {
+			retryGap = 2
+			if remaining < retryWidth+retryGap {
+				retryGap = 1
 			}
-			caseWidth := remaining - stateWidth
+		}
+
+		stateWidth := minInt(20, maxInt(10, remaining/3))
+		maxStateWidth := remaining - retryWidth - retryGap
+		if maxStateWidth < 1 {
+			maxStateWidth = remaining
+			retryWidth = 0
+			retryGap = 0
+			retryLabel = ""
+		}
+		if stateWidth > maxStateWidth {
+			stateWidth = maxStateWidth
+		}
+		if stateWidth < 1 {
+			stateWidth = 1
+		}
+
+		row = prefix + padRight(truncateText(state, stateWidth), stateWidth)
+		remaining -= stateWidth
+		if retryWidth > 0 && remaining >= retryWidth+retryGap {
+			row += strings.Repeat(" ", retryGap) + retryLabel
+			remaining -= retryWidth + retryGap
+		}
+		if remaining > 0 {
 			caseGap := 0
-			if caseWidth >= 3 {
+			if remaining >= 3 {
 				caseGap = 2
-				caseWidth -= caseGap
 			}
-
-			row = prefix + padRight(truncateText(state, stateWidth), stateWidth)
+			caseWidth := remaining - caseGap
 			if caseWidth > 0 {
 				row += strings.Repeat(" ", caseGap) + padRight(truncateText(caseID, caseWidth), caseWidth)
 			}
 		}
-
-		if i == m.selectedIdx {
-			row = instanceSelectedStyle.Render(padRight(row, width))
-		}
-		lines = append(lines, row)
 	}
-	return strings.Join(lines, "\n")
+
+	if selected {
+		row = instanceSelectedStyle.Render(padRight(row, width))
+	}
+	return row
 }
 
 // ---------------------------------------------------------------------------
@@ -255,17 +282,16 @@ func renderSectionHeader(title string, width int) string {
 // ---------------------------------------------------------------------------
 
 func (m *model) renderIdentityBar(inst *runnerapi.InstanceSnapshot, width int) string {
-	instLine := renderStyledKeyValue("inst", inst.Instance.InstanceID, width)
+	parts := []string{renderStyledKeyValue("inst", inst.Instance.InstanceID, width)}
 	caseID := strings.TrimSpace(inst.Instance.Case.CaseID)
-	if caseID == "" {
-		return instLine
+	if caseID != "" {
+		parts = append(parts, renderStyledKeyValue("case", caseID, width))
 	}
-	caseLine := renderStyledKeyValue("case", caseID, width)
-	combined := instLine + "  " + caseLine
-	if width <= 0 || lipgloss.Width(combined) <= width {
-		return combined
+	retry := m.retrySummary(inst)
+	if retry.Visible() {
+		parts = append(parts, renderStyledKeyValue("retry", retry.DetailValue(), width))
 	}
-	return instLine + "\n" + caseLine
+	return wrapInlineSegments(parts, width)
 }
 
 // ---------------------------------------------------------------------------
@@ -551,6 +577,28 @@ func renderStyledKeyValue(key, value string, width int) string {
 		return stateKeyStyle.Render(truncateText(labelPlain, width))
 	}
 	return stateKeyStyle.Render(labelPlain) + stateValueStyle.Render(truncateText(value, width-len([]rune(labelPlain))))
+}
+
+func wrapInlineSegments(parts []string, width int) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	if width <= 0 {
+		return strings.Join(parts, " ")
+	}
+	lines := make([]string, 0, len(parts))
+	current := parts[0]
+	for _, part := range parts[1:] {
+		candidate := current + "  " + part
+		if lipgloss.Width(candidate) <= width {
+			current = candidate
+			continue
+		}
+		lines = append(lines, current)
+		current = part
+	}
+	lines = append(lines, current)
+	return strings.Join(lines, "\n")
 }
 
 func wrapBreadcrumbCompact(parts []string, width int) string {

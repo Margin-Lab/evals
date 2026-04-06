@@ -10,7 +10,7 @@ import (
 
 const (
 	// DefaultTextPreviewLimit bounds text previews loaded for logs/artifacts.
-	DefaultTextPreviewLimit int64 = 256 * 1024
+	DefaultTextPreviewLimit int64 = 2560 * 1024
 )
 
 // Source is the backend-agnostic read surface consumed by the mission-control TUI.

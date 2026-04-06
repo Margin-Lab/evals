@@ -78,6 +78,9 @@ var (
 				Background(colorSelectedBg).
 				Foreground(colorSelectedFg).
 				Bold(true)
+	retryBadgeMutedStyle = lipgloss.NewStyle().Foreground(colorMuted)
+	retryBadgeUsedStyle  = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
+	retryBadgeSpentStyle = lipgloss.NewStyle().Foreground(colorError).Bold(true)
 )
 
 // ---------------------------------------------------------------------------
@@ -265,6 +268,17 @@ func simplifiedStateStyle(state simplifiedState) lipgloss.Style {
 
 func renderSimplifiedStateLabel(state simplifiedState) string {
 	return simplifiedStateStyle(state).Render(simplifiedStateSpecByID(state).Label)
+}
+
+func retryBadgeStyle(summary retrySummary, state domain.InstanceState) lipgloss.Style {
+	switch {
+	case summary.Used <= 0:
+		return retryBadgeMutedStyle
+	case state == domain.InstanceStateInfraFailed && summary.Budget > 0 && summary.Used >= summary.Budget:
+		return retryBadgeSpentStyle
+	default:
+		return retryBadgeUsedStyle
+	}
 }
 
 func runStateBadge(state string) string {
