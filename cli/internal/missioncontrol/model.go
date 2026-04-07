@@ -185,6 +185,7 @@ type model struct {
 	instancesOffset int
 	logViewport     viewport.Model
 	loadingSpinner  spinner.Model
+	now             func() time.Time
 }
 
 func newModel(ctx context.Context, cfg Config) *model {
@@ -204,6 +205,7 @@ func newModel(ctx context.Context, cfg Config) *model {
 		logFollowTail:    true,
 		logViewport:      logVP,
 		loadingSpinner:   sp,
+		now:              time.Now,
 	}
 }
 

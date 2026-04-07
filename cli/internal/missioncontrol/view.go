@@ -331,6 +331,13 @@ func (m *model) renderStateBreadcrumb(width int, current simplifiedState) string
 	return m.buildStateBreadcrumbLayout(width, current, 0, 0).Rendered
 }
 
+func (m *model) currentTime() time.Time {
+	if m.now != nil {
+		return m.now().UTC()
+	}
+	return time.Now().UTC()
+}
+
 func (m *model) renderSelectedStateLogs(width, height int) string {
 	if height <= 0 {
 		return ""
