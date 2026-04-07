@@ -971,11 +971,16 @@ func TestMouseClickStateBoxSelectsState(t *testing.T) {
 func TestRenderStateBreadcrumb(t *testing.T) {
 	m := &model{
 		selectedState: simplifiedStateRunningAgent,
+		now:           func() time.Time { return time.Date(2026, 4, 7, 12, 1, 50, 0, time.UTC) },
 		snapshot: runnerapi.RunSnapshot{
 			Instances: []runnerapi.InstanceSnapshot{{
 				Instance: store.Instance{
 					InstanceID: "inst_1",
 					State:      domain.InstanceStateAgentRunning,
+				},
+				Events: []store.InstanceEvent{
+					{ToState: domain.InstanceStateProvisioning, CreatedAt: time.Date(2026, 4, 7, 12, 1, 5, 0, time.UTC)},
+					{ToState: domain.InstanceStateAgentRunning, CreatedAt: time.Date(2026, 4, 7, 12, 1, 20, 0, time.UTC)},
 				},
 			}},
 		},
@@ -991,6 +996,12 @@ func TestRenderStateBreadcrumb(t *testing.T) {
 	}
 	if !strings.Contains(out, "Running Agent") {
 		t.Fatalf("expected Running Agent in breadcrumb, got:\n%s", out)
+	}
+	if !strings.Contains(out, "15s") {
+		t.Fatalf("expected provisioning duration in breadcrumb, got:\n%s", out)
+	}
+	if !strings.Contains(out, "30s") {
+		t.Fatalf("expected running duration in breadcrumb, got:\n%s", out)
 	}
 	// Arrow separators
 	if !strings.Contains(out, "→") {
