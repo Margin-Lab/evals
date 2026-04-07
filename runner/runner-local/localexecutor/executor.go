@@ -30,25 +30,26 @@ import (
 )
 
 const (
-	defaultDockerBinary       = "docker"
-	defaultContainerPort      = 8080
-	defaultReadyPath          = "/readyz"
-	defaultReadyTimeout       = 30 * time.Second
-	defaultReadyPollInterval  = 500 * time.Millisecond
-	defaultPTYCaptureInterval = 2 * time.Second
-	defaultPTYCaptureTimeout  = 5 * time.Second
-	defaultHTTPTimeout        = 300 * time.Second
-	defaultAgentServerRoot    = "/tmp/marginlab"
-	defaultAgentAuthFilesDir  = defaultAgentServerRoot + "/config/auth-files"
-	agentServerBinaryPath     = "/tmp/marginlab/bin/agent-server"
-	agentServerRuntimeLogPath = "/tmp/marginlab/state/agent-server.log"
-	maxReadyResponseBodyRead  = 4096
-	maxReadySummaryLength     = 512
-	maxTestAssetsArchiveByte  = 64 << 20
-	imageCleanupTimeout       = 15 * time.Second
-	testExitCodePass          = 0
-	testExitCodeFail          = 1
-	testExitCodeInfra         = 2
+	defaultDockerBinary           = "docker"
+	defaultContainerPort          = 8080
+	defaultReadyPath              = "/readyz"
+	defaultReadyTimeout           = 30 * time.Second
+	defaultReadyPollInterval      = 500 * time.Millisecond
+	defaultPTYCaptureInterval     = 2 * time.Second
+	defaultPTYCaptureTimeout      = 5 * time.Second
+	defaultRuntimeCaptureInterval = 2 * time.Second
+	defaultHTTPTimeout            = 300 * time.Second
+	defaultAgentServerRoot        = "/tmp/marginlab"
+	defaultAgentAuthFilesDir      = defaultAgentServerRoot + "/config/auth-files"
+	agentServerBinaryPath         = "/tmp/marginlab/bin/agent-server"
+	agentServerRuntimeLogPath     = "/tmp/marginlab/state/agent-server.log"
+	maxReadyResponseBodyRead      = 4096
+	maxReadySummaryLength         = 512
+	maxTestAssetsArchiveByte      = 64 << 20
+	imageCleanupTimeout           = 15 * time.Second
+	testExitCodePass              = 0
+	testExitCodeFail              = 1
+	testExitCodeInfra             = 2
 )
 
 type Config struct {
@@ -311,6 +312,11 @@ func (e *Executor) ExecuteInstance(
 	caseSpec.Image = caseImage
 	inst.Case = caseSpec
 
+	bootWriter, err := logs.Writer(store.ArtifactRoleAgentBoot)
+	if err != nil {
+		return fail(store.InstanceResult{}, nil, err)
+	}
+
 	authStageDir, stagedAuthFiles, err := stageLocalAuthFiles(resolvedAuthFiles)
 	if err != nil {
 		return fail(store.InstanceResult{}, nil, err)
@@ -319,7 +325,7 @@ func (e *Executor) ExecuteInstance(
 		defer os.RemoveAll(authStageDir)
 	}
 
-	containerID, baseURL, err := e.startContainer(ctx, caseSpec.Image, requiredAgentEnv)
+	containerID, baseURL, err := e.startContainer(ctx, caseSpec.Image, requiredAgentEnv, bootWriter, logs)
 	if err != nil {
 		return fail(store.InstanceResult{}, nil, err)
 	}
@@ -358,6 +364,10 @@ func (e *Executor) ExecuteInstance(
 		}
 		e.removeContainer(context.Background(), containerID)
 	}()
+	stopRuntimeCapture := func() {}
+	defer func() {
+		stopRuntimeCapture()
+	}()
 	if len(stagedAuthFiles) > 0 {
 		copyDetails := map[string]string{
 			"container_id": containerID,
@@ -394,12 +404,18 @@ func (e *Executor) ExecuteInstance(
 	if err := updateState(domain.InstanceStateAgentServerInstalling); err != nil {
 		return fail(store.InstanceResult{}, nil, err)
 	}
-	bootstrapWriter, err := logs.Writer(store.ArtifactRoleAgentBoot)
-	if err != nil {
+	if err := e.installAndStartAgentServer(ctx, containerID, selectedAgentServerBinary, bootWriter, logs); err != nil {
 		return fail(store.InstanceResult{}, nil, err)
 	}
-	if err := e.installAndStartAgentServer(ctx, containerID, selectedAgentServerBinary, bootstrapWriter, logs); err != nil {
-		return fail(store.InstanceResult{}, nil, err)
+	runtimeCaptureCtx, cancelRuntimeCapture := context.WithCancel(context.Background())
+	runtimeCaptureDone := make(chan struct{})
+	go func() {
+		defer close(runtimeCaptureDone)
+		e.captureAgentServerRuntimeLogPeriodically(runtimeCaptureCtx, containerID, logs, defaultRuntimeCaptureInterval)
+	}()
+	stopRuntimeCapture = func() {
+		cancelRuntimeCapture()
+		<-runtimeCaptureDone
 	}
 
 	if err := updateState(domain.InstanceStateBooting); err != nil {
@@ -455,7 +471,10 @@ func (e *Executor) ExecuteInstance(
 		return fail(store.InstanceResult{}, nil, err)
 	}
 
-	result, artifacts, err = agentExec.ExecuteInstance(ctx, run, inst, updateState)
+	updateStateWithRuntimeCapture := wrapUpdateStateWithRuntimeCapture(updateState, stopRuntimeCapture)
+	result, artifacts, err = agentExec.ExecuteInstance(ctx, run, inst, updateStateWithRuntimeCapture)
+	stopRuntimeCapture()
+	stopRuntimeCapture = func() {}
 	stopPTYCapture()
 	stopPTYCapture = func() {}
 	if result.ProvisionedAt == nil {
@@ -622,13 +641,27 @@ func (e *Executor) releaseImageBuildRef(ctx context.Context, buildKey string, in
 	_ = e.imageCleaner.Cleanup(cleanupCtx, input, resolvedImage)
 }
 
-func (e *Executor) startContainer(ctx context.Context, caseImage string, requiredAgentEnv []string) (string, string, error) {
+func (e *Executor) startContainer(ctx context.Context, caseImage string, requiredAgentEnv []string, bootLog io.Writer, logs *executionLogs) (string, string, error) {
 	cidDir, err := os.MkdirTemp("", "marginlab-container-id-*")
 	if err != nil {
 		return "", "", fmt.Errorf("create docker cidfile dir: %w", err)
 	}
 	defer os.RemoveAll(cidDir)
 	cidFilePath := filepath.Join(cidDir, "cid")
+	startDetails := map[string]string{
+		"image":          strings.TrimSpace(caseImage),
+		"container_port": fmt.Sprintf("%d", e.containerPort),
+		"bind_count":     fmt.Sprintf("%d", len(e.binds)),
+	}
+	if logs != nil {
+		_ = logs.Step(
+			store.ArtifactRoleAgentBoot,
+			"container.start",
+			"start",
+			"Starting container from resolved case image.",
+			cloneStringMap(startDetails),
+		)
+	}
 
 	args := []string{
 		"run",
@@ -657,17 +690,63 @@ func (e *Executor) startContainer(ctx context.Context, caseImage string, require
 		"-lc", "while true; do sleep 3600; done",
 	)
 
-	if _, err := e.runDocker(ctx, args...); err != nil {
+	if _, err := e.runDockerWithWriter(ctx, bootLog, args...); err != nil {
+		if logs != nil {
+			failedDetails := cloneStringMap(startDetails)
+			failedDetails["error"] = err.Error()
+			_ = logs.Step(
+				store.ArtifactRoleAgentBoot,
+				"container.start",
+				"failed",
+				"Failed to start container from resolved case image.",
+				failedDetails,
+			)
+		}
 		return "", "", err
 	}
 	containerID, err := readContainerID(cidFilePath)
 	if err != nil {
+		if logs != nil {
+			failedDetails := cloneStringMap(startDetails)
+			failedDetails["error"] = err.Error()
+			_ = logs.Step(
+				store.ArtifactRoleAgentBoot,
+				"container.start",
+				"failed",
+				"Container start completed but the container ID file could not be read.",
+				failedDetails,
+			)
+		}
 		return "", "", err
 	}
 	baseURL, err := e.resolveBaseURL(ctx, containerID)
 	if err != nil {
 		e.removeContainer(context.Background(), containerID)
+		if logs != nil {
+			failedDetails := cloneStringMap(startDetails)
+			failedDetails["container_id"] = containerID
+			failedDetails["error"] = err.Error()
+			_ = logs.Step(
+				store.ArtifactRoleAgentBoot,
+				"container.start",
+				"failed",
+				"Container started but the published port mapping could not be resolved.",
+				failedDetails,
+			)
+		}
 		return "", "", err
+	}
+	if logs != nil {
+		completedDetails := cloneStringMap(startDetails)
+		completedDetails["container_id"] = containerID
+		completedDetails["base_url"] = baseURL
+		_ = logs.Step(
+			store.ArtifactRoleAgentBoot,
+			"container.start",
+			"completed",
+			"Container started from resolved case image and port mapping was resolved.",
+			completedDetails,
+		)
 	}
 	return containerID, baseURL, nil
 }
@@ -974,6 +1053,50 @@ func (e *Executor) captureAgentServerRuntimeLog(ctx context.Context, containerID
 	return logs.Replace(store.ArtifactRoleAgentRuntime, []byte(output))
 }
 
+func (e *Executor) captureAgentServerRuntimeLogPeriodically(ctx context.Context, containerID string, logs *executionLogs, interval time.Duration) {
+	if interval <= 0 {
+		interval = defaultRuntimeCaptureInterval
+	}
+	capture := func(step, phase string) bool {
+		if err := e.captureAgentServerRuntimeLog(ctx, containerID, logs); err != nil {
+			if ctx.Err() != nil {
+				return false
+			}
+			if isSkippableRuntimeLogCaptureError(err) {
+				return true
+			}
+			_ = logs.Step(
+				store.ArtifactRoleAgentControl,
+				step,
+				"warning",
+				fmt.Sprintf("Failed to capture %s agent-server runtime log snapshot during live polling.", phase),
+				map[string]string{
+					"container_id":     containerID,
+					"runtime_log_path": agentServerRuntimeLogPath,
+					"error":            err.Error(),
+				},
+			)
+			return true
+		}
+		return true
+	}
+	if !capture("agent_server.runtime_log.capture.initial", "initial") {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if !capture("agent_server.runtime_log.capture.poll", "periodic") {
+				return
+			}
+		}
+	}
+}
+
 func (e *Executor) captureAgentServerPTYLog(ctx context.Context, containerID string, logs *executionLogs) error {
 	if logs == nil || strings.TrimSpace(containerID) == "" {
 		return nil
@@ -1030,6 +1153,37 @@ func (e *Executor) captureAgentServerPTYLogPeriodically(ctx context.Context, con
 			capture("agent_server.pty_log.capture.poll", "periodic")
 		}
 	}
+}
+
+func wrapUpdateStateWithRuntimeCapture(updateState func(domain.InstanceState) error, stopRuntimeCapture func()) func(domain.InstanceState) error {
+	return func(state domain.InstanceState) error {
+		if stopRuntimeCapture != nil && !isProvisioningState(state) {
+			stopRuntimeCapture()
+			stopRuntimeCapture = nil
+		}
+		return updateState(state)
+	}
+}
+
+func isProvisioningState(state domain.InstanceState) bool {
+	switch state {
+	case domain.InstanceStateProvisioning,
+		domain.InstanceStateImageBuilding,
+		domain.InstanceStateAgentServerInstalling,
+		domain.InstanceStateBooting,
+		domain.InstanceStateAgentInstalling,
+		domain.InstanceStateAgentConfiguring:
+		return true
+	default:
+		return false
+	}
+}
+
+func isSkippableRuntimeLogCaptureError(err error) bool {
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	return strings.Contains(msg, "no such file") ||
+		strings.Contains(msg, "cannot open") ||
+		strings.Contains(msg, "not found")
 }
 
 func (e *Executor) removeContainer(ctx context.Context, containerID string) {
