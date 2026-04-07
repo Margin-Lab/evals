@@ -1051,6 +1051,24 @@ func TestStateSelectionDefaultsToCurrentSimplifiedState(t *testing.T) {
 	}
 }
 
+func TestStateSelectionMapsProvisioningToProvisioningState(t *testing.T) {
+	m := &model{
+		autoStateSelect: true,
+		snapshot: runnerapi.RunSnapshot{
+			Instances: []runnerapi.InstanceSnapshot{{
+				Instance: store.Instance{
+					InstanceID: "inst_1",
+					State:      domain.InstanceStateProvisioning,
+				},
+			}},
+		},
+	}
+	_ = m.maybeLoadSelectedLog()
+	if got := m.selectedState; got != simplifiedStateProvisioningAgent {
+		t.Fatalf("expected provisioning state, got %s", got)
+	}
+}
+
 func TestStateSelectionResetsOnInstanceChange(t *testing.T) {
 	m := &model{
 		focusedPane:     paneLeft,
