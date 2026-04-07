@@ -93,8 +93,10 @@ func simplifiedStateForInstanceState(state domain.InstanceState) simplifiedState
 	switch state {
 	case domain.InstanceStatePending:
 		return simplifiedStatePending
-	case domain.InstanceStateProvisioning, domain.InstanceStateImageBuilding:
+	case domain.InstanceStateImageBuilding:
 		return simplifiedStateBuildingImage
+	case domain.InstanceStateProvisioning:
+		return simplifiedStateProvisioningAgent
 	case domain.InstanceStateAgentServerInstalling,
 		domain.InstanceStateBooting,
 		domain.InstanceStateAgentInstalling,

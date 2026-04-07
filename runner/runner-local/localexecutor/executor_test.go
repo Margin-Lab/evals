@@ -7,12 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/marginlab/margin-eval/runner/runner-core/domain"
 	"github.com/marginlab/margin-eval/runner/runner-core/imageresolver"
 	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
 	"github.com/marginlab/margin-eval/runner/runner-core/store"
 	"github.com/marginlab/margin-eval/runner/runner-core/testfixture"
+	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
 type stubAgentServerBinaryProvider struct {
@@ -328,6 +330,139 @@ exit 1
 	if string(stderrBody) != "test stderr line\n" {
 		t.Fatalf("stderr artifact = %q", string(stderrBody))
 	}
+}
+
+func TestStartContainerLogsProgressToAgentBoot(t *testing.T) {
+	root := t.TempDir()
+	logPath := filepath.Join(t.TempDir(), "docker.log")
+	dockerBin := writeFakeDockerBinary(t, fmt.Sprintf(`#!/bin/sh
+set -eu
+printf '%%s\n' "$*" >> %q
+case "$1" in
+  run)
+    cidfile=""
+    prev=""
+    for arg in "$@"; do
+      if [ "$prev" = "--cidfile" ]; then
+        cidfile="$arg"
+        break
+      fi
+      prev="$arg"
+    done
+    [ -n "$cidfile" ]
+    printf 'container-123\n' > "$cidfile"
+    printf 'pulling cached layers\n'
+    printf 'container-123\n'
+    exit 0
+    ;;
+  port)
+    if [ "$2" = "container-123" ] && [ "$3" = "8080/tcp" ]; then
+      printf '127.0.0.1:32771\n'
+      exit 0
+    fi
+    ;;
+esac
+echo "unexpected docker invocation: $*" >&2
+exit 1
+`, logPath))
+	exec := &Executor{
+		dockerBinary:  dockerBin,
+		containerPort: 8080,
+	}
+	logs, err := newExecutionLogs(root, "run_1", "inst_1")
+	if err != nil {
+		t.Fatalf("newExecutionLogs() error = %v", err)
+	}
+	defer logs.Close()
+	bootWriter, err := logs.Writer(store.ArtifactRoleAgentBoot)
+	if err != nil {
+		t.Fatalf("logs.Writer() error = %v", err)
+	}
+
+	containerID, baseURL, err := exec.startContainer(context.Background(), "ghcr.io/acme/case@sha256:1234", nil, bootWriter, logs)
+	if err != nil {
+		t.Fatalf("startContainer() error = %v", err)
+	}
+	if containerID != "container-123" {
+		t.Fatalf("containerID = %q, want %q", containerID, "container-123")
+	}
+	if baseURL != "http://127.0.0.1:32771" {
+		t.Fatalf("baseURL = %q, want %q", baseURL, "http://127.0.0.1:32771")
+	}
+
+	bootPath, _, _, ok := runfs.AbsoluteArtifactPath(root, "run_1", "inst_1", store.ArtifactRoleAgentBoot)
+	if !ok {
+		t.Fatalf("expected boot artifact path")
+	}
+	records := mustReadStructuredRecords(t, bootPath)
+	assertHasStructuredStep(t, records, "container.start", "start", "Starting container from resolved case image.", "image", "ghcr.io/acme/case@sha256:1234")
+	assertHasStructuredOutputMessage(t, records, "pulling cached layers")
+	assertHasStructuredStep(t, records, "container.start", "completed", "Container started from resolved case image and port mapping was resolved.", "base_url", "http://127.0.0.1:32771")
+}
+
+func TestCaptureAgentServerRuntimeLogPeriodicallyUpdatesArtifact(t *testing.T) {
+	root := t.TempDir()
+	runtimeSourcePath := filepath.Join(t.TempDir(), "agent-server.log")
+	initial := `{"v":1,"kind":"step","message":"server.listening"}` + "\n"
+	if err := os.WriteFile(runtimeSourcePath, []byte(initial), 0o644); err != nil {
+		t.Fatalf("write initial runtime log: %v", err)
+	}
+	dockerBin := writeFakeDockerBinary(t, fmt.Sprintf(`#!/bin/sh
+set -eu
+if [ "$1" = "exec" ]; then
+  cat %q
+  exit 0
+fi
+echo "unexpected docker invocation: $*" >&2
+exit 1
+`, runtimeSourcePath))
+	exec := &Executor{dockerBinary: dockerBin}
+	logs, err := newExecutionLogs(root, "run_1", "inst_1")
+	if err != nil {
+		t.Fatalf("newExecutionLogs() error = %v", err)
+	}
+	defer logs.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		exec.captureAgentServerRuntimeLogPeriodically(ctx, "container-123", logs, 10*time.Millisecond)
+	}()
+
+	deadline := time.Now().Add(time.Second)
+	runtimePath, _, _, ok := runfs.AbsoluteArtifactPath(root, "run_1", "inst_1", store.ArtifactRoleAgentRuntime)
+	if !ok {
+		t.Fatalf("expected runtime artifact path")
+	}
+	for {
+		body, err := os.ReadFile(runtimePath)
+		if err == nil && strings.Contains(string(body), "server.listening") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("runtime artifact did not contain initial content before deadline")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	updated := initial + `{"v":1,"kind":"step","message":"run.dry_run_completed"}` + "\n"
+	if err := os.WriteFile(runtimeSourcePath, []byte(updated), 0o644); err != nil {
+		t.Fatalf("write updated runtime log: %v", err)
+	}
+	for {
+		body, err := os.ReadFile(runtimePath)
+		if err == nil && strings.Contains(string(body), "run.dry_run_completed") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("runtime artifact did not contain updated content before deadline")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	cancel()
+	<-done
 }
 
 func TestNewRejectsCleanupWhenResolverDoesNotSupportCleanup(t *testing.T) {

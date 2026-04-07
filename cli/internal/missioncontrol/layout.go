@@ -216,6 +216,7 @@ func (m *model) computeRightPaneLayout(outer rect) rightPaneLayout {
 func (m *model) buildStateBreadcrumbLayout(width int, current simplifiedState, originX, originY int) stateBreadcrumbLayout {
 	specs := m.visibleSimplifiedStateSpecs()
 	currentIdx := simplifiedStateIndexByID(current)
+	durationByState := deriveSimplifiedStateDurations(m.selectedInstance(), m.currentTime())
 	items := make([]breadcrumbRenderItem, 0, len(specs))
 	for _, spec := range specs {
 		specIdx := simplifiedStateIndexByID(spec.ID)
@@ -247,8 +248,11 @@ func (m *model) buildStateBreadcrumbLayout(width int, current simplifiedState, o
 			boxStyle = breadcrumbBoxFutureStyle
 		}
 
-		label := icon + " " + spec.ShortLabel
-		rendered := boxStyle.Render(contentStyle.Render(label))
+		label := contentStyle.Render(icon + " " + spec.ShortLabel)
+		if durationText := formatSimplifiedStateDuration(durationByState[spec.ID]); durationText != "" {
+			label += " " + mutedStyle.Render(durationText)
+		}
+		rendered := boxStyle.Render(label)
 		items = append(items, breadcrumbRenderItem{
 			State:    spec.ID,
 			Rendered: rendered,
