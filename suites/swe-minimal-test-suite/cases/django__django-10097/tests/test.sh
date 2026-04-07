@@ -7,6 +7,7 @@
         set +x
         source /opt/miniconda3/bin/activate
         conda activate testbed
+        export PATH="${HOME}/.local/bin:/root/.local/bin:${PATH}"
         set -x
 
         #We run all of the repo-specific setup commands (If any exist)
@@ -143,6 +144,11 @@ chmod +x parser.py
 mkdir -p /logs/verifier
 
 # Run parser and CAPTURE its exit code
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv is required for SWE-Bench parsing but was not found on PATH=${PATH}" >&2
+  exit 2
+fi
+
 set +e
 uv run parser.py | tee -a "$LOG_FILE"
 exit_code=$?
