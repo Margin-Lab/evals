@@ -4,7 +4,7 @@ const fs = require("node:fs");
 function renderMCP(servers) {
   const entries = {};
   for (const server of servers || []) {
-    const payload = { transport: server.transport };
+    const payload = { type: server.transport };
     if (server.enabled !== undefined && server.enabled !== null) {
       payload.enabled = server.enabled;
     }
