@@ -11,6 +11,14 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
+type runSourceMode string
+
+const (
+	runSourceModeFresh          runSourceMode = "fresh"
+	runSourceModeResumeExact    runSourceMode = "resume_exact"
+	runSourceModeResumeOverride runSourceMode = "resume_override"
+)
+
 func resolveResumeMode(resumeFromRunID, raw string) (runnerapi.ResumeMode, error) {
 	mode := runnerapi.ResumeMode(strings.TrimSpace(raw))
 	if strings.TrimSpace(resumeFromRunID) == "" {
@@ -25,34 +33,65 @@ func resolveResumeMode(resumeFromRunID, raw string) (runnerapi.ResumeMode, error
 	return mode, nil
 }
 
-func validateRunSourceFlags(resumeFromRunID, suitePath, agentConfigPath, evalPath string) error {
-	if strings.TrimSpace(resumeFromRunID) == "" {
-		if strings.TrimSpace(suitePath) == "" {
-			return fmt.Errorf("--suite is required")
-		}
-		if strings.TrimSpace(agentConfigPath) == "" {
-			return fmt.Errorf("--agent-config is required")
-		}
-		if strings.TrimSpace(evalPath) == "" {
-			return fmt.Errorf("--eval is required")
-		}
-		return nil
-	}
+func classifyRunSourceMode(resumeFromRunID, suitePath, agentConfigPath, evalPath string) (runSourceMode, error) {
+	resumeFrom := strings.TrimSpace(resumeFromRunID)
+	suite := strings.TrimSpace(suitePath)
+	agentConfig := strings.TrimSpace(agentConfigPath)
+	eval := strings.TrimSpace(evalPath)
+	hasOverride := suite != "" || agentConfig != "" || eval != ""
 
-	var forbidden []string
-	if strings.TrimSpace(suitePath) != "" {
-		forbidden = append(forbidden, "--suite")
+	if resumeFrom == "" {
+		if suite == "" {
+			return "", fmt.Errorf("--suite is required")
+		}
+		if agentConfig == "" {
+			return "", fmt.Errorf("--agent-config is required")
+		}
+		if eval == "" {
+			return "", fmt.Errorf("--eval is required")
+		}
+		return runSourceModeFresh, nil
 	}
-	if strings.TrimSpace(agentConfigPath) != "" {
-		forbidden = append(forbidden, "--agent-config")
+	if !hasOverride {
+		return runSourceModeResumeExact, nil
 	}
-	if strings.TrimSpace(evalPath) != "" {
-		forbidden = append(forbidden, "--eval")
+	if suite == "" || agentConfig == "" || eval == "" {
+		return "", fmt.Errorf("--resume-from with updated inputs requires --suite, --agent-config, and --eval")
 	}
-	if len(forbidden) > 0 {
-		return fmt.Errorf("--resume-from infers the saved bundle; do not pass %s", strings.Join(forbidden, ", "))
+	return runSourceModeResumeOverride, nil
+}
+
+func validateRunSourceFlags(resumeFromRunID, suitePath, agentConfigPath, evalPath string) error {
+	_, err := classifyRunSourceMode(resumeFromRunID, suitePath, agentConfigPath, evalPath)
+	return err
+}
+
+func resumeBundlePolicyForMode(mode runSourceMode) runnerapi.ResumeBundlePolicy {
+	switch mode {
+	case runSourceModeResumeOverride:
+		return runnerapi.ResumeBundlePolicyAllowMismatch
+	case runSourceModeFresh, runSourceModeResumeExact:
+		return runnerapi.ResumeBundlePolicyExact
+	default:
+		return runnerapi.ResumeBundlePolicyExact
 	}
-	return nil
+}
+
+func isResumeMode(mode runSourceMode) bool {
+	return mode == runSourceModeResumeExact || mode == runSourceModeResumeOverride
+}
+
+func isOverrideResumeMode(mode runSourceMode) bool {
+	return mode == runSourceModeResumeOverride
+}
+
+func validateRunSourceMode(mode runSourceMode) error {
+	switch mode {
+	case runSourceModeFresh, runSourceModeResumeExact, runSourceModeResumeOverride:
+		return nil
+	default:
+		return fmt.Errorf("invalid run source mode %q", mode)
+	}
 }
 
 func savedRunBundlePath(rootDir, runID string) string {

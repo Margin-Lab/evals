@@ -90,6 +90,8 @@ margin run --resume-from <run-id>
 
 Resume uses the saved bundle from `runs/<run-id>/internal/bundle.json`, so you don't need to re-specify suite, agent config, or eval config.
 
+If you want to retry the run with updated inputs, pass a fresh suite, agent config, and eval config together with `--resume-from`. Margin will warn before starting when the updated inputs differ from the saved run, then it will reuse prior results according to the current resume policy and run the remaining cases with the new inputs.
+
 ## Next steps
 
 - [Configuring Your Agent](../configuration/01-configuring-your-agent.md)

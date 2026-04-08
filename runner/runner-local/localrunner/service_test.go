@@ -325,12 +325,13 @@ func TestServiceResumesFromProgressAcrossRestart(t *testing.T) {
 		t.Fatalf("new second service: %v", err)
 	}
 	resumedRun, err := secondSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:       "proj_local",
-		CreatedByUser:   "user_local",
-		Name:            "smoke-resumed",
-		Bundle:          validBundle(),
-		ResumeFromRunID: sourceRun.RunID,
-		ResumeMode:      runnerapi.ResumeModeResume,
+		ProjectID:          "proj_local",
+		CreatedByUser:      "user_local",
+		Name:               "smoke-resumed",
+		Bundle:             validBundle(),
+		ResumeFromRunID:    sourceRun.RunID,
+		ResumeMode:         runnerapi.ResumeModeResume,
+		ResumeBundlePolicy: runnerapi.ResumeBundlePolicyExact,
 	})
 	if err != nil {
 		t.Fatalf("submit resumed run: %v", err)
@@ -398,12 +399,13 @@ func TestServiceResumeModeCarriesFailedAcrossRestart(t *testing.T) {
 		t.Fatalf("new second service: %v", err)
 	}
 	resumedRun, err := secondSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:       "proj_local",
-		CreatedByUser:   "user_local",
-		Name:            "smoke-resumed",
-		Bundle:          validBundle(),
-		ResumeFromRunID: sourceRun.RunID,
-		ResumeMode:      runnerapi.ResumeModeResume,
+		ProjectID:          "proj_local",
+		CreatedByUser:      "user_local",
+		Name:               "smoke-resumed",
+		Bundle:             validBundle(),
+		ResumeFromRunID:    sourceRun.RunID,
+		ResumeMode:         runnerapi.ResumeModeResume,
+		ResumeBundlePolicy: runnerapi.ResumeBundlePolicyExact,
 	})
 	if err != nil {
 		t.Fatalf("submit resumed run: %v", err)
@@ -473,12 +475,13 @@ func TestServiceRetryFailedModeRerunsFailedAcrossRestart(t *testing.T) {
 		t.Fatalf("new second service: %v", err)
 	}
 	resumedRun, err := secondSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:       "proj_local",
-		CreatedByUser:   "user_local",
-		Name:            "smoke-retry-failed",
-		Bundle:          validBundle(),
-		ResumeFromRunID: sourceRun.RunID,
-		ResumeMode:      runnerapi.ResumeModeRetryFailed,
+		ProjectID:          "proj_local",
+		CreatedByUser:      "user_local",
+		Name:               "smoke-retry-failed",
+		Bundle:             validBundle(),
+		ResumeFromRunID:    sourceRun.RunID,
+		ResumeMode:         runnerapi.ResumeModeRetryFailed,
+		ResumeBundlePolicy: runnerapi.ResumeBundlePolicyExact,
 	})
 	if err != nil {
 		t.Fatalf("submit resumed run: %v", err)
@@ -552,12 +555,13 @@ func TestServiceResumeModeRerunsInfraFailedAcrossRestart(t *testing.T) {
 		t.Fatalf("new second service: %v", err)
 	}
 	resumedRun, err := secondSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:       "proj_local",
-		CreatedByUser:   "user_local",
-		Name:            "smoke-resume-infra",
-		Bundle:          validBundle(),
-		ResumeFromRunID: sourceRun.RunID,
-		ResumeMode:      runnerapi.ResumeModeResume,
+		ProjectID:          "proj_local",
+		CreatedByUser:      "user_local",
+		Name:               "smoke-resume-infra",
+		Bundle:             validBundle(),
+		ResumeFromRunID:    sourceRun.RunID,
+		ResumeMode:         runnerapi.ResumeModeResume,
+		ResumeBundlePolicy: runnerapi.ResumeBundlePolicyExact,
 	})
 	if err != nil {
 		t.Fatalf("submit resumed run: %v", err)
@@ -577,6 +581,86 @@ func TestServiceResumeModeRerunsInfraFailedAcrossRestart(t *testing.T) {
 	}
 	if executions != 1 {
 		t.Fatalf("expected exactly one rerun execution, got %d", executions)
+	}
+}
+
+func TestServiceAllowMismatchCarriesIntersectingCasesAndRunsNewCases(t *testing.T) {
+	tmp := t.TempDir()
+
+	firstSvc, err := NewService(Config{
+		RootDir:      tmp,
+		Executor:     fakeExecutor{result: store.InstanceResult{FinalState: domain.InstanceStateSucceeded}},
+		EngineConfig: defaultEngineConfig(),
+		Now:          fixedNow,
+		IDFunc:       fixedIDFunc(),
+	})
+	if err != nil {
+		t.Fatalf("new first service: %v", err)
+	}
+	sourceRun, err := firstSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
+		ProjectID:     "proj_local",
+		CreatedByUser: "user_local",
+		Name:          "smoke",
+		Bundle:        validBundleWithCases("case_1"),
+	})
+	if err != nil {
+		t.Fatalf("submit source run: %v", err)
+	}
+
+	firstCtx, firstCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer firstCancel()
+	firstSvc.Start(firstCtx)
+	sourceFinal, err := firstSvc.WaitForTerminalRun(firstCtx, sourceRun.RunID, 20*time.Millisecond)
+	if err != nil {
+		t.Fatalf("wait source run: %v", err)
+	}
+	if sourceFinal.State != domain.RunStateCompleted {
+		t.Fatalf("expected completed source run, got %s", sourceFinal.State)
+	}
+
+	executions := 0
+	secondSvc, err := NewService(Config{
+		RootDir: tmp,
+		Executor: fakeExecutor{
+			result: store.InstanceResult{FinalState: domain.InstanceStateSucceeded},
+			onExecute: func() {
+				executions++
+			},
+		},
+		EngineConfig: defaultEngineConfig(),
+		Now:          fixedNow,
+		IDFunc:       fixedIDFunc(),
+	})
+	if err != nil {
+		t.Fatalf("new second service: %v", err)
+	}
+	resumedRun, err := secondSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
+		ProjectID:          "proj_local",
+		CreatedByUser:      "user_local",
+		Name:               "smoke-override",
+		Bundle:             validBundleWithCases("case_1", "case_2"),
+		ResumeFromRunID:    sourceRun.RunID,
+		ResumeMode:         runnerapi.ResumeModeResume,
+		ResumeBundlePolicy: runnerapi.ResumeBundlePolicyAllowMismatch,
+	})
+	if err != nil {
+		t.Fatalf("submit resumed run: %v", err)
+	}
+	resumeCtx, resumeCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer resumeCancel()
+	secondSvc.Start(resumeCtx)
+	resumedFinal, err := secondSvc.WaitForTerminalRun(resumeCtx, resumedRun.RunID, 20*time.Millisecond)
+	if err != nil {
+		t.Fatalf("wait resumed run: %v", err)
+	}
+	if resumedFinal.State != domain.RunStateCompleted {
+		t.Fatalf("expected completed resumed run, got %s", resumedFinal.State)
+	}
+	if resumedFinal.Counts.Succeeded != 2 {
+		t.Fatalf("expected 2 succeeded cases, got %+v", resumedFinal.Counts)
+	}
+	if executions != 1 {
+		t.Fatalf("expected exactly one new execution, got %d", executions)
 	}
 }
 
@@ -651,6 +735,23 @@ func defaultEngineConfig() engine.Config {
 }
 
 func validBundle() runbundle.Bundle {
+	return validBundleWithCases("case_1")
+}
+
+func validBundleWithCases(caseIDs ...string) runbundle.Bundle {
+	cases := make([]runbundle.Case, 0, len(caseIDs))
+	for _, caseID := range caseIDs {
+		cases = append(cases, runbundle.Case{
+			CaseID:            caseID,
+			Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			InitialPrompt:     "Fix tests",
+			AgentCwd:          "/workspace",
+			TestCommand:       []string{"bash", "-lc", "./test.sh"},
+			TestCwd:           "/work",
+			TestTimeoutSecond: 60,
+			TestAssets:        testfixture.MinimalTestAssets(),
+		})
+	}
 	return runbundle.Bundle{
 		SchemaVersion: runbundle.SchemaVersionV1,
 		BundleID:      "bun_1",
@@ -661,16 +762,7 @@ func validBundle() runbundle.Bundle {
 			Execution:   runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1, FailFast: false, InstanceTimeoutSecond: 120},
 			Agent:       testfixture.MinimalAgent(),
 			RunDefaults: runbundle.RunDefault{Env: map[string]string{"TERM": "xterm-256color"}, PTY: runbundle.PTY{Cols: 120, Rows: 40}},
-			Cases: []runbundle.Case{{
-				CaseID:            "case_1",
-				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-				InitialPrompt:     "Fix tests",
-				AgentCwd:          "/workspace",
-				TestCommand:       []string{"bash", "-lc", "./test.sh"},
-				TestCwd:           "/work",
-				TestTimeoutSecond: 60,
-				TestAssets:        testfixture.MinimalTestAssets(),
-			}},
+			Cases:       cases,
 		},
 	}
 }

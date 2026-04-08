@@ -78,11 +78,12 @@ Preflight command:
 Eval run command:
   margin run --suite <path-or-remote> --agent-config <path> --eval <path-to-eval.toml> [options]
   margin run --resume-from <run-id> [options]
+  margin run --resume-from <run-id> --suite <path-or-remote> --agent-config <path> --eval <path-to-eval.toml> [options]
 
   Run options:
     --root <path>                 Local runner root directory (default .)
     --name <name>                 Run name (default compiled bundle name)
-    --resume-from <run-id>        Resume from source run id using saved progress
+    --resume-from <run-id>        Resume from source run id using saved progress; pass updated suite/agent-config/eval to resume with new inputs
     --resume-mode <mode>          Resume behavior: resume|retry-failed (default resume; resume reruns infra_failed only)
     --non-interactive             Skip Mission Control TUI and print plain progress logs
     --agent-server-binary <path>  exact agent-server binary path on host (default embedded in margin)

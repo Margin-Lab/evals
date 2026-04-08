@@ -34,11 +34,13 @@ type Bundle struct {
 }
 
 type Source struct {
-	Kind            SourceKind   `json:"kind"`
-	SubmitProjectID string       `json:"submit_project_id,omitempty"`
-	CatalogRefs     *CatalogRefs `json:"catalog_refs,omitempty"`
-	OriginRunID     string       `json:"origin_run_id,omitempty"`
-	SuiteGit        *SuiteGitRef `json:"suite_git,omitempty"`
+	Kind                   SourceKind   `json:"kind"`
+	SubmitProjectID        string       `json:"submit_project_id,omitempty"`
+	CatalogRefs            *CatalogRefs `json:"catalog_refs,omitempty"`
+	OriginRunID            string       `json:"origin_run_id,omitempty"`
+	SuiteGit               *SuiteGitRef `json:"suite_git,omitempty"`
+	ResumeSourceBundleHash string       `json:"resume_source_bundle_hash,omitempty"`
+	ResumeBundleHashMatch  *bool        `json:"resume_bundle_hash_match,omitempty"`
 }
 
 type CatalogRefs struct {

@@ -75,7 +75,19 @@ margin run \
   --root .
 ```
 
-When `--resume-from` is set, the CLI loads `runs/<run-id>/internal/bundle.json` from the selected `--root` and does not accept `--suite`, `--agent-config`, or `--eval`.
+To resume with updated inputs, pass a fresh suite, agent config, and eval config alongside `--resume-from`:
+
+```bash
+margin run \
+  --resume-from run_123 \
+  --suite ./suites/smoke \
+  --agent-config ./configs/agent-configs/my-agent-default \
+  --eval ./configs/evals/local.toml
+```
+
+Without updated inputs, `margin run --resume-from` loads `runs/<run-id>/internal/bundle.json` from the selected `--root`.
+
+With updated inputs, the CLI recompiles a new bundle, warns when the new inputs differ from the saved run, reuses prior results according to the selected resume policy, and runs the remaining cases with the current inputs.
 
 To skip agent execution while still running the case tests and avoiding token usage, add `--dry-run`:
 
