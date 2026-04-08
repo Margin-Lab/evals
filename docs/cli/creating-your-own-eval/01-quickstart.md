@@ -21,10 +21,11 @@ margin run \
 ```
 my-suite/
   suite.toml              # Manifest listing all cases
+  preamble-prompt.md      # Optional: prepended to every case prompt
   cases/
     fix-null-check/
       case.toml            # Case metadata and image config
-      prompt.md            # Task description given to the agent
+      prompt.md            # Case-specific task description given to the agent
       tests/
         test.sh            # Verification script (exit 0 = pass)
       env/                 # Optional: Dockerfile if no pre-built image
@@ -71,7 +72,7 @@ test_timeout_seconds = 900
 
 ## 3. Write the prompt
 
-Edit `prompt.md` with the task description given to the agent:
+Edit `prompt.md` with the case-specific task description given to the agent:
 
 ```markdown
 # Task
@@ -87,6 +88,8 @@ user is not found.
 ```
 
 Be specific about what needs to change, describe expected behavior, and mention relevant files.
+
+If you want shared instructions across the whole suite, add `preamble-prompt.md` at the suite root. When present, Margin prepends its contents to every case's `prompt.md` using raw concatenation with a blank line between them.
 
 ## 4. Write the test script
 

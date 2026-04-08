@@ -55,6 +55,9 @@ instance_timeout_seconds = 600
 	if bundle.ResolvedSnapshot.Execution.RetryCount != 1 {
 		t.Fatalf("Execution.RetryCount = %d, want 1", bundle.ResolvedSnapshot.Execution.RetryCount)
 	}
+	if got := bundle.ResolvedSnapshot.Cases[0].InitialPrompt; got != "run case repo-build" {
+		t.Fatalf("InitialPrompt = %q, want %q", got, "run case repo-build")
+	}
 	gotCases := []string{bundle.ResolvedSnapshot.Cases[0].CaseID, bundle.ResolvedSnapshot.Cases[1].CaseID}
 	wantCases := []string{"repo-build", "lint"}
 	if !reflect.DeepEqual(gotCases, wantCases) {
@@ -197,7 +200,7 @@ func TestCompileCaseWithoutImageOrDockerfileFails(t *testing.T) {
 	root := t.TempDir()
 
 	suitePath := filepath.Join(root, "suite")
-createSuiteCase(t, suitePath, "repo-build", `kind = "test_case"
+	createSuiteCase(t, suitePath, "repo-build", `kind = "test_case"
 name = "repo-build"
 agent_cwd = "/workspace"
 test_cwd = "/work"
@@ -227,7 +230,7 @@ func TestCompileUsesEnvDockerfileWhenImageOmitted(t *testing.T) {
 	root := t.TempDir()
 
 	suitePath := filepath.Join(root, "suite")
-createSuiteCase(t, suitePath, "repo-build", `kind = "test_case"
+	createSuiteCase(t, suitePath, "repo-build", `kind = "test_case"
 name = "repo-build"
 agent_cwd = "/workspace"
 test_cwd = "/work"
@@ -270,7 +273,7 @@ func TestCompilePrefersExplicitImageOverEnvBuild(t *testing.T) {
 
 	suitePath := filepath.Join(root, "suite")
 	const explicitImage = "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-createSuiteCase(t, suitePath, "repo-build", `kind = "test_case"
+	createSuiteCase(t, suitePath, "repo-build", `kind = "test_case"
 name = "repo-build"
 image = "`+explicitImage+`"
 agent_cwd = "/workspace"
@@ -301,6 +304,66 @@ instance_timeout_seconds = 300
 	}
 	if caseSpec.ImageBuild != nil {
 		t.Fatalf("explicit image should not emit image_build spec")
+	}
+}
+
+func TestCompilePrependsSuitePreamblePrompt(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	suitePath := filepath.Join(root, "suite")
+	createSuiteWithCases(t, suitePath, []string{"repo-build", "lint"})
+	writeFile(t, filepath.Join(suitePath, suitePreamblePromptFile), "Suite-wide instructions.\n\nFollow them carefully.\n")
+
+	_, configPath := createAgentDefinitionConfig(t, root, "shell-agent", `[input]
+command = ["bash", "-lc", "echo hello"]
+`)
+
+	evalPath := filepath.Join(root, "eval.toml")
+	writeFile(t, evalPath, `kind = "eval_config"
+name = "smoke"
+max_concurrency = 1
+fail_fast = false
+instance_timeout_seconds = 300
+`)
+
+	bundle, err := Compile(CompileInput{SuitePath: suitePath, AgentConfigPath: configPath, EvalPath: evalPath})
+	if err != nil {
+		t.Fatalf("Compile() error = %v", err)
+	}
+
+	want := "Suite-wide instructions.\n\nFollow them carefully.\n\nrun case repo-build"
+	if got := bundle.ResolvedSnapshot.Cases[0].InitialPrompt; got != want {
+		t.Fatalf("InitialPrompt = %q, want %q", got, want)
+	}
+	if got := bundle.ResolvedSnapshot.Cases[1].InitialPrompt; got != "Suite-wide instructions.\n\nFollow them carefully.\n\nrun case lint" {
+		t.Fatalf("second InitialPrompt = %q", got)
+	}
+}
+
+func TestCompileRejectsEmptySuitePreamblePrompt(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	suitePath := filepath.Join(root, "suite")
+	createSuiteWithCases(t, suitePath, []string{"repo-build"})
+	writeFile(t, filepath.Join(suitePath, suitePreamblePromptFile), " \n\t\n")
+
+	_, configPath := createAgentDefinitionConfig(t, root, "shell-agent", `[input]
+command = ["bash", "-lc", "echo hello"]
+`)
+
+	evalPath := filepath.Join(root, "eval.toml")
+	writeFile(t, evalPath, `kind = "eval_config"
+name = "smoke"
+max_concurrency = 1
+fail_fast = false
+instance_timeout_seconds = 300
+`)
+
+	_, err := Compile(CompileInput{SuitePath: suitePath, AgentConfigPath: configPath, EvalPath: evalPath})
+	if err == nil || !strings.Contains(err.Error(), "preamble-prompt.md must not be empty") {
+		t.Fatalf("expected empty preamble validation error, got %v", err)
 	}
 }
 

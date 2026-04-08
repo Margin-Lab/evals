@@ -18,6 +18,26 @@ cases/fix-null-check/
     test.sh
 ```
 
+## Using a suite preamble
+
+Add `preamble-prompt.md` at the suite root when you want suite-wide instructions applied to every case:
+
+```
+my-suite/
+  preamble-prompt.md
+  cases/
+    fix-null-check/
+      prompt.md
+```
+
+When present, Margin builds the agent's initial prompt as:
+
+1. `preamble-prompt.md`
+2. a blank line
+3. the case's `prompt.md`
+
+If `preamble-prompt.md` is absent, nothing changes. If it exists, it must contain non-whitespace content.
+
 ## Writing test scripts
 
 Test scripts can combine existing test suites with inline assertions:
