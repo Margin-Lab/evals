@@ -16,19 +16,32 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
-func (s *Service) submitResumedRun(ctx context.Context, in runnerapi.SubmitInput, bundle runbundle.Bundle, hash, resumeFromRunID string) (store.Run, error) {
+func (s *Service) submitResumedRun(ctx context.Context, in runnerapi.SubmitInput, bundle runbundle.Bundle, resumeFromRunID string) (store.Run, error) {
+	if err := in.ResumeBundlePolicy.Validate(); err != nil {
+		return store.Run{}, fmt.Errorf("validate resume bundle policy: %w", err)
+	}
+	planHash, err := runbundle.HashSHA256(bundle)
+	if err != nil {
+		return store.Run{}, fmt.Errorf("compute resume bundle hash: %w", err)
+	}
 	snapshot, err := loadProgressSnapshot(s.rootDir, resumeFromRunID)
 	if err != nil {
 		return store.Run{}, fmt.Errorf("load local resume progress for run %s: %w", resumeFromRunID, err)
 	}
-	plan, err := resume.BuildPlan(bundle, hash, snapshot, in.ResumeMode)
+	plan, err := resume.BuildPlan(bundle, planHash, snapshot, in.ResumeMode, in.ResumeBundlePolicy)
 	if err != nil {
 		return store.Run{}, fmt.Errorf("build resume plan: %w", err)
 	}
 
 	bundle.Source.Kind = runbundle.SourceKindRunSnapshot
 	bundle.Source.OriginRunID = plan.OriginRunID
-	run, err := s.createRun(ctx, in, bundle, hash)
+	bundle.Source.ResumeSourceBundleHash = plan.SourceBundleHash
+	bundle.Source.ResumeBundleHashMatch = &plan.BundleHashMatch
+	finalHash, err := runbundle.HashSHA256(bundle)
+	if err != nil {
+		return store.Run{}, fmt.Errorf("compute final resumed bundle hash: %w", err)
+	}
+	run, err := s.createRun(ctx, in, bundle, finalHash)
 	if err != nil {
 		return store.Run{}, err
 	}

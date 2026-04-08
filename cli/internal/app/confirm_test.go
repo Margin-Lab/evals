@@ -97,3 +97,37 @@ func TestRunConfirmationViewForDryRunAPIKey(t *testing.T) {
 		}
 	}
 }
+
+func TestRunConfirmationViewShowsResumeWarning(t *testing.T) {
+	m := newRunConfirmationModel(runConfirmationSpec{
+		AgentName: "codex",
+		ResumeWarning: &resumeWarningSummary{
+			SourceRunID:  "run_123",
+			ReusedCount:  3,
+			RerunCount:   2,
+			AddedCount:   1,
+			DroppedCount: 4,
+			PolicyText:   "Margin will reuse earlier completed results, except infrastructure failures, which will run again with the current inputs.",
+		},
+		Auth: []runConfirmationAuthItem{{
+			Method:      "API key",
+			Requirement: "OPENAI_API_KEY",
+		}},
+	})
+	m.width = 120
+	m.height = 30
+
+	out := m.View()
+	for _, want := range []string{
+		"Resume Warning",
+		"saved run run_123",
+		"reuse 3 earlier result(s)",
+		"execute 2 case(s)",
+		"1 new case(s)",
+		"4 case(s) from the saved run",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected view to contain %q, got:\n%s", want, out)
+		}
+	}
+}
