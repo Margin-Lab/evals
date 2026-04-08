@@ -22,6 +22,7 @@ type runConfirmationSpec struct {
 	Auth            []runConfirmationAuthItem
 	PruneBuiltImage int
 	DryRun          bool
+	ResumeWarning   *resumeWarningSummary
 }
 
 func runConfirmationTUI(out io.Writer, spec runConfirmationSpec) (bool, error) {
@@ -96,8 +97,12 @@ func (m *runConfirmationModel) View() string {
 		runConfirmationTitle(contentWidth),
 		"",
 		"",
-		renderRunAuthBlock(contentWidth, m.spec),
 	}
+	if m.spec.ResumeWarning != nil {
+		sections = append(sections, renderRunResumeWarningBlock(contentWidth, *m.spec.ResumeWarning))
+		sections = append(sections, "", "")
+	}
+	sections = append(sections, renderRunAuthBlock(contentWidth, m.spec))
 	if m.spec.PruneBuiltImage > 0 {
 		sections = append(sections, renderRunPruneBlock(contentWidth))
 	}
@@ -209,6 +214,22 @@ func renderRunAuthBlock(width int, spec runConfirmationSpec) string {
 			break
 		}
 		lines = append(lines, runConfirmationWarnTextStyle.Render("Will run the agent "+agentName+"."))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderRunResumeWarningBlock(width int, summary resumeWarningSummary) string {
+	lines := []string{
+		runConfirmationSectionTitleStyle.Render("Resume Warning"),
+	}
+	for _, line := range resumeWarningLines(summary) {
+		wrapped := wrapWarningText(line, maxInt(12, width))
+		if len(wrapped) == 0 {
+			continue
+		}
+		for _, part := range wrapped {
+			lines = append(lines, runConfirmationWarnTextStyle.Render(part))
+		}
 	}
 	return strings.Join(lines, "\n")
 }

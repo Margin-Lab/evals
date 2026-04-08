@@ -10,10 +10,13 @@ import (
 )
 
 type ResumeMode = resume.Mode
+type ResumeBundlePolicy = resume.BundlePolicy
 
 const (
-	ResumeModeResume      ResumeMode = resume.ModeResume
-	ResumeModeRetryFailed ResumeMode = resume.ModeRetryFailed
+	ResumeModeResume                ResumeMode         = resume.ModeResume
+	ResumeModeRetryFailed           ResumeMode         = resume.ModeRetryFailed
+	ResumeBundlePolicyExact         ResumeBundlePolicy = resume.BundlePolicyExact
+	ResumeBundlePolicyAllowMismatch ResumeBundlePolicy = resume.BundlePolicyAllowMismatch
 )
 
 func DefaultResumeMode() ResumeMode {
@@ -22,13 +25,14 @@ func DefaultResumeMode() ResumeMode {
 
 // SubmitInput is the shared runner submission payload across runner implementations.
 type SubmitInput struct {
-	RunID           string
-	ProjectID       string
-	CreatedByUser   string
-	Name            string
-	Bundle          runbundle.Bundle
-	ResumeFromRunID string
-	ResumeMode      ResumeMode
+	RunID              string
+	ProjectID          string
+	CreatedByUser      string
+	Name               string
+	Bundle             runbundle.Bundle
+	ResumeFromRunID    string
+	ResumeMode         ResumeMode
+	ResumeBundlePolicy ResumeBundlePolicy
 }
 
 // Service is the shared runner service contract implemented by runner backends.

@@ -174,7 +174,7 @@ func (p *progressStore) maybePersistTerminalSnapshot(ctx context.Context, runID 
 	return p.onTerminal(ctx, runID)
 }
 
-func loadProgressSnapshot(rootDir, runID string) (resume.Snapshot, error) {
+func LoadProgressSnapshot(rootDir, runID string) (resume.Snapshot, error) {
 	path := runfs.ProgressPath(rootDir, runID)
 	body, err := os.ReadFile(path)
 	if err != nil {
@@ -210,6 +210,10 @@ func loadProgressSnapshot(rootDir, runID string) (resume.Snapshot, error) {
 		CaseIDs:    caseIDs,
 		Completed:  completed,
 	}, nil
+}
+
+func loadProgressSnapshot(rootDir, runID string) (resume.Snapshot, error) {
+	return LoadProgressSnapshot(rootDir, runID)
 }
 
 func writeJSONAtomic(path string, payload any) error {

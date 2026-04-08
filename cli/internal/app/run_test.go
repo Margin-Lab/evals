@@ -126,6 +126,48 @@ func writeSavedBundle(t *testing.T, rootDir, runID string, bundle runbundle.Bund
 	}
 }
 
+func writeSavedProgress(t *testing.T, rootDir, runID, bundleHash string, finalStates map[string]domain.InstanceState) {
+	t.Helper()
+
+	caseIDs := make([]string, 0, len(finalStates))
+	cases := make(map[string]any, len(finalStates))
+	for caseID, state := range finalStates {
+		caseIDs = append(caseIDs, caseID)
+		instanceID := runID + "-" + caseID
+		cases[caseID] = map[string]any{
+			"case_id":      caseID,
+			"instance_id":  instanceID,
+			"final_state":  state,
+			"provider_ref": "",
+			"result": map[string]any{
+				"instance_id": instanceID,
+				"attempt_id":  "att_saved",
+				"final_state": state,
+				"created_at":  time.Date(2026, 3, 1, 2, 3, 4, 0, time.UTC),
+			},
+			"artifacts": []any{},
+		}
+	}
+	payload := map[string]any{
+		"run_id":      runID,
+		"bundle_hash": bundleHash,
+		"updated_at":  time.Date(2026, 3, 1, 2, 3, 4, 0, time.UTC),
+		"case_ids":    caseIDs,
+		"cases":       cases,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal progress file: %v", err)
+	}
+	path := runfs.ProgressPath(rootDir, runID)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir progress path: %v", err)
+	}
+	if err := os.WriteFile(path, append(body, '\n'), 0o644); err != nil {
+		t.Fatalf("write progress file: %v", err)
+	}
+}
+
 func writeExecutableFile(t *testing.T, path string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -143,6 +185,22 @@ func writeTestFile(t *testing.T, path, body string) {
 	}
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatalf("write file: %v", err)
+	}
+}
+
+func validAgent() runbundle.Agent {
+	return runbundle.Agent{
+		Definition: agentdef.DefinitionSnapshot{
+			Manifest: agentdef.Manifest{
+				Kind: "agent_definition",
+				Name: "fixture-agent",
+			},
+		},
+		Config: agentdef.ConfigSpec{
+			Name:  "fixture-agent-default",
+			Mode:  agentdef.ConfigModeDirect,
+			Input: map[string]any{},
+		},
 	}
 }
 
@@ -616,6 +674,9 @@ func TestRunPassesResumeModeToRunner(t *testing.T) {
 	if svc.submitInput.ResumeMode != runnerapi.ResumeModeRetryFailed {
 		t.Fatalf("ResumeMode = %q", svc.submitInput.ResumeMode)
 	}
+	if svc.submitInput.ResumeBundlePolicy != runnerapi.ResumeBundlePolicyExact {
+		t.Fatalf("ResumeBundlePolicy = %q", svc.submitInput.ResumeBundlePolicy)
+	}
 }
 
 func TestRunSubmitsResumeBeforeStartingRunnerService(t *testing.T) {
@@ -865,21 +926,173 @@ func TestRunUsesSavedBundleMetadataForLocalResume(t *testing.T) {
 	if svc.submitInput.Bundle.Source.OriginRunID != "run_origin" {
 		t.Fatalf("OriginRunID = %q", svc.submitInput.Bundle.Source.OriginRunID)
 	}
+	if svc.submitInput.ResumeBundlePolicy != runnerapi.ResumeBundlePolicyExact {
+		t.Fatalf("ResumeBundlePolicy = %q", svc.submitInput.ResumeBundlePolicy)
+	}
 }
 
-func TestRunRejectsSourceFlagsWhenResumeFromIsSet(t *testing.T) {
+func TestRunRejectsPartialUpdatedInputsWhenResumeFromIsSet(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	a := New(&stdout, &stderr)
 
 	err := a.runRun(context.Background(), []string{
 		"--suite", "suite",
+		"--resume-from", "run_123",
+	})
+	if err == nil || !strings.Contains(err.Error(), "--resume-from with updated inputs requires --suite, --agent-config, and --eval") {
+		t.Fatalf("expected resume/source flag validation error, got %v", err)
+	}
+}
+
+func TestRunOverrideResumeCompilesBundleAndAllowsMismatch(t *testing.T) {
+	origCompile := compileBundle
+	origNewExecutor := newLocalExecutor
+	origNewService := newLocalRunnerService
+	origLaunchMissionControl := launchMissionControl
+	defer func() {
+		compileBundle = origCompile
+		newLocalExecutor = origNewExecutor
+		newLocalRunnerService = origNewService
+		launchMissionControl = origLaunchMissionControl
+	}()
+
+	resumeRoot := t.TempDir()
+	compiledBundle := runbundle.Bundle{
+		SchemaVersion: runbundle.SchemaVersionV1,
+		BundleID:      "bun_new",
+		CreatedAt:     time.Date(2026, 3, 2, 2, 3, 4, 0, time.UTC),
+		Source:        runbundle.Source{Kind: runbundle.SourceKindLocalFiles, SubmitProjectID: "proj_local"},
+		ResolvedSnapshot: runbundle.ResolvedSnapshot{
+			Name: "smoke",
+			Execution: runbundle.Execution{
+				Mode:           runbundle.ExecutionModeFull,
+				MaxConcurrency: 1,
+			},
+			Agent: validAgent(),
+			Cases: []runbundle.Case{
+				{CaseID: "case-1"},
+				{CaseID: "case-2"},
+			},
+		},
+	}
+	writeSavedProgress(t, resumeRoot, "run_123", "hash_old", map[string]domain.InstanceState{
+		"case-1": domain.InstanceStateSucceeded,
+	})
+
+	compiled := false
+	compileBundle = func(in compiler.CompileInput) (runbundle.Bundle, error) {
+		compiled = true
+		if in.SuitePath != "suite" || in.AgentConfigPath != "agent-config" || in.EvalPath != "eval" {
+			t.Fatalf("unexpected compile input: %+v", in)
+		}
+		return compiledBundle, nil
+	}
+	newLocalExecutor = func(_ localexecutor.Config) (engine.Executor, error) {
+		return fakeExecutor{}, nil
+	}
+	svc := &capturingRunnerService{}
+	newLocalRunnerService = func(_ localrunner.Config) (runnerapi.Service, error) {
+		return svc, nil
+	}
+	launchMissionControl = func(_ context.Context, cfg missioncontrol.Config) (missioncontrol.Outcome, error) {
+		return missioncontrol.Outcome{
+			FinalRun: store.Run{RunID: cfg.RunID, State: domain.RunStateCompleted},
+		}, nil
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	a := New(&stdout, &stderr)
+	err := a.runRun(context.Background(), []string{
+		"--suite", "suite",
 		"--agent-config", "agent-config",
 		"--eval", "eval",
 		"--resume-from", "run_123",
+		"--root", resumeRoot,
+		"--agent-server-binary", "agent-server",
 	})
-	if err == nil || !strings.Contains(err.Error(), "--resume-from infers the saved bundle") {
-		t.Fatalf("expected resume/source flag validation error, got %v", err)
+	if err != nil {
+		t.Fatalf("runRun returned error: %v", err)
+	}
+	if !compiled {
+		t.Fatalf("expected override resume to compile the new bundle")
+	}
+	if svc.submitInput.ResumeBundlePolicy != runnerapi.ResumeBundlePolicyAllowMismatch {
+		t.Fatalf("ResumeBundlePolicy = %q", svc.submitInput.ResumeBundlePolicy)
+	}
+	if svc.submitInput.Bundle.BundleID != compiledBundle.BundleID {
+		t.Fatalf("BundleID = %q", svc.submitInput.Bundle.BundleID)
+	}
+	if !strings.Contains(stderr.String(), "[resume] Warning: the current suite, agent config, or eval config differs from saved run run_123.") {
+		t.Fatalf("expected resume warning in stderr, got:\n%s", stderr.String())
+	}
+}
+
+func TestRunOverrideResumeWithoutMismatchDoesNotPrintWarning(t *testing.T) {
+	origCompile := compileBundle
+	origNewExecutor := newLocalExecutor
+	origNewService := newLocalRunnerService
+	origLaunchMissionControl := launchMissionControl
+	defer func() {
+		compileBundle = origCompile
+		newLocalExecutor = origNewExecutor
+		newLocalRunnerService = origNewService
+		launchMissionControl = origLaunchMissionControl
+	}()
+
+	resumeRoot := t.TempDir()
+	compiledBundle := runbundle.Bundle{
+		SchemaVersion: runbundle.SchemaVersionV1,
+		BundleID:      "bun_new",
+		CreatedAt:     time.Date(2026, 3, 2, 2, 3, 4, 0, time.UTC),
+		Source:        runbundle.Source{Kind: runbundle.SourceKindLocalFiles, SubmitProjectID: "proj_local"},
+		ResolvedSnapshot: runbundle.ResolvedSnapshot{
+			Name:      "smoke",
+			Execution: runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1},
+			Agent:     validAgent(),
+			Cases:     []runbundle.Case{{CaseID: "case-1"}},
+		},
+	}
+	hash, err := runbundle.HashSHA256(compiledBundle)
+	if err != nil {
+		t.Fatalf("hash bundle: %v", err)
+	}
+	writeSavedProgress(t, resumeRoot, "run_123", hash, map[string]domain.InstanceState{
+		"case-1": domain.InstanceStateSucceeded,
+	})
+
+	compileBundle = func(_ compiler.CompileInput) (runbundle.Bundle, error) {
+		return compiledBundle, nil
+	}
+	newLocalExecutor = func(_ localexecutor.Config) (engine.Executor, error) {
+		return fakeExecutor{}, nil
+	}
+	newLocalRunnerService = func(_ localrunner.Config) (runnerapi.Service, error) {
+		return &capturingRunnerService{}, nil
+	}
+	launchMissionControl = func(_ context.Context, cfg missioncontrol.Config) (missioncontrol.Outcome, error) {
+		return missioncontrol.Outcome{
+			FinalRun: store.Run{RunID: cfg.RunID, State: domain.RunStateCompleted},
+		}, nil
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	a := New(&stdout, &stderr)
+	err = a.runRun(context.Background(), []string{
+		"--suite", "suite",
+		"--agent-config", "agent-config",
+		"--eval", "eval",
+		"--resume-from", "run_123",
+		"--root", resumeRoot,
+		"--agent-server-binary", "agent-server",
+	})
+	if err != nil {
+		t.Fatalf("runRun returned error: %v", err)
+	}
+	if strings.Contains(stderr.String(), "[resume] Warning:") {
+		t.Fatalf("did not expect resume warning, got:\n%s", stderr.String())
 	}
 }
 
@@ -1216,7 +1429,7 @@ func TestBuildRunConfirmationSpecUsesOAuthCredentialWording(t *testing.T) {
 		Mode:        localexecutor.AuthPreviewModeOAuth,
 		SourceKind:  "home_file",
 		SourceLabel: "/Users/josebouza/.codex/auth.json",
-	}}, 0, false)
+	}}, 0, false, nil)
 
 	if len(spec.Auth) != 1 {
 		t.Fatalf("auth spec = %#v", spec.Auth)
@@ -1238,7 +1451,7 @@ func TestBuildRunConfirmationSpecUsesKeychainOAuthWording(t *testing.T) {
 		Mode:        localexecutor.AuthPreviewModeOAuth,
 		SourceKind:  "macos_keychain",
 		SourceLabel: "Claude Code-credentials",
-	}}, 0, false)
+	}}, 0, false, nil)
 
 	if len(spec.Auth) != 1 {
 		t.Fatalf("auth spec = %#v", spec.Auth)
@@ -1255,7 +1468,7 @@ func TestBuildRunConfirmationSpecMarksDryRun(t *testing.T) {
 	spec := buildRunConfirmationSpec("codex", []localexecutor.AuthPreview{{
 		RequiredEnv: "OPENAI_API_KEY",
 		Mode:        localexecutor.AuthPreviewModeAPIKey,
-	}}, 0, true)
+	}}, 0, true, nil)
 
 	if !spec.DryRun {
 		t.Fatalf("expected dry run spec")
