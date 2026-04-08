@@ -119,6 +119,16 @@ margin run \
 margin run --resume-from <run-id>
 ```
 
+**Resume with updated suite/config inputs:**
+
+```bash
+margin run \
+  --resume-from <run-id> \
+  --suite ./suites/smoke \
+  --agent-config ./configs/my-agent-configs/claude-sonnet \
+  --eval ./configs/my-evals/local.toml
+```
+
 **Scaffold a new agent config:**
 
 ```bash

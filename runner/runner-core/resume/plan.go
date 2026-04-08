@@ -25,13 +25,44 @@ type Snapshot struct {
 	Completed  map[string]CompletedCase
 }
 
-type Plan struct {
-	OriginRunID string
-	CarryByCase map[string]CompletedCase
+type BundlePolicy string
+
+const (
+	BundlePolicyExact         BundlePolicy = "exact"
+	BundlePolicyAllowMismatch BundlePolicy = "allow_mismatch"
+)
+
+func (p BundlePolicy) Validate() error {
+	switch p {
+	case BundlePolicyExact, BundlePolicyAllowMismatch:
+		return nil
+	default:
+		return fmt.Errorf("resume bundle policy must be one of %q, %q", BundlePolicyExact, BundlePolicyAllowMismatch)
+	}
 }
 
-func BuildPlan(bundle runbundle.Bundle, bundleHash string, snapshot Snapshot, mode Mode) (Plan, error) {
+type Plan struct {
+	OriginRunID      string
+	CarryByCase      map[string]CompletedCase
+	BundleHashMatch  bool
+	AddedCaseIDs     []string
+	DroppedCaseIDs   []string
+	RerunCaseIDs     []string
+	TargetCaseIDs    []string
+	SourceCaseIDs    []string
+	SourceBundleHash string
+	TargetBundleHash string
+}
+
+func (p Plan) HasBundleMismatch() bool {
+	return !p.BundleHashMatch || len(p.AddedCaseIDs) > 0 || len(p.DroppedCaseIDs) > 0
+}
+
+func BuildPlan(bundle runbundle.Bundle, bundleHash string, snapshot Snapshot, mode Mode, policy BundlePolicy) (Plan, error) {
 	if err := mode.Validate(); err != nil {
+		return Plan{}, err
+	}
+	if err := policy.Validate(); err != nil {
 		return Plan{}, err
 	}
 	if strings.TrimSpace(snapshot.RunID) == "" {
@@ -43,7 +74,8 @@ func BuildPlan(bundle runbundle.Bundle, bundleHash string, snapshot Snapshot, mo
 	if strings.TrimSpace(bundleHash) == "" {
 		return Plan{}, fmt.Errorf("bundle hash is required")
 	}
-	if snapshot.BundleHash != bundleHash {
+	bundleHashMatch := snapshot.BundleHash == bundleHash
+	if policy == BundlePolicyExact && !bundleHashMatch {
 		return Plan{}, fmt.Errorf("resume snapshot bundle hash %q does not match bundle hash %q", snapshot.BundleHash, bundleHash)
 	}
 
@@ -52,22 +84,76 @@ func BuildPlan(bundle runbundle.Bundle, bundleHash string, snapshot Snapshot, mo
 	if len(snapshotCaseIDs) == 0 {
 		return Plan{}, fmt.Errorf("resume snapshot case_ids is required")
 	}
-	if err := assertSameCaseSet(bundleCaseIDs, snapshotCaseIDs); err != nil {
-		return Plan{}, err
+	if policy == BundlePolicyExact {
+		if err := assertSameCaseSet(bundleCaseIDs, snapshotCaseIDs); err != nil {
+			return Plan{}, err
+		}
+	}
+
+	targetCaseSet := make(map[string]struct{}, len(bundleCaseIDs))
+	for _, caseID := range bundleCaseIDs {
+		targetCaseSet[caseID] = struct{}{}
+	}
+
+	sourceCaseSet := make(map[string]struct{}, len(snapshotCaseIDs))
+	for _, caseID := range snapshotCaseIDs {
+		sourceCaseSet[caseID] = struct{}{}
+	}
+
+	addedCaseIDs := make([]string, 0)
+	for _, caseID := range bundleCaseIDs {
+		if _, ok := sourceCaseSet[caseID]; ok {
+			continue
+		}
+		addedCaseIDs = append(addedCaseIDs, caseID)
+	}
+
+	droppedCaseIDs := make([]string, 0)
+	for _, caseID := range snapshotCaseIDs {
+		if _, ok := targetCaseSet[caseID]; ok {
+			continue
+		}
+		droppedCaseIDs = append(droppedCaseIDs, caseID)
 	}
 
 	carry := make(map[string]CompletedCase)
 	for caseID, c := range snapshot.Completed {
+		trimmed := strings.TrimSpace(caseID)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := targetCaseSet[trimmed]; !ok {
+			continue
+		}
 		if !mode.ShouldCarry(c.Result.FinalState) {
 			continue
 		}
-		if _, ok := carry[caseID]; ok {
-			return Plan{}, fmt.Errorf("duplicate completed case %q in resume snapshot", caseID)
+		if _, ok := carry[trimmed]; ok {
+			return Plan{}, fmt.Errorf("duplicate completed case %q in resume snapshot", trimmed)
 		}
-		carry[caseID] = c
+		carry[trimmed] = c
 	}
 
-	return Plan{OriginRunID: snapshot.RunID, CarryByCase: carry}, nil
+	rerunCaseIDs := make([]string, 0, len(bundleCaseIDs))
+	for _, caseID := range bundleCaseIDs {
+		if _, ok := carry[caseID]; ok {
+			continue
+		}
+		rerunCaseIDs = append(rerunCaseIDs, caseID)
+	}
+
+	return Plan{
+		OriginRunID:      snapshot.RunID,
+		CarryByCase:      carry,
+		BundleHashMatch:  bundleHashMatch,
+		AddedCaseIDs:     addedCaseIDs,
+		DroppedCaseIDs:   droppedCaseIDs,
+		RerunCaseIDs:     rerunCaseIDs,
+		TargetCaseIDs:    bundleCaseIDs,
+		SourceCaseIDs:    snapshotCaseIDs,
+		SourceBundleHash: snapshot.BundleHash,
+		TargetBundleHash: bundleHash,
+	}, nil
 }
 
 func assertSameCaseSet(a []string, b []string) error {

@@ -164,14 +164,15 @@ func (s *Service) SubmitRun(ctx context.Context, in runnerapi.SubmitInput) (stor
 	if bundle.Source.SubmitProjectID == "" {
 		bundle.Source.SubmitProjectID = in.ProjectID
 	}
-	hash, err := runbundle.HashSHA256(bundle)
-	if err != nil {
-		return store.Run{}, fmt.Errorf("compute bundle hash: %w", err)
-	}
 
 	resumeFromRunID := strings.TrimSpace(in.ResumeFromRunID)
 	if resumeFromRunID != "" {
-		return s.submitResumedRun(ctx, in, bundle, hash, resumeFromRunID)
+		return s.submitResumedRun(ctx, in, bundle, resumeFromRunID)
+	}
+
+	hash, err := runbundle.HashSHA256(bundle)
+	if err != nil {
+		return store.Run{}, fmt.Errorf("compute bundle hash: %w", err)
 	}
 	run, err := s.createRun(ctx, in, bundle, hash)
 	if err != nil {
@@ -269,6 +270,15 @@ func (s *Service) persistRunSnapshot(ctx context.Context, runID string) error {
 		"started_at":     run.StartedAt,
 		"ended_at":       run.EndedAt,
 		"counts":         run.Counts,
+	}
+	if trimmed := strings.TrimSpace(run.Bundle.Source.OriginRunID); trimmed != "" {
+		manifest["resume_from_run_id"] = trimmed
+	}
+	if trimmed := strings.TrimSpace(run.Bundle.Source.ResumeSourceBundleHash); trimmed != "" {
+		manifest["resume_source_bundle_hash"] = trimmed
+	}
+	if run.Bundle.Source.ResumeBundleHashMatch != nil {
+		manifest["resume_bundle_hash_match"] = *run.Bundle.Source.ResumeBundleHashMatch
 	}
 	if err := s.writeJSON(runfs.ManifestPath(s.rootDir, runID), manifest); err != nil {
 		return err

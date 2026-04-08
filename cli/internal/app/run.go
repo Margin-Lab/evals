@@ -126,7 +126,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 		return err
 	}
 
-	bundle, err := a.loadBundleForRun(runBundleInput{
+	prepared, err := a.prepareRunBundle(ctx, runBundleInput{
 		RootDir:         absRoot,
 		SuitePath:       resolvedSuite.LocalPath,
 		SuiteGit:        resolvedSuite.SuiteGit,
@@ -134,10 +134,11 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 		EvalPath:        *evalPath,
 		ResumeFromRunID: strings.TrimSpace(*resumeFromRunID),
 		NonInteractive:  *nonInteractive,
-	})
+	}, resumeMode)
 	if err != nil {
 		return err
 	}
+	bundle := prepared.Bundle
 	if *dryRun {
 		bundle.ResolvedSnapshot.Execution.Mode = runbundle.ExecutionModeDryRun
 	} else {
@@ -157,7 +158,12 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("resolve required agent auth: %w", err)
 	}
-	if !*nonInteractive && shouldConfirmRun(a.stderr) {
+
+	useInteractiveConfirmation := !*nonInteractive && shouldConfirmRun(a.stderr)
+	if prepared.ResumeWarning != nil && !useInteractiveConfirmation {
+		printResumeWarning(a.stderr, *prepared.ResumeWarning)
+	}
+	if useInteractiveConfirmation {
 		authPreview, err := localexecutor.PreviewAuth(
 			agentEnv.Clone(),
 			requiredAgentEnv,
@@ -174,6 +180,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 				authPreview,
 				*pruneBuiltImage,
 				*dryRun,
+				prepared.ResumeWarning,
 			),
 		)
 		if err != nil {
@@ -223,12 +230,13 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	}
 
 	run, err := dataSource.SubmitRun(ctx, runnerapi.SubmitInput{
-		ProjectID:       defaultLocalProjectID,
-		CreatedByUser:   defaultLocalUserID,
-		Name:            resolvedRunName,
-		Bundle:          bundle,
-		ResumeFromRunID: strings.TrimSpace(*resumeFromRunID),
-		ResumeMode:      resumeMode,
+		ProjectID:          defaultLocalProjectID,
+		CreatedByUser:      defaultLocalUserID,
+		Name:               resolvedRunName,
+		Bundle:             bundle,
+		ResumeFromRunID:    strings.TrimSpace(*resumeFromRunID),
+		ResumeMode:         resumeMode,
+		ResumeBundlePolicy: prepared.ResumeBundlePolicy,
 	})
 	if err != nil {
 		return fmt.Errorf("submit run: %w", err)
@@ -297,13 +305,6 @@ type runBundleInput struct {
 	EvalPath        string
 	ResumeFromRunID string
 	NonInteractive  bool
-}
-
-func (a *App) loadBundleForRun(in runBundleInput) (runbundle.Bundle, error) {
-	if in.ResumeFromRunID != "" {
-		return a.loadSavedResumeBundle(in.RootDir, in.ResumeFromRunID, in.NonInteractive)
-	}
-	return a.compileRunBundle(in)
 }
 
 func (a *App) compileRunBundle(in runBundleInput) (runbundle.Bundle, error) {
@@ -390,11 +391,12 @@ func localWorkerCount(maxConcurrency int) (int, error) {
 	return maxConcurrency, nil
 }
 
-func buildRunConfirmationSpec(agentName string, authPreview []localexecutor.AuthPreview, pruneBuiltImage int, dryRun bool) runConfirmationSpec {
+func buildRunConfirmationSpec(agentName string, authPreview []localexecutor.AuthPreview, pruneBuiltImage int, dryRun bool, resumeWarning *resumeWarningSummary) runConfirmationSpec {
 	spec := runConfirmationSpec{
 		AgentName:       strings.TrimSpace(agentName),
 		PruneBuiltImage: pruneBuiltImage,
 		DryRun:          dryRun,
+		ResumeWarning:   resumeWarning,
 	}
 	for _, item := range authPreview {
 		authItem := runConfirmationAuthItem{
@@ -428,6 +430,12 @@ func buildRunConfirmationSpec(agentName string, authPreview []localexecutor.Auth
 		})
 	}
 	return spec
+}
+
+func printResumeWarning(out io.Writer, summary resumeWarningSummary) {
+	for _, line := range resumeWarningLines(summary) {
+		fmt.Fprintf(out, "[resume] %s\n", line)
+	}
 }
 
 type compileProgressReporter interface {
