@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,9 +16,11 @@ import (
 )
 
 const (
-	defaultProjectID = "proj_local"
-	defaultPTYCols   = 120
-	defaultPTYRows   = 40
+	defaultProjectID        = "proj_local"
+	defaultPTYCols          = 120
+	defaultPTYRows          = 40
+	suitePreamblePromptFile = "preamble-prompt.md"
+	casePromptFile          = "prompt.md"
 )
 
 func Compile(in CompileInput) (runbundle.Bundle, error) {
@@ -125,6 +128,10 @@ func compileSuite(suitePath string, progress CompileProgressFunc) (suiteFile, []
 	if _, err := requireDir(casesRoot, "suite cases"); err != nil {
 		return suiteFile{}, nil, err
 	}
+	suitePreamble, err := readOptionalPromptFile(filepath.Join(suitePath, suitePreamblePromptFile))
+	if err != nil {
+		return suiteFile{}, nil, err
+	}
 
 	cases := make([]runbundle.Case, 0, len(suite.Cases))
 	if progress != nil {
@@ -149,7 +156,7 @@ func compileSuite(suitePath string, progress CompileProgressFunc) (suiteFile, []
 				Message:     "compiling case",
 			})
 		}
-		compiled, err := compileCase(filepath.Join(casesRoot, trimmed), trimmed)
+		compiled, err := compileCase(filepath.Join(casesRoot, trimmed), trimmed, suitePreamble)
 		if err != nil {
 			return suiteFile{}, nil, err
 		}
@@ -168,7 +175,7 @@ func compileSuite(suitePath string, progress CompileProgressFunc) (suiteFile, []
 	return suite, cases, nil
 }
 
-func compileCase(caseDir, expectedName string) (runbundle.Case, error) {
+func compileCase(caseDir, expectedName, suitePreamble string) (runbundle.Case, error) {
 	if _, err := requireDir(caseDir, "case"); err != nil {
 		return runbundle.Case{}, err
 	}
@@ -189,15 +196,11 @@ func compileCase(caseDir, expectedName string) (runbundle.Case, error) {
 		return runbundle.Case{}, fmt.Errorf("%s name %q must match directory name %q", caseTomlPath, c.Name, expectedName)
 	}
 
-	promptPath := filepath.Join(caseDir, "prompt.md")
-	promptBytes, err := os.ReadFile(promptPath)
+	prompt, err := readRequiredPromptFile(filepath.Join(caseDir, casePromptFile))
 	if err != nil {
-		return runbundle.Case{}, fmt.Errorf("read %s: %w", promptPath, err)
+		return runbundle.Case{}, err
 	}
-	prompt := strings.TrimSpace(string(promptBytes))
-	if prompt == "" {
-		return runbundle.Case{}, fmt.Errorf("%s must not be empty", promptPath)
-	}
+	initialPrompt := composeInitialPrompt(suitePreamble, prompt)
 
 	testsDir := filepath.Join(caseDir, "tests")
 	if _, err := requireDir(testsDir, "case tests directory"); err != nil {
@@ -233,13 +236,47 @@ func compileCase(caseDir, expectedName string) (runbundle.Case, error) {
 		CaseID:            strings.TrimSpace(c.Name),
 		Image:             strings.TrimSpace(resolvedImage),
 		ImageBuild:        imageBuild,
-		InitialPrompt:     prompt,
+		InitialPrompt:     initialPrompt,
 		AgentCwd:          strings.TrimSpace(c.AgentCwd),
 		TestCommand:       []string{"bash", "-c", "tests/test.sh"},
 		TestCwd:           strings.TrimSpace(c.TestCwd),
 		TestTimeoutSecond: c.TestTimeoutSeconds,
 		TestAssets:        packedAssets,
 	}, nil
+}
+
+func readRequiredPromptFile(path string) (string, error) {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", path, err)
+	}
+	return normalizePromptText(path, body)
+}
+
+func readOptionalPromptFile(path string) (string, error) {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", fmt.Errorf("read %s: %w", path, err)
+	}
+	return normalizePromptText(path, body)
+}
+
+func normalizePromptText(path string, body []byte) (string, error) {
+	prompt := strings.TrimSpace(string(body))
+	if prompt == "" {
+		return "", fmt.Errorf("%s must not be empty", path)
+	}
+	return prompt, nil
+}
+
+func composeInitialPrompt(suitePreamble, casePrompt string) string {
+	if suitePreamble == "" {
+		return casePrompt
+	}
+	return suitePreamble + "\n\n" + casePrompt
 }
 
 func compileAgent(agentPath string) (runbundle.Agent, error) {
@@ -461,9 +498,9 @@ func compileRunDefaults(in CompileInput) runbundle.RunDefault {
 		cols = defaultPTYCols
 	}
 	rows := in.PTYRows
-		if rows <= 0 {
-			rows = defaultPTYRows
-		}
+	if rows <= 0 {
+		rows = defaultPTYRows
+	}
 	return runbundle.RunDefault{Env: env, PTY: runbundle.PTY{Cols: cols, Rows: rows}}
 }
 

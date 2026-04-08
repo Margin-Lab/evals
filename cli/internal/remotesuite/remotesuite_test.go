@@ -194,6 +194,48 @@ func TestResolveSupportsSuiteSubdir(t *testing.T) {
 	}
 }
 
+func TestResolveSupportsSuiteSubdirKeepsSuitePreamble(t *testing.T) {
+	homeDir := t.TempDir()
+	runner := &fakeGitRunner{
+		queue: []fakeGitFetch{{
+			commit: "0123456789abcdef0123456789abcdef01234567",
+			files: map[string]string{
+				"suites/remote/suite.toml":                 "suite\n",
+				"suites/remote/preamble-prompt.md":         "suite preamble\n",
+				"suites/remote/cases/case-1/case.toml":     "case\n",
+				"suites/remote/cases/case-1/prompt.md":     "prompt\n",
+				"suites/remote/cases/case-1/tests/test.sh": "#!/usr/bin/env bash\n",
+				"suites/other/preamble-prompt.md":          "other preamble\n",
+				"suites/other/suite.toml":                  "other\n",
+				"suites/other/cases/other/case.toml":       "case\n",
+				"suites/other/cases/other/prompt.md":       "prompt\n",
+				"suites/other/cases/other/tests/test.sh":   "#!/usr/bin/env bash\n",
+			},
+		}},
+	}
+	resolver := &Resolver{
+		homeDir:     func() (string, error) { return homeDir, nil },
+		git:         runner,
+		now:         func() time.Time { return time.Date(2026, 3, 24, 12, 0, 0, 0, time.UTC) },
+		lockTimeout: time.Second,
+		lockPoll:    time.Millisecond,
+	}
+
+	result, err := resolver.Resolve(context.Background(), ResolveInput{
+		Suite: "git::https://github.com/example/suites.git//suites/remote",
+	})
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	body, err := os.ReadFile(filepath.Join(result.LocalPath, "preamble-prompt.md"))
+	if err != nil {
+		t.Fatalf("read copied preamble-prompt.md: %v", err)
+	}
+	if string(body) != "suite preamble\n" {
+		t.Fatalf("preamble-prompt.md = %q, want %q", string(body), "suite preamble\n")
+	}
+}
+
 func TestResolveFailedRefreshKeepsExistingCache(t *testing.T) {
 	homeDir := t.TempDir()
 	runner := &fakeGitRunner{
