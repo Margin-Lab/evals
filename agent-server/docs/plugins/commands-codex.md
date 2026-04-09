@@ -56,7 +56,7 @@ If `<run_home>/.codex/auth.json` was already materialized by the caller, Codex c
 3. returns this launch command:
 
 ```bash
-<bin_path> exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --json --enable unified_exec <startup_args...> <run_args...> -- "<initial_prompt>"
+<bin_path> exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check --enable unified_exec <startup_args...> <run_args...> -- "<initial_prompt>"
 ```
 
 The login subprocess writes normal terminal output to `stderr` so hook `stdout` stays JSON-only.

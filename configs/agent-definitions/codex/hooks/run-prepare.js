@@ -29,6 +29,7 @@ const args = [
   "unified_exec",
   ...(cfg.startup_args || []),
   ...(cfg.run_args || []),
+  "--",
   run.initial_prompt,
 ];
 process.stdout.write(JSON.stringify({ path: binPath, args, env, dir: run.cwd }) + "\n");
