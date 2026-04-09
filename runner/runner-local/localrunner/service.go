@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/marginlab/margin-eval/runner/runner-core/engine"
@@ -20,7 +19,6 @@ import (
 )
 
 type Config struct {
-	RootDir               string
 	RunStore              store.RunStore
 	Executor              engine.Executor
 	DockerBinary          string
@@ -32,29 +30,21 @@ type Config struct {
 }
 
 type Service struct {
-	rootDir          string
 	runStore         store.RunStore
 	pool             *engine.Pool
 	now              func() time.Time
 	idFunc           func(prefix string) string
 	pruneCoordinator *pruneCoordinator
+	executorRunDirs  interface {
+		RegisterRunDir(string, string) error
+	}
+	mu      sync.RWMutex
+	runDirs map[string]string
 }
 
 var _ runnerapi.Service = (*Service)(nil)
 
-type idGen struct {
-	seq atomic.Uint64
-}
-
-func (g *idGen) Next(prefix string) string {
-	n := g.seq.Add(1)
-	return fmt.Sprintf("%s_%06d", prefix, n)
-}
-
 func NewService(cfg Config) (runnerapi.Service, error) {
-	if strings.TrimSpace(cfg.RootDir) == "" {
-		return nil, fmt.Errorf("root dir is required")
-	}
 	if cfg.Executor == nil {
 		return nil, fmt.Errorf("executor is required")
 	}
@@ -64,23 +54,16 @@ func NewService(cfg Config) (runnerapi.Service, error) {
 	if cfg.Now == nil {
 		cfg.Now = func() time.Time { return time.Now().UTC() }
 	}
-	runsRoot := filepath.Join(cfg.RootDir, "runs")
-	if err := os.MkdirAll(runsRoot, 0o755); err != nil {
-		return nil, fmt.Errorf("create runs root: %w", err)
-	}
 	if cfg.IDFunc == nil {
-		gen := &idGen{}
-		maxRunSeq, err := detectMaxRunSequence(runsRoot)
-		if err != nil {
-			return nil, fmt.Errorf("detect max run sequence: %w", err)
+		cfg.IDFunc = func(prefix string) string {
+			return fmt.Sprintf("%s_%d", prefix, cfg.Now().UnixNano())
 		}
-		gen.seq.Store(maxRunSeq)
-		cfg.IDFunc = gen.Next
 	}
 	svc := &Service{
-		rootDir: cfg.RootDir,
-		now:     cfg.Now,
-		idFunc:  cfg.IDFunc,
+		now:             cfg.Now,
+		idFunc:          cfg.IDFunc,
+		executorRunDirs: executorRunDirRegistrar(cfg.Executor),
+		runDirs:         map[string]string{},
 	}
 	if cfg.GlobalImagePruneEvery < 0 {
 		return nil, fmt.Errorf("global image prune interval must be >= 0")
@@ -100,50 +83,9 @@ func NewService(cfg Config) (runnerapi.Service, error) {
 		executor = coordinator.wrapExecutor(executor)
 		runStore = newPruningStore(runStore, coordinator)
 	}
-	svc.runStore = newProgressStore(runStore, cfg.RootDir, svc.ensureTerminalRunSnapshot)
+	svc.runStore = newProgressStore(runStore, svc.runDir, svc.ensureTerminalRunSnapshot)
 	svc.pool = engine.NewPool(svc.runStore, executor, cfg.EngineConfig)
 	return svc, nil
-}
-
-func detectMaxRunSequence(runsRoot string) (uint64, error) {
-	entries, err := os.ReadDir(runsRoot)
-	if err != nil {
-		return 0, fmt.Errorf("read runs root %q: %w", runsRoot, err)
-	}
-	var max uint64
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		seq, ok := parseRunSequence(entry.Name())
-		if !ok {
-			continue
-		}
-		if seq > max {
-			max = seq
-		}
-	}
-	return max, nil
-}
-
-func parseRunSequence(runID string) (uint64, bool) {
-	if !strings.HasPrefix(runID, "run_") {
-		return 0, false
-	}
-	suffix := strings.TrimPrefix(runID, "run_")
-	if suffix == "" {
-		return 0, false
-	}
-	for _, ch := range suffix {
-		if ch < '0' || ch > '9' {
-			return 0, false
-		}
-	}
-	seq, err := strconv.ParseUint(suffix, 10, 64)
-	if err != nil {
-		return 0, false
-	}
-	return seq, true
 }
 
 func (s *Service) Start(ctx context.Context) {
@@ -165,9 +107,26 @@ func (s *Service) SubmitRun(ctx context.Context, in runnerapi.SubmitInput) (stor
 		bundle.Source.SubmitProjectID = in.ProjectID
 	}
 
-	resumeFromRunID := strings.TrimSpace(in.ResumeFromRunID)
-	if resumeFromRunID != "" {
-		return s.submitResumedRun(ctx, in, bundle, resumeFromRunID)
+	runID := strings.TrimSpace(in.RunID)
+	if runID == "" {
+		return store.Run{}, fmt.Errorf("run id is required")
+	}
+	outputDir, err := prepareOutputDir(in.OutputDir)
+	if err != nil {
+		return store.Run{}, err
+	}
+	if err := s.registerRunDir(runID, outputDir); err != nil {
+		return store.Run{}, err
+	}
+	defer func() {
+		if err != nil {
+			s.unregisterRunDir(runID)
+		}
+	}()
+
+	resumeFromDir := strings.TrimSpace(in.ResumeFromDir)
+	if resumeFromDir != "" {
+		return s.submitResumedRun(ctx, in, bundle, outputDir, resumeFromDir)
 	}
 
 	hash, err := runbundle.HashSHA256(bundle)
@@ -178,7 +137,7 @@ func (s *Service) SubmitRun(ctx context.Context, in runnerapi.SubmitInput) (stor
 	if err != nil {
 		return store.Run{}, err
 	}
-	if err := s.writeJSON(runfs.BundlePath(s.rootDir, run.RunID), bundle); err != nil {
+	if err := s.writeJSON(runfs.BundlePath(outputDir), bundle); err != nil {
 		return store.Run{}, err
 	}
 	return run, nil
@@ -186,9 +145,6 @@ func (s *Service) SubmitRun(ctx context.Context, in runnerapi.SubmitInput) (stor
 
 func (s *Service) createRun(ctx context.Context, in runnerapi.SubmitInput, bundle runbundle.Bundle, hash string) (store.Run, error) {
 	runID := strings.TrimSpace(in.RunID)
-	if runID == "" {
-		runID = s.idFunc("run")
-	}
 	return s.runStore.CreateRun(ctx, store.CreateRunInput{
 		RunID:         runID,
 		ProjectID:     in.ProjectID,
@@ -199,6 +155,83 @@ func (s *Service) createRun(ctx context.Context, in runnerapi.SubmitInput, bundl
 		BundleHash:    hash,
 		At:            s.now(),
 	})
+}
+
+func prepareOutputDir(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", fmt.Errorf("output dir is required")
+	}
+	absPath, err := filepath.Abs(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("resolve output dir %q: %w", raw, err)
+	}
+	if info, statErr := os.Stat(absPath); statErr == nil {
+		if info.IsDir() {
+			return "", fmt.Errorf("output dir %q already exists", absPath)
+		}
+		return "", fmt.Errorf("output dir %q already exists and is not a directory", absPath)
+	} else if !os.IsNotExist(statErr) {
+		return "", fmt.Errorf("stat output dir %q: %w", absPath, statErr)
+	}
+	if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
+		return "", fmt.Errorf("create parent dir for output dir %q: %w", absPath, err)
+	}
+	if err := os.Mkdir(absPath, 0o755); err != nil {
+		return "", fmt.Errorf("create output dir %q: %w", absPath, err)
+	}
+	return absPath, nil
+}
+
+func (s *Service) registerRunDir(runID, runDir string) error {
+	trimmedRunID := strings.TrimSpace(runID)
+	trimmedRunDir := strings.TrimSpace(runDir)
+	if trimmedRunID == "" {
+		return fmt.Errorf("run id is required")
+	}
+	if trimmedRunDir == "" {
+		return fmt.Errorf("run dir is required")
+	}
+	if s.executorRunDirs != nil {
+		if err := s.executorRunDirs.RegisterRunDir(trimmedRunID, trimmedRunDir); err != nil {
+			return err
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if existing, ok := s.runDirs[trimmedRunID]; ok && existing != trimmedRunDir {
+		return fmt.Errorf("run dir already registered for run %s", trimmedRunID)
+	}
+	s.runDirs[trimmedRunID] = trimmedRunDir
+	return nil
+}
+
+func executorRunDirRegistrar(executor engine.Executor) interface {
+	RegisterRunDir(string, string) error
+} {
+	if executor == nil {
+		return nil
+	}
+	registrar, _ := executor.(interface {
+		RegisterRunDir(string, string) error
+	})
+	return registrar
+}
+
+func (s *Service) unregisterRunDir(runID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.runDirs, strings.TrimSpace(runID))
+}
+
+func (s *Service) runDir(runID string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	runDir := strings.TrimSpace(s.runDirs[strings.TrimSpace(runID)])
+	if runDir == "" {
+		return "", fmt.Errorf("run dir not registered for run %s", strings.TrimSpace(runID))
+	}
+	return runDir, nil
 }
 
 func (s *Service) WaitForTerminalRun(ctx context.Context, runID string, pollInterval time.Duration) (store.Run, error) {
@@ -280,7 +313,11 @@ func (s *Service) persistRunSnapshot(ctx context.Context, runID string) error {
 	if run.Bundle.Source.ResumeBundleHashMatch != nil {
 		manifest["resume_bundle_hash_match"] = *run.Bundle.Source.ResumeBundleHashMatch
 	}
-	if err := s.writeJSON(runfs.ManifestPath(s.rootDir, runID), manifest); err != nil {
+	runDir, err := s.runDir(runID)
+	if err != nil {
+		return err
+	}
+	if err := s.writeJSON(runfs.ManifestPath(runDir), manifest); err != nil {
 		return err
 	}
 	results, err := s.runStore.ListInstanceResults(ctx, runID)
@@ -288,7 +325,7 @@ func (s *Service) persistRunSnapshot(ctx context.Context, runID string) error {
 		return err
 	}
 	summary := runresults.Build(run, instances, results)
-	if err := s.writeJSON(runfs.ResultsPath(s.rootDir, runID), summary); err != nil {
+	if err := s.writeJSON(runfs.ResultsPath(runDir), summary); err != nil {
 		return err
 	}
 
@@ -309,17 +346,17 @@ func (s *Service) persistRunSnapshot(ctx context.Context, runID string) error {
 	if err != nil {
 		return err
 	}
-	if err := s.writeJSONLines(runfs.EventsPath(s.rootDir, runID), eventLines); err != nil {
+	if err := s.writeJSONLines(runfs.EventsPath(runDir), eventLines); err != nil {
 		return err
 	}
-	if err := writeArtifactsIndex(s.rootDir, runID, artifacts); err != nil {
+	if err := writeArtifactsIndex(runDir, artifacts); err != nil {
 		return err
 	}
 	resultsByInstance, err := collectRunResults(ctx, s.runStore, instances)
 	if err != nil {
 		return err
 	}
-	if err := writeInstanceResults(s.rootDir, runID, instances, resultsByInstance, artifactsByInstance); err != nil {
+	if err := writeInstanceResults(runDir, instances, resultsByInstance, artifactsByInstance); err != nil {
 		return err
 	}
 	return nil

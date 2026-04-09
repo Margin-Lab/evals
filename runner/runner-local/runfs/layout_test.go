@@ -52,8 +52,8 @@ func TestRelativePathForArtifactUsesExtraDirForUnknownRole(t *testing.T) {
 }
 
 func TestBundlePathUsesInternalDir(t *testing.T) {
-	got := BundlePath("/tmp/root", "run_1")
-	want := filepath.Join("/tmp/root", "runs", "run_1", "internal", "bundle.json")
+	got := BundlePath("/tmp/root/run_1")
+	want := filepath.Join("/tmp/root", "run_1", "internal", "bundle.json")
 	if got != want {
 		t.Fatalf("BundlePath() = %q, want %q", got, want)
 	}

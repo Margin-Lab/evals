@@ -34,8 +34,7 @@ var structuredExecutionLogRoles = map[string]struct{}{
 }
 
 type executionLogs struct {
-	rootDir    string
-	runID      string
+	runDir     string
 	instanceID string
 
 	mu                sync.Mutex
@@ -45,17 +44,16 @@ type executionLogs struct {
 	structuredWriters map[string]*structuredLogWriter
 }
 
-func newExecutionLogs(rootDir, runID, instanceID string) (*executionLogs, error) {
-	root := strings.TrimSpace(rootDir)
-	if root == "" {
-		return nil, fmt.Errorf("root dir is required")
+func newExecutionLogs(runDir, instanceID string) (*executionLogs, error) {
+	resolvedRunDir := strings.TrimSpace(runDir)
+	if resolvedRunDir == "" {
+		return nil, fmt.Errorf("run dir is required")
 	}
-	if err := os.MkdirAll(runfs.InstanceDir(root, runID, instanceID), 0o755); err != nil {
+	if err := os.MkdirAll(runfs.InstanceDir(resolvedRunDir, instanceID), 0o755); err != nil {
 		return nil, fmt.Errorf("create instance dir: %w", err)
 	}
 	return &executionLogs{
-		rootDir:           root,
-		runID:             runID,
+		runDir:            resolvedRunDir,
 		instanceID:        instanceID,
 		files:             map[string]*os.File{},
 		paths:             map[string]string{},
@@ -227,7 +225,7 @@ func (l *executionLogs) pathForRoleLocked(role string) (string, error) {
 	if path := l.paths[trimmed]; path != "" {
 		return path, nil
 	}
-	path, storeKey, _, ok := runfs.AbsoluteArtifactPath(l.rootDir, l.runID, l.instanceID, trimmed)
+	path, storeKey, _, ok := runfs.AbsoluteArtifactPath(l.runDir, l.instanceID, trimmed)
 	if !ok {
 		return "", fmt.Errorf("unsupported execution log role %q", trimmed)
 	}

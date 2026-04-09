@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -24,17 +25,15 @@ func TestRunnerLocalWithFakeAgentServer(t *testing.T) {
 	ensureFakeImageBuilt(t)
 	agentServerBinary := ensureFakeAgentServerBinaryBuilt(t)
 
-	rootDir := t.TempDir()
+	runDir := t.TempDir()
 	executor, err := localexecutor.New(localexecutor.Config{
 		AgentServerBinary: agentServerBinary,
-		OutputRoot:        t.TempDir(),
 		AgentPollInterval: 250 * time.Millisecond,
 	})
 	if err != nil {
 		t.Fatalf("new executor: %v", err)
 	}
 	svc, err := localrunner.NewService(localrunner.Config{
-		RootDir:  rootDir,
 		Executor: executor,
 	})
 	if err != nil {
@@ -46,6 +45,8 @@ func TestRunnerLocalWithFakeAgentServer(t *testing.T) {
 	svc.Start(ctx)
 
 	run, err := svc.SubmitRun(context.Background(), runnerapi.SubmitInput{
+		RunID:         "run_fake_success",
+		OutputDir:     runDir,
 		ProjectID:     "proj_local",
 		CreatedByUser: "user_local",
 		Name:          "local-fake-success",
@@ -63,17 +64,17 @@ func TestRunnerLocalWithFakeAgentServer(t *testing.T) {
 	}
 
 	for _, full := range []string{
-		runfs.BundlePath(rootDir, run.RunID),
-		runfs.ManifestPath(rootDir, run.RunID),
-		runfs.ResultsPath(rootDir, run.RunID),
-		runfs.EventsPath(rootDir, run.RunID),
-		runfs.ArtifactsIndexPath(rootDir, run.RunID),
+		runfs.BundlePath(runDir),
+		runfs.ManifestPath(runDir),
+		runfs.ResultsPath(runDir),
+		runfs.EventsPath(runDir),
+		runfs.ArtifactsIndexPath(runDir),
 	} {
 		if _, err := os.Stat(full); err != nil {
 			t.Fatalf("expected %s: %v", full, err)
 		}
 	}
-	resultsPath := runfs.ResultsPath(rootDir, run.RunID)
+	resultsPath := runfs.ResultsPath(runDir)
 	raw, err := os.ReadFile(resultsPath)
 	if err != nil {
 		t.Fatalf("read results.json: %v", err)
@@ -88,7 +89,7 @@ func TestRunnerLocalWithFakeAgentServer(t *testing.T) {
 	if summary.Usage.InputTokens != 12 || summary.Usage.OutputTokens != 5 || summary.Usage.ToolCalls != 1 {
 		t.Fatalf("unexpected usage summary: %+v", summary.Usage)
 	}
-	artifactsIndexPath := runfs.ArtifactsIndexPath(rootDir, run.RunID)
+	artifactsIndexPath := runfs.ArtifactsIndexPath(runDir)
 	artifactsRaw, err := os.ReadFile(artifactsIndexPath)
 	if err != nil {
 		t.Fatalf("read artifacts metadata: %v", err)
@@ -116,14 +117,12 @@ func TestRunnerLocalWithFakeAgentServerFailure(t *testing.T) {
 
 	executor, err := localexecutor.New(localexecutor.Config{
 		AgentServerBinary: agentServerBinary,
-		OutputRoot:        t.TempDir(),
 		AgentPollInterval: 250 * time.Millisecond,
 	})
 	if err != nil {
 		t.Fatalf("new executor: %v", err)
 	}
 	svc, err := localrunner.NewService(localrunner.Config{
-		RootDir:  t.TempDir(),
 		Executor: executor,
 	})
 	if err != nil {
@@ -135,6 +134,8 @@ func TestRunnerLocalWithFakeAgentServerFailure(t *testing.T) {
 	svc.Start(ctx)
 
 	run, err := svc.SubmitRun(context.Background(), runnerapi.SubmitInput{
+		RunID:         "run_fake_failure",
+		OutputDir:     filepath.Join(t.TempDir(), "failed-run"),
 		ProjectID:     "proj_local",
 		CreatedByUser: "user_local",
 		Name:          "local-fake-failure",
@@ -157,17 +158,15 @@ func TestRunnerLocalWithFakeAgentServerDryRun(t *testing.T) {
 	ensureFakeImageBuilt(t)
 	agentServerBinary := ensureFakeAgentServerBinaryBuilt(t)
 
-	rootDir := t.TempDir()
+	runDir := t.TempDir()
 	executor, err := localexecutor.New(localexecutor.Config{
 		AgentServerBinary: agentServerBinary,
-		OutputRoot:        t.TempDir(),
 		AgentPollInterval: 250 * time.Millisecond,
 	})
 	if err != nil {
 		t.Fatalf("new executor: %v", err)
 	}
 	svc, err := localrunner.NewService(localrunner.Config{
-		RootDir:  rootDir,
 		Executor: executor,
 	})
 	if err != nil {
@@ -181,6 +180,8 @@ func TestRunnerLocalWithFakeAgentServerDryRun(t *testing.T) {
 	bundle := bundleWithCaseImage(buildBundleWithAgent("fake local dry run", testfixture.MinimalAgent()), fakeImageTag)
 	bundle.ResolvedSnapshot.Execution.Mode = runbundle.ExecutionModeDryRun
 	run, err := svc.SubmitRun(context.Background(), runnerapi.SubmitInput{
+		RunID:         "run_fake_dry_run",
+		OutputDir:     runDir,
 		ProjectID:     "proj_local",
 		CreatedByUser: "user_local",
 		Name:          "local-fake-dry-run",
@@ -197,7 +198,7 @@ func TestRunnerLocalWithFakeAgentServerDryRun(t *testing.T) {
 		t.Fatalf("expected completed run, got %s", finalRun.State)
 	}
 
-	resultsPath := runfs.ResultsPath(rootDir, run.RunID)
+	resultsPath := runfs.ResultsPath(runDir)
 	raw, err := os.ReadFile(resultsPath)
 	if err != nil {
 		t.Fatalf("read results.json: %v", err)
@@ -219,7 +220,7 @@ func TestRunnerLocalWithFakeAgentServerDryRun(t *testing.T) {
 		t.Fatalf("unexpected instance summaries: %+v", summary.Instances)
 	}
 
-	metadataPath := runfs.ArtifactsIndexPath(rootDir, run.RunID)
+	metadataPath := runfs.ArtifactsIndexPath(runDir)
 	metadataRaw, err := os.ReadFile(metadataPath)
 	if err != nil {
 		t.Fatalf("read artifacts metadata: %v", err)

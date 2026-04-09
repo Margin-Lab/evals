@@ -70,24 +70,24 @@ Official suites are hosted in `https://github.com/Margin-Lab/swe-suites.git` and
 Resume an existing local run with its saved bundle:
 
 ```bash
-margin run \
-  --resume-from run_123 \
-  --root .
+margin run --resume-from ./runs/run_20260409_153022_1f3a9c2d
 ```
 
 To resume with updated inputs, pass a fresh suite, agent config, and eval config alongside `--resume-from`:
 
 ```bash
 margin run \
-  --resume-from run_123 \
+  --resume-from ./runs/run_20260409_153022_1f3a9c2d \
   --suite ./suites/smoke \
   --agent-config ./configs/agent-configs/my-agent-default \
   --eval ./configs/evals/local.toml
 ```
 
-Without updated inputs, `margin run --resume-from` loads `runs/<run-id>/internal/bundle.json` from the selected `--root`.
+Without updated inputs, `margin run --resume-from` loads the saved bundle from `<run-dir>/internal/bundle.json`.
 
 With updated inputs, the CLI recompiles a new bundle, warns when the new inputs differ from the saved run, reuses prior results according to the selected resume policy, and runs the remaining cases with the current inputs.
+
+Use `--output` to choose the exact destination directory for a new run. When `--output` is omitted, Margin writes the run to `./runs/<run-id>`.
 
 To skip agent execution while still running the case tests and avoiding token usage, add `--dry-run`:
 

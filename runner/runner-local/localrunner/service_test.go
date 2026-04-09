@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -52,8 +54,8 @@ func (f fakeExecutor) ExecuteInstance(_ context.Context, run store.Run, inst sto
 
 func TestServiceSubmitRunWritesBundle(t *testing.T) {
 	tmp := t.TempDir()
+	runDir := testRunDir(tmp, "fresh-submit")
 	svc, err := NewService(Config{
-		RootDir:  tmp,
 		Executor: fakeExecutor{result: store.InstanceResult{FinalState: domain.InstanceStateSucceeded}},
 		Now:      fixedNow,
 		IDFunc:   fixedIDFunc(),
@@ -62,17 +64,12 @@ func TestServiceSubmitRunWritesBundle(t *testing.T) {
 		t.Fatalf("new service: %v", err)
 	}
 
-	run, err := svc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:     "proj_local",
-		CreatedByUser: "user_local",
-		Name:          "smoke",
-		Bundle:        validBundle(),
-	})
+	_, err = svc.SubmitRun(context.Background(), freshSubmitInput("run_submit", "smoke", validBundle(), runDir))
 	if err != nil {
 		t.Fatalf("submit run: %v", err)
 	}
 
-	bundlePath := runfs.BundlePath(tmp, run.RunID)
+	bundlePath := runfs.BundlePath(runDir)
 	if _, err := os.Stat(bundlePath); err != nil {
 		t.Fatalf("expected bundle.json at %s: %v", bundlePath, err)
 	}
@@ -80,8 +77,8 @@ func TestServiceSubmitRunWritesBundle(t *testing.T) {
 
 func TestServiceRunsAndPersistsSnapshot(t *testing.T) {
 	tmp := t.TempDir()
+	runDir := testRunDir(tmp, "persisted-snapshot")
 	svc, err := NewService(Config{
-		RootDir: tmp,
 		Executor: fakeExecutor{result: store.InstanceResult{
 			FinalState: domain.InstanceStateSucceeded,
 			Usage: &usage.Metrics{
@@ -98,12 +95,7 @@ func TestServiceRunsAndPersistsSnapshot(t *testing.T) {
 		t.Fatalf("new service: %v", err)
 	}
 
-	run, err := svc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:     "proj_local",
-		CreatedByUser: "user_local",
-		Name:          "smoke",
-		Bundle:        validBundle(),
-	})
+	run, err := svc.SubmitRun(context.Background(), freshSubmitInput("run_snapshot", "smoke", validBundle(), runDir))
 	if err != nil {
 		t.Fatalf("submit run: %v", err)
 	}
@@ -120,11 +112,11 @@ func TestServiceRunsAndPersistsSnapshot(t *testing.T) {
 		t.Fatalf("expected completed run, got %s", finalRun.State)
 	}
 
-	manifestPath := runfs.ManifestPath(tmp, run.RunID)
-	resultsPath := runfs.ResultsPath(tmp, run.RunID)
-	eventsPath := runfs.EventsPath(tmp, run.RunID)
-	artifactsPath := runfs.ArtifactsIndexPath(tmp, run.RunID)
-	instanceResultPath := runfs.InstanceResultPath(tmp, run.RunID, run.RunID+"-inst-0001")
+	manifestPath := runfs.ManifestPath(runDir)
+	resultsPath := runfs.ResultsPath(runDir)
+	eventsPath := runfs.EventsPath(runDir)
+	artifactsPath := runfs.ArtifactsIndexPath(runDir)
+	instanceResultPath := runfs.InstanceResultPath(runDir, run.RunID+"-inst-0001")
 	for _, path := range []string{manifestPath, resultsPath, eventsPath, artifactsPath, instanceResultPath} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected file %s: %v", path, err)
@@ -153,7 +145,6 @@ func TestServiceRunsAndPersistsSnapshot(t *testing.T) {
 func TestServicePropagatesExecutorErrorAsFailedRun(t *testing.T) {
 	tmp := t.TempDir()
 	svc, err := NewService(Config{
-		RootDir:      tmp,
 		Executor:     fakeExecutor{err: errors.New("boom")},
 		EngineConfig: defaultEngineConfig(),
 		Now:          fixedNow,
@@ -163,12 +154,7 @@ func TestServicePropagatesExecutorErrorAsFailedRun(t *testing.T) {
 		t.Fatalf("new service: %v", err)
 	}
 
-	run, err := svc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:     "proj_local",
-		CreatedByUser: "user_local",
-		Name:          "smoke",
-		Bundle:        validBundle(),
-	})
+	run, err := svc.SubmitRun(context.Background(), freshSubmitInput("run_failed", "smoke", validBundle(), testRunDir(tmp, "failed-run")))
 	if err != nil {
 		t.Fatalf("submit run: %v", err)
 	}
@@ -188,8 +174,8 @@ func TestServicePropagatesExecutorErrorAsFailedRun(t *testing.T) {
 
 func TestServiceWritesProgressFile(t *testing.T) {
 	tmp := t.TempDir()
+	runDir := testRunDir(tmp, "progress")
 	svc, err := NewService(Config{
-		RootDir:      tmp,
 		Executor:     fakeExecutor{result: store.InstanceResult{FinalState: domain.InstanceStateSucceeded}},
 		EngineConfig: defaultEngineConfig(),
 		Now:          fixedNow,
@@ -199,12 +185,7 @@ func TestServiceWritesProgressFile(t *testing.T) {
 		t.Fatalf("new service: %v", err)
 	}
 
-	run, err := svc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:     "proj_local",
-		CreatedByUser: "user_local",
-		Name:          "smoke",
-		Bundle:        validBundle(),
-	})
+	run, err := svc.SubmitRun(context.Background(), freshSubmitInput("run_progress", "smoke", validBundle(), runDir))
 	if err != nil {
 		t.Fatalf("submit run: %v", err)
 	}
@@ -216,7 +197,7 @@ func TestServiceWritesProgressFile(t *testing.T) {
 		t.Fatalf("wait for terminal run: %v", err)
 	}
 
-	progressPath := runfs.ProgressPath(tmp, run.RunID)
+	progressPath := runfs.ProgressPath(runDir)
 	if _, err := os.Stat(progressPath); err != nil {
 		t.Fatalf("expected progress.json at %s: %v", progressPath, err)
 	}
@@ -224,8 +205,8 @@ func TestServiceWritesProgressFile(t *testing.T) {
 
 func TestServicePersistsTerminalSnapshotWithoutWaitForTerminalRun(t *testing.T) {
 	tmp := t.TempDir()
+	runDir := testRunDir(tmp, "terminal-without-wait")
 	svc, err := NewService(Config{
-		RootDir: tmp,
 		Executor: fakeExecutor{result: store.InstanceResult{
 			FinalState: domain.InstanceStateSucceeded,
 		}},
@@ -237,12 +218,7 @@ func TestServicePersistsTerminalSnapshotWithoutWaitForTerminalRun(t *testing.T) 
 		t.Fatalf("new service: %v", err)
 	}
 
-	run, err := svc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:     "proj_local",
-		CreatedByUser: "user_local",
-		Name:          "smoke",
-		Bundle:        validBundle(),
-	})
+	run, err := svc.SubmitRun(context.Background(), freshSubmitInput("run_terminal_no_wait", "smoke", validBundle(), runDir))
 	if err != nil {
 		t.Fatalf("submit run: %v", err)
 	}
@@ -270,8 +246,8 @@ func TestServicePersistsTerminalSnapshotWithoutWaitForTerminalRun(t *testing.T) 
 	if snapshot.Run.State != domain.RunStateCompleted {
 		t.Fatalf("expected completed run, got %s", snapshot.Run.State)
 	}
-	resultsPath := runfs.ResultsPath(tmp, run.RunID)
-	manifestPath := runfs.ManifestPath(tmp, run.RunID)
+	resultsPath := runfs.ResultsPath(runDir)
+	manifestPath := runfs.ManifestPath(runDir)
 	for _, path := range []string{manifestPath, resultsPath} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected file %s after terminal snapshot persistence: %v", path, err)
@@ -281,9 +257,10 @@ func TestServicePersistsTerminalSnapshotWithoutWaitForTerminalRun(t *testing.T) 
 
 func TestServiceResumesFromProgressAcrossRestart(t *testing.T) {
 	tmp := t.TempDir()
+	sourceRunDir := testRunDir(tmp, "resume-source")
+	resumedRunDir := testRunDir(tmp, "resume-target")
 
 	firstSvc, err := NewService(Config{
-		RootDir:      tmp,
 		Executor:     fakeExecutor{result: store.InstanceResult{FinalState: domain.InstanceStateSucceeded}},
 		EngineConfig: defaultEngineConfig(),
 		Now:          fixedNow,
@@ -292,12 +269,7 @@ func TestServiceResumesFromProgressAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new first service: %v", err)
 	}
-	sourceRun, err := firstSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:     "proj_local",
-		CreatedByUser: "user_local",
-		Name:          "smoke",
-		Bundle:        validBundle(),
-	})
+	sourceRun, err := firstSvc.SubmitRun(context.Background(), freshSubmitInput("run_resume_source", "smoke", validBundle(), sourceRunDir))
 	if err != nil {
 		t.Fatalf("submit source run: %v", err)
 	}
@@ -315,7 +287,6 @@ func TestServiceResumesFromProgressAcrossRestart(t *testing.T) {
 
 	// Simulate process restart with a fresh in-memory run store.
 	secondSvc, err := NewService(Config{
-		RootDir:      tmp,
 		Executor:     fakeExecutor{err: errors.New("should not execute resumed completed cases")},
 		EngineConfig: defaultEngineConfig(),
 		Now:          fixedNow,
@@ -324,15 +295,7 @@ func TestServiceResumesFromProgressAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new second service: %v", err)
 	}
-	resumedRun, err := secondSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:          "proj_local",
-		CreatedByUser:      "user_local",
-		Name:               "smoke-resumed",
-		Bundle:             validBundle(),
-		ResumeFromRunID:    sourceRun.RunID,
-		ResumeMode:         runnerapi.ResumeModeResume,
-		ResumeBundlePolicy: runnerapi.ResumeBundlePolicyExact,
-	})
+	resumedRun, err := secondSvc.SubmitRun(context.Background(), resumeSubmitInput("run_resume_target", "smoke-resumed", validBundle(), resumedRunDir, sourceRunDir, runnerapi.ResumeModeResume, runnerapi.ResumeBundlePolicyExact))
 	if err != nil {
 		t.Fatalf("submit resumed run: %v", err)
 	}
@@ -352,9 +315,10 @@ func TestServiceResumesFromProgressAcrossRestart(t *testing.T) {
 
 func TestServiceResumeModeCarriesFailedAcrossRestart(t *testing.T) {
 	tmp := t.TempDir()
+	sourceRunDir := testRunDir(tmp, "carry-failed-source")
+	resumedRunDir := testRunDir(tmp, "carry-failed-target")
 
 	firstSvc, err := NewService(Config{
-		RootDir:      tmp,
 		Executor:     fakeExecutor{result: store.InstanceResult{FinalState: domain.InstanceStateTestFailed}},
 		EngineConfig: defaultEngineConfig(),
 		Now:          fixedNow,
@@ -363,12 +327,7 @@ func TestServiceResumeModeCarriesFailedAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new first service: %v", err)
 	}
-	sourceRun, err := firstSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:     "proj_local",
-		CreatedByUser: "user_local",
-		Name:          "smoke",
-		Bundle:        validBundle(),
-	})
+	sourceRun, err := firstSvc.SubmitRun(context.Background(), freshSubmitInput("run_carry_failed_source", "smoke", validBundle(), sourceRunDir))
 	if err != nil {
 		t.Fatalf("submit source run: %v", err)
 	}
@@ -385,7 +344,6 @@ func TestServiceResumeModeCarriesFailedAcrossRestart(t *testing.T) {
 	}
 
 	secondSvc, err := NewService(Config{
-		RootDir: tmp,
 		Executor: fakeExecutor{
 			onExecute: func() {
 				t.Fatalf("should not execute carried test_failed cases in resume mode")
@@ -398,15 +356,7 @@ func TestServiceResumeModeCarriesFailedAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new second service: %v", err)
 	}
-	resumedRun, err := secondSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:          "proj_local",
-		CreatedByUser:      "user_local",
-		Name:               "smoke-resumed",
-		Bundle:             validBundle(),
-		ResumeFromRunID:    sourceRun.RunID,
-		ResumeMode:         runnerapi.ResumeModeResume,
-		ResumeBundlePolicy: runnerapi.ResumeBundlePolicyExact,
-	})
+	resumedRun, err := secondSvc.SubmitRun(context.Background(), resumeSubmitInput("run_carry_failed_target", "smoke-resumed", validBundle(), resumedRunDir, sourceRunDir, runnerapi.ResumeModeResume, runnerapi.ResumeBundlePolicyExact))
 	if err != nil {
 		t.Fatalf("submit resumed run: %v", err)
 	}
@@ -426,9 +376,10 @@ func TestServiceResumeModeCarriesFailedAcrossRestart(t *testing.T) {
 
 func TestServiceRetryFailedModeRerunsFailedAcrossRestart(t *testing.T) {
 	tmp := t.TempDir()
+	sourceRunDir := testRunDir(tmp, "retry-failed-source")
+	resumedRunDir := testRunDir(tmp, "retry-failed-target")
 
 	firstSvc, err := NewService(Config{
-		RootDir:      tmp,
 		Executor:     fakeExecutor{result: store.InstanceResult{FinalState: domain.InstanceStateTestFailed}},
 		EngineConfig: defaultEngineConfig(),
 		Now:          fixedNow,
@@ -437,12 +388,7 @@ func TestServiceRetryFailedModeRerunsFailedAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new first service: %v", err)
 	}
-	sourceRun, err := firstSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:     "proj_local",
-		CreatedByUser: "user_local",
-		Name:          "smoke",
-		Bundle:        validBundle(),
-	})
+	sourceRun, err := firstSvc.SubmitRun(context.Background(), freshSubmitInput("run_retry_failed_source", "smoke", validBundle(), sourceRunDir))
 	if err != nil {
 		t.Fatalf("submit source run: %v", err)
 	}
@@ -460,7 +406,6 @@ func TestServiceRetryFailedModeRerunsFailedAcrossRestart(t *testing.T) {
 
 	executions := 0
 	secondSvc, err := NewService(Config{
-		RootDir: tmp,
 		Executor: fakeExecutor{
 			result: store.InstanceResult{FinalState: domain.InstanceStateSucceeded},
 			onExecute: func() {
@@ -474,15 +419,7 @@ func TestServiceRetryFailedModeRerunsFailedAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new second service: %v", err)
 	}
-	resumedRun, err := secondSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:          "proj_local",
-		CreatedByUser:      "user_local",
-		Name:               "smoke-retry-failed",
-		Bundle:             validBundle(),
-		ResumeFromRunID:    sourceRun.RunID,
-		ResumeMode:         runnerapi.ResumeModeRetryFailed,
-		ResumeBundlePolicy: runnerapi.ResumeBundlePolicyExact,
-	})
+	resumedRun, err := secondSvc.SubmitRun(context.Background(), resumeSubmitInput("run_retry_failed_target", "smoke-retry-failed", validBundle(), resumedRunDir, sourceRunDir, runnerapi.ResumeModeRetryFailed, runnerapi.ResumeBundlePolicyExact))
 	if err != nil {
 		t.Fatalf("submit resumed run: %v", err)
 	}
@@ -506,9 +443,10 @@ func TestServiceRetryFailedModeRerunsFailedAcrossRestart(t *testing.T) {
 
 func TestServiceResumeModeRerunsInfraFailedAcrossRestart(t *testing.T) {
 	tmp := t.TempDir()
+	sourceRunDir := testRunDir(tmp, "resume-infra-source")
+	resumedRunDir := testRunDir(tmp, "resume-infra-target")
 
 	firstSvc, err := NewService(Config{
-		RootDir:      tmp,
 		Executor:     fakeExecutor{result: store.InstanceResult{FinalState: domain.InstanceStateInfraFailed}},
 		EngineConfig: defaultEngineConfig(),
 		Now:          fixedNow,
@@ -517,12 +455,7 @@ func TestServiceResumeModeRerunsInfraFailedAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new first service: %v", err)
 	}
-	sourceRun, err := firstSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:     "proj_local",
-		CreatedByUser: "user_local",
-		Name:          "smoke",
-		Bundle:        validBundle(),
-	})
+	sourceRun, err := firstSvc.SubmitRun(context.Background(), freshSubmitInput("run_resume_infra_source", "smoke", validBundle(), sourceRunDir))
 	if err != nil {
 		t.Fatalf("submit source run: %v", err)
 	}
@@ -540,7 +473,6 @@ func TestServiceResumeModeRerunsInfraFailedAcrossRestart(t *testing.T) {
 
 	executions := 0
 	secondSvc, err := NewService(Config{
-		RootDir: tmp,
 		Executor: fakeExecutor{
 			result: store.InstanceResult{FinalState: domain.InstanceStateSucceeded},
 			onExecute: func() {
@@ -554,15 +486,7 @@ func TestServiceResumeModeRerunsInfraFailedAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new second service: %v", err)
 	}
-	resumedRun, err := secondSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:          "proj_local",
-		CreatedByUser:      "user_local",
-		Name:               "smoke-resume-infra",
-		Bundle:             validBundle(),
-		ResumeFromRunID:    sourceRun.RunID,
-		ResumeMode:         runnerapi.ResumeModeResume,
-		ResumeBundlePolicy: runnerapi.ResumeBundlePolicyExact,
-	})
+	resumedRun, err := secondSvc.SubmitRun(context.Background(), resumeSubmitInput("run_resume_infra_target", "smoke-resume-infra", validBundle(), resumedRunDir, sourceRunDir, runnerapi.ResumeModeResume, runnerapi.ResumeBundlePolicyExact))
 	if err != nil {
 		t.Fatalf("submit resumed run: %v", err)
 	}
@@ -586,9 +510,10 @@ func TestServiceResumeModeRerunsInfraFailedAcrossRestart(t *testing.T) {
 
 func TestServiceAllowMismatchCarriesIntersectingCasesAndRunsNewCases(t *testing.T) {
 	tmp := t.TempDir()
+	sourceRunDir := testRunDir(tmp, "allow-mismatch-source")
+	resumedRunDir := testRunDir(tmp, "allow-mismatch-target")
 
 	firstSvc, err := NewService(Config{
-		RootDir:      tmp,
 		Executor:     fakeExecutor{result: store.InstanceResult{FinalState: domain.InstanceStateSucceeded}},
 		EngineConfig: defaultEngineConfig(),
 		Now:          fixedNow,
@@ -597,12 +522,7 @@ func TestServiceAllowMismatchCarriesIntersectingCasesAndRunsNewCases(t *testing.
 	if err != nil {
 		t.Fatalf("new first service: %v", err)
 	}
-	sourceRun, err := firstSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:     "proj_local",
-		CreatedByUser: "user_local",
-		Name:          "smoke",
-		Bundle:        validBundleWithCases("case_1"),
-	})
+	sourceRun, err := firstSvc.SubmitRun(context.Background(), freshSubmitInput("run_allow_mismatch_source", "smoke", validBundleWithCases("case_1"), sourceRunDir))
 	if err != nil {
 		t.Fatalf("submit source run: %v", err)
 	}
@@ -620,7 +540,6 @@ func TestServiceAllowMismatchCarriesIntersectingCasesAndRunsNewCases(t *testing.
 
 	executions := 0
 	secondSvc, err := NewService(Config{
-		RootDir: tmp,
 		Executor: fakeExecutor{
 			result: store.InstanceResult{FinalState: domain.InstanceStateSucceeded},
 			onExecute: func() {
@@ -634,15 +553,7 @@ func TestServiceAllowMismatchCarriesIntersectingCasesAndRunsNewCases(t *testing.
 	if err != nil {
 		t.Fatalf("new second service: %v", err)
 	}
-	resumedRun, err := secondSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
-		ProjectID:          "proj_local",
-		CreatedByUser:      "user_local",
-		Name:               "smoke-override",
-		Bundle:             validBundleWithCases("case_1", "case_2"),
-		ResumeFromRunID:    sourceRun.RunID,
-		ResumeMode:         runnerapi.ResumeModeResume,
-		ResumeBundlePolicy: runnerapi.ResumeBundlePolicyAllowMismatch,
-	})
+	resumedRun, err := secondSvc.SubmitRun(context.Background(), resumeSubmitInput("run_allow_mismatch_target", "smoke-override", validBundleWithCases("case_1", "case_2"), resumedRunDir, sourceRunDir, runnerapi.ResumeModeResume, runnerapi.ResumeBundlePolicyAllowMismatch))
 	if err != nil {
 		t.Fatalf("submit resumed run: %v", err)
 	}
@@ -664,50 +575,31 @@ func TestServiceAllowMismatchCarriesIntersectingCasesAndRunsNewCases(t *testing.
 	}
 }
 
-func TestServiceDefaultRunIDContinuesAcrossRestart(t *testing.T) {
-	tmp := t.TempDir()
-	exec := fakeExecutor{result: store.InstanceResult{FinalState: domain.InstanceStateSucceeded}}
-
-	firstSvc, err := NewService(Config{
-		RootDir:  tmp,
-		Executor: exec,
+func TestServiceRequiresExplicitRunIDAndOutputDir(t *testing.T) {
+	svc, err := NewService(Config{
+		Executor: fakeExecutor{result: store.InstanceResult{FinalState: domain.InstanceStateSucceeded}},
 		Now:      fixedNow,
 	})
 	if err != nil {
-		t.Fatalf("new first service: %v", err)
+		t.Fatalf("new service: %v", err)
 	}
-	firstRun, err := firstSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
+	if _, err := svc.SubmitRun(context.Background(), runnerapi.SubmitInput{
 		ProjectID:     "proj_local",
 		CreatedByUser: "user_local",
-		Name:          "first",
+		Name:          "missing-run-id",
 		Bundle:        validBundle(),
-	})
-	if err != nil {
-		t.Fatalf("submit first run: %v", err)
+		OutputDir:     testRunDir(t.TempDir(), "missing-run-id"),
+	}); err == nil || !strings.Contains(err.Error(), "run id is required") {
+		t.Fatalf("expected run id validation error, got %v", err)
 	}
-	if firstRun.RunID != "run_000001" {
-		t.Fatalf("expected first run id run_000001, got %s", firstRun.RunID)
-	}
-
-	secondSvc, err := NewService(Config{
-		RootDir:  tmp,
-		Executor: exec,
-		Now:      fixedNow,
-	})
-	if err != nil {
-		t.Fatalf("new second service: %v", err)
-	}
-	secondRun, err := secondSvc.SubmitRun(context.Background(), runnerapi.SubmitInput{
+	if _, err := svc.SubmitRun(context.Background(), runnerapi.SubmitInput{
+		RunID:         "run_missing_output",
 		ProjectID:     "proj_local",
 		CreatedByUser: "user_local",
-		Name:          "second",
+		Name:          "missing-output",
 		Bundle:        validBundle(),
-	})
-	if err != nil {
-		t.Fatalf("submit second run: %v", err)
-	}
-	if secondRun.RunID != "run_000002" {
-		t.Fatalf("expected second run id run_000002, got %s", secondRun.RunID)
+	}); err == nil || !strings.Contains(err.Error(), "output dir is required") {
+		t.Fatalf("expected output dir validation error, got %v", err)
 	}
 }
 
@@ -721,6 +613,29 @@ func fixedIDFunc() func(string) string {
 		counts[prefix]++
 		return prefix + "_" + strconv.Itoa(counts[prefix])
 	}
+}
+
+func testRunDir(baseDir, name string) string {
+	return filepath.Join(baseDir, name)
+}
+
+func freshSubmitInput(runID, name string, bundle runbundle.Bundle, outputDir string) runnerapi.SubmitInput {
+	return runnerapi.SubmitInput{
+		RunID:         runID,
+		OutputDir:     outputDir,
+		ProjectID:     "proj_local",
+		CreatedByUser: "user_local",
+		Name:          name,
+		Bundle:        bundle,
+	}
+}
+
+func resumeSubmitInput(runID, name string, bundle runbundle.Bundle, outputDir, resumeFromDir string, mode runnerapi.ResumeMode, policy runnerapi.ResumeBundlePolicy) runnerapi.SubmitInput {
+	in := freshSubmitInput(runID, name, bundle, outputDir)
+	in.ResumeFromDir = resumeFromDir
+	in.ResumeMode = mode
+	in.ResumeBundlePolicy = policy
+	return in
 }
 
 func defaultEngineConfig() engine.Config {

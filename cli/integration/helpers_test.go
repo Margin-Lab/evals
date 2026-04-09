@@ -280,24 +280,23 @@ func parseCLIRunSummary(t *testing.T, stdout string) cliRunSummary {
 	return summary
 }
 
-func loadPersistedRun(t *testing.T, rootDir string, summary cliRunSummary) persistedRun {
+func loadPersistedRun(t *testing.T, runDir string, summary cliRunSummary) persistedRun {
 	t.Helper()
-	expectedRunDir := runfs.RunDir(rootDir, summary.RunID)
-	if summary.RunDir != expectedRunDir {
-		t.Fatalf("run_dir = %q, want %q", summary.RunDir, expectedRunDir)
+	if summary.RunDir != runDir {
+		t.Fatalf("run_dir = %q, want %q", summary.RunDir, runDir)
 	}
 	for _, path := range []string{
-		runfs.ResultsPath(rootDir, summary.RunID),
-		runfs.ManifestPath(rootDir, summary.RunID),
-		runfs.EventsPath(rootDir, summary.RunID),
-		runfs.ArtifactsIndexPath(rootDir, summary.RunID),
+		runfs.ResultsPath(runDir),
+		runfs.ManifestPath(runDir),
+		runfs.EventsPath(runDir),
+		runfs.ArtifactsIndexPath(runDir),
 	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected %s: %v", path, err)
 		}
 	}
 
-	resultsRaw, err := os.ReadFile(runfs.ResultsPath(rootDir, summary.RunID))
+	resultsRaw, err := os.ReadFile(runfs.ResultsPath(runDir))
 	if err != nil {
 		t.Fatalf("read results.json: %v", err)
 	}
@@ -306,7 +305,7 @@ func loadPersistedRun(t *testing.T, rootDir string, summary cliRunSummary) persi
 		t.Fatalf("decode results.json: %v", err)
 	}
 
-	artifactsRaw, err := os.ReadFile(runfs.ArtifactsIndexPath(rootDir, summary.RunID))
+	artifactsRaw, err := os.ReadFile(runfs.ArtifactsIndexPath(runDir))
 	if err != nil {
 		t.Fatalf("read artifacts.json: %v", err)
 	}

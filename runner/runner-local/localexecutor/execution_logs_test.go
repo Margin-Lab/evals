@@ -13,7 +13,7 @@ import (
 
 func TestExecutionLogsProducesArtifacts(t *testing.T) {
 	root := t.TempDir()
-	logs, err := newExecutionLogs(root, "run_1", "inst_1")
+	logs, err := newExecutionLogs(root, "inst_1")
 	if err != nil {
 		t.Fatalf("newExecutionLogs() error = %v", err)
 	}
@@ -74,7 +74,7 @@ func TestExecutionLogsProducesArtifacts(t *testing.T) {
 
 func TestExecutionLogsRejectsPlainWritesToStructuredRoles(t *testing.T) {
 	root := t.TempDir()
-	logs, err := newExecutionLogs(root, "run_1", "inst_1")
+	logs, err := newExecutionLogs(root, "inst_1")
 	if err != nil {
 		t.Fatalf("newExecutionLogs() error = %v", err)
 	}
@@ -93,7 +93,7 @@ func TestExecutionLogsRejectsPlainWritesToStructuredRoles(t *testing.T) {
 
 func TestExecutionLogsStructuredWriterFlushesPartialLineOnClose(t *testing.T) {
 	root := t.TempDir()
-	logs, err := newExecutionLogs(root, "run_1", "inst_1")
+	logs, err := newExecutionLogs(root, "inst_1")
 	if err != nil {
 		t.Fatalf("newExecutionLogs() error = %v", err)
 	}
