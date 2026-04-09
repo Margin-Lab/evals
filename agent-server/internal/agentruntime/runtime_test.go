@@ -316,8 +316,140 @@ func TestRepoOwnedCodexPrepareRunUsesExecWithoutBrokenProfile(t *testing.T) {
 	if slices.Contains(execSpec.Args, "ci") {
 		t.Fatalf("args unexpectedly contain broken profile reference: %#v", execSpec.Args)
 	}
+	if execSpec.Args[len(execSpec.Args)-2] != "--" {
+		t.Fatalf("separator arg = %q, want %q", execSpec.Args[len(execSpec.Args)-2], "--")
+	}
 	if execSpec.Args[len(execSpec.Args)-1] != "fix the bug" {
 		t.Fatalf("prompt arg = %q", execSpec.Args[len(execSpec.Args)-1])
+	}
+}
+
+func TestRepoOwnedCodexPrepareRunSeparatesLeadingDashPrompt(t *testing.T) {
+	stateDir := t.TempDir()
+	definitionDir := filepath.Join(stateDir, "definition")
+	installDir := filepath.Join(stateDir, "install")
+	runHome := filepath.Join(stateDir, "run-home")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatalf("mkdir install dir: %v", err)
+	}
+
+	codex := testfixture.RepoOwnedAgent("codex")
+	if err := materializeDefinition(codex.Definition, definitionDir); err != nil {
+		t.Fatalf("materializeDefinition() error = %v", err)
+	}
+
+	fakeNode := &fakeManagedNodeRuntime{
+		info: runtimeTestManagedNodeInfo(filepath.Join(t.TempDir(), "managed-bin"), "/managed/bin/node", "/managed/bin/npm", "/managed/bin/npx"),
+	}
+	runtime := &Runtime{
+		cfg: config.Config{
+			StateDir: stateDir,
+		},
+		nodeRuntime: fakeNode,
+	}
+	definitionRecord := state.DefinitionRecord{
+		Snapshot:      codex.Definition,
+		PackageHash:   codex.Definition.Package.ArchiveTGZSHA256,
+		DefinitionDir: definitionDir,
+		InstallDir:    installDir,
+	}
+	configSnapshot, err := runtime.ValidateConfig(definitionRecord, codex.Config)
+	if err != nil {
+		t.Fatalf("ValidateConfig() error = %v", err)
+	}
+	agent := state.AgentRecord{
+		Definition: &definitionRecord,
+		Config:     &state.ConfigRecord{Snapshot: configSnapshot},
+		Install: &state.InstallInfo{
+			InstalledAt: time.Now().UTC(),
+			Result: map[string]any{
+				"bin_path": filepath.Join(installDir, "bin", "codex"),
+			},
+		},
+	}
+
+	execSpec, err := runtime.PrepareRun(context.Background(), agent, RunContext{
+		RunID:         "run_1",
+		SessionID:     "session_1",
+		CWD:           "/workspace",
+		RunHome:       runHome,
+		ArtifactsDir:  "/artifacts",
+		Env:           map[string]string{"PATH": "/usr/bin"},
+		InitialPrompt: "- starts with dash",
+	})
+	if err != nil {
+		t.Fatalf("PrepareRun() error = %v", err)
+	}
+	if execSpec.Args[len(execSpec.Args)-2] != "--" {
+		t.Fatalf("separator arg = %q, want %q", execSpec.Args[len(execSpec.Args)-2], "--")
+	}
+	if execSpec.Args[len(execSpec.Args)-1] != "- starts with dash" {
+		t.Fatalf("prompt arg = %q", execSpec.Args[len(execSpec.Args)-1])
+	}
+}
+
+func TestRepoOwnedPiPrepareRunSeparatesLeadingDashPrompt(t *testing.T) {
+	stateDir := t.TempDir()
+	definitionDir := filepath.Join(stateDir, "definition")
+	installDir := filepath.Join(stateDir, "install")
+	runHome := filepath.Join(stateDir, "run-home")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatalf("mkdir install dir: %v", err)
+	}
+
+	piAgent := testfixture.RepoOwnedAgent("pi")
+	if err := materializeDefinition(piAgent.Definition, definitionDir); err != nil {
+		t.Fatalf("materializeDefinition() error = %v", err)
+	}
+
+	fakeNode := &fakeManagedNodeRuntime{
+		info: runtimeTestManagedNodeInfo(filepath.Join(t.TempDir(), "managed-bin"), "/managed/bin/node", "/managed/bin/npm", "/managed/bin/npx"),
+	}
+	runtime := &Runtime{
+		cfg: config.Config{
+			StateDir: stateDir,
+		},
+		nodeRuntime: fakeNode,
+	}
+	definitionRecord := state.DefinitionRecord{
+		Snapshot:      piAgent.Definition,
+		PackageHash:   piAgent.Definition.Package.ArchiveTGZSHA256,
+		DefinitionDir: definitionDir,
+		InstallDir:    installDir,
+	}
+	configSnapshot, err := runtime.ValidateConfig(definitionRecord, piAgent.Config)
+	if err != nil {
+		t.Fatalf("ValidateConfig() error = %v", err)
+	}
+	agent := state.AgentRecord{
+		Definition: &definitionRecord,
+		Config:     &state.ConfigRecord{Snapshot: configSnapshot},
+		Install: &state.InstallInfo{
+			InstalledAt: time.Now().UTC(),
+			Result: map[string]any{
+				"bin_path": filepath.Join(installDir, "bin", "pi"),
+			},
+		},
+	}
+
+	execSpec, err := runtime.PrepareRun(context.Background(), agent, RunContext{
+		RunID:         "run_1",
+		SessionID:     "session_1",
+		CWD:           "/workspace",
+		RunHome:       runHome,
+		ArtifactsDir:  "/artifacts",
+		Env: map[string]string{
+			"PATH":           "/usr/bin",
+			"OPENAI_API_KEY": "test-key",
+		},
+		InitialPrompt: "- starts with dash",
+	})
+	if err != nil {
+		t.Fatalf("PrepareRun() error = %v", err)
+	}
+	command := execSpec.Args[1]
+	if !strings.Contains(command, " -- '- starts with dash'") {
+		t.Fatalf("command %q missing prompt separator", command)
 	}
 }
 
