@@ -24,6 +24,7 @@ func TestRunnerLocalWithRealAgentServerMatrix(t *testing.T) {
 	for _, c := range cases {
 		c := c
 		t.Run(c.DefinitionName+"_"+c.ConfigName, func(t *testing.T) {
+			runDir := t.TempDir()
 			executor, err := localexecutor.New(localexecutor.Config{
 				AgentServerBinary: agentServerBinary,
 				Env: map[string]string{
@@ -33,14 +34,12 @@ func TestRunnerLocalWithRealAgentServerMatrix(t *testing.T) {
 					"AGENT_SERVER_TRAJECTORY_POLL_INTERVAL":   "200ms",
 				},
 				ReadyPath:         "/readyz",
-				OutputRoot:        t.TempDir(),
 				AgentPollInterval: 400 * time.Millisecond,
 			})
 			if err != nil {
 				t.Fatalf("new executor: %v", err)
 			}
 			svc, err := localrunner.NewService(localrunner.Config{
-				RootDir:  t.TempDir(),
 				Executor: executor,
 			})
 			if err != nil {
@@ -52,6 +51,8 @@ func TestRunnerLocalWithRealAgentServerMatrix(t *testing.T) {
 			svc.Start(ctx)
 
 			run, err := svc.SubmitRun(context.Background(), runnerapi.SubmitInput{
+				RunID:         "run_real_matrix",
+				OutputDir:     runDir,
 				ProjectID:     "proj_local",
 				CreatedByUser: "user_local",
 				Name:          "local-real-matrix",

@@ -33,7 +33,7 @@ margin run \
 
 This run uses a minimal test suite, token usage will be low but not zero. The pre-run confirmation screen shows which credentials (OAuth or API key) will be used.
 
-Press enter on the pre-run confirmation screen to start the eval. By default, run output is saved to `runs/<run-id>/` under your current working directory.
+Press enter on the pre-run confirmation screen to start the eval. By default, run output is saved to `runs/<run-id>/` under your current working directory. Use `--output <path>` to write the run to an exact directory instead.
 
 ### Dry runs
 Sometimes you may want to confirm an eval suite and agent definition will run properly without actually consuming tokens. Margin supports a `--dry-run` mode that skips agent execution but still runs the case tests against the pristine workspace:
@@ -85,10 +85,10 @@ It has two panes: instance list (left) and detail/logs (right).
 The default resume policy retries tests that failed for infrastructure reasons or were never started, and skips tests that already produced a result:
 
 ```bash
-margin run --resume-from <run-id>
+margin run --resume-from ./runs/run_20260409_153022_1f3a9c2d
 ```
 
-Resume uses the saved bundle from `runs/<run-id>/internal/bundle.json`, so you don't need to re-specify suite, agent config, or eval config.
+Resume uses the saved bundle from `<run-dir>/internal/bundle.json`, so you don't need to re-specify suite, agent config, or eval config.
 
 If you want to retry the run with updated inputs, pass a fresh suite, agent config, and eval config together with `--resume-from`. Margin will warn before starting when the updated inputs differ from the saved run, then it will reuse prior results according to the current resume policy and run the remaining cases with the new inputs.
 

@@ -19,6 +19,9 @@ type runConfirmationAuthItem struct {
 
 type runConfirmationSpec struct {
 	AgentName       string
+	RunID           string
+	OutputDir       string
+	ResumeFromDir   string
 	Auth            []runConfirmationAuthItem
 	PruneBuiltImage int
 	DryRun          bool
@@ -102,6 +105,8 @@ func (m *runConfirmationModel) View() string {
 		sections = append(sections, renderRunResumeWarningBlock(contentWidth, *m.spec.ResumeWarning))
 		sections = append(sections, "", "")
 	}
+	sections = append(sections, renderRunDestinationBlock(contentWidth, m.spec))
+	sections = append(sections, "", "")
 	sections = append(sections, renderRunAuthBlock(contentWidth, m.spec))
 	if m.spec.PruneBuiltImage > 0 {
 		sections = append(sections, renderRunPruneBlock(contentWidth))
@@ -214,6 +219,18 @@ func renderRunAuthBlock(width int, spec runConfirmationSpec) string {
 			break
 		}
 		lines = append(lines, runConfirmationWarnTextStyle.Render("Will run the agent "+agentName+"."))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderRunDestinationBlock(width int, spec runConfirmationSpec) string {
+	lines := []string{
+		runConfirmationSectionTitleStyle.Render("Run Destination"),
+		runConfirmationWarnTextStyle.Render("Run ID: " + orUnknown(spec.RunID)),
+		runConfirmationWarnTextStyle.Render("Output: " + orUnknown(spec.OutputDir)),
+	}
+	if strings.TrimSpace(spec.ResumeFromDir) != "" {
+		lines = append(lines, runConfirmationWarnTextStyle.Render("Resume from: "+spec.ResumeFromDir))
 	}
 	return strings.Join(lines, "\n")
 }

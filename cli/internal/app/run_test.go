@@ -110,14 +110,14 @@ func (s *stubAgentServerBinaryProvider) ResolveAgentServerBinary(_ context.Conte
 	return "/tmp/embedded-agent-server", nil
 }
 
-func writeSavedBundle(t *testing.T, rootDir, runID string, bundle runbundle.Bundle) {
+func writeSavedBundle(t *testing.T, runDir string, bundle runbundle.Bundle) {
 	t.Helper()
 
 	body, err := json.Marshal(bundle)
 	if err != nil {
 		t.Fatalf("marshal source bundle: %v", err)
 	}
-	path := runfs.BundlePath(rootDir, runID)
+	path := runfs.BundlePath(runDir)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir source bundle path: %v", err)
 	}
@@ -126,7 +126,7 @@ func writeSavedBundle(t *testing.T, rootDir, runID string, bundle runbundle.Bund
 	}
 }
 
-func writeSavedProgress(t *testing.T, rootDir, runID, bundleHash string, finalStates map[string]domain.InstanceState) {
+func writeSavedProgress(t *testing.T, runDir, runID, bundleHash string, finalStates map[string]domain.InstanceState) {
 	t.Helper()
 
 	caseIDs := make([]string, 0, len(finalStates))
@@ -159,7 +159,7 @@ func writeSavedProgress(t *testing.T, rootDir, runID, bundleHash string, finalSt
 	if err != nil {
 		t.Fatalf("marshal progress file: %v", err)
 	}
-	path := runfs.ProgressPath(rootDir, runID)
+	path := runfs.ProgressPath(runDir)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir progress path: %v", err)
 	}
@@ -632,7 +632,8 @@ func TestRunPassesResumeModeToRunner(t *testing.T) {
 		return runbundle.Bundle{}, nil
 	}
 	resumeRoot := t.TempDir()
-	writeSavedBundle(t, resumeRoot, "run_123", runbundle.Bundle{
+	sourceRunDir := runfs.RunDir(resumeRoot, "run_123")
+	writeSavedBundle(t, sourceRunDir, runbundle.Bundle{
 		SchemaVersion: runbundle.SchemaVersionV1,
 		BundleID:      "bun_source",
 		CreatedAt:     time.Date(2026, 3, 1, 2, 3, 4, 0, time.UTC),
@@ -646,6 +647,7 @@ func TestRunPassesResumeModeToRunner(t *testing.T) {
 			Execution: runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1},
 		},
 	})
+	writeSavedProgress(t, sourceRunDir, "run_123", "hash_source", map[string]domain.InstanceState{})
 	newLocalExecutor = func(_ localexecutor.Config) (engine.Executor, error) {
 		return fakeExecutor{}, nil
 	}
@@ -664,8 +666,7 @@ func TestRunPassesResumeModeToRunner(t *testing.T) {
 	a := New(&stdout, &stderr)
 	err := a.runRun(context.Background(), []string{
 		"--agent-server-binary", "agent-server",
-		"--root", resumeRoot,
-		"--resume-from", "run_123",
+		"--resume-from", sourceRunDir,
 		"--resume-mode", "retry-failed",
 	})
 	if err != nil {
@@ -696,7 +697,8 @@ func TestRunSubmitsResumeBeforeStartingRunnerService(t *testing.T) {
 		return runbundle.Bundle{}, nil
 	}
 	resumeRoot := t.TempDir()
-	writeSavedBundle(t, resumeRoot, "run_123", runbundle.Bundle{
+	sourceRunDir := runfs.RunDir(resumeRoot, "run_123")
+	writeSavedBundle(t, sourceRunDir, runbundle.Bundle{
 		SchemaVersion: runbundle.SchemaVersionV1,
 		BundleID:      "bun_source",
 		CreatedAt:     time.Date(2026, 3, 1, 2, 3, 4, 0, time.UTC),
@@ -710,6 +712,7 @@ func TestRunSubmitsResumeBeforeStartingRunnerService(t *testing.T) {
 			Execution: runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1},
 		},
 	})
+	writeSavedProgress(t, sourceRunDir, "run_123", "hash_source", map[string]domain.InstanceState{})
 	newLocalExecutor = func(_ localexecutor.Config) (engine.Executor, error) {
 		return fakeExecutor{}, nil
 	}
@@ -728,8 +731,7 @@ func TestRunSubmitsResumeBeforeStartingRunnerService(t *testing.T) {
 	a := New(&stdout, &stderr)
 	err := a.runRun(context.Background(), []string{
 		"--agent-server-binary", "agent-server",
-		"--root", resumeRoot,
-		"--resume-from", "run_123",
+		"--resume-from", sourceRunDir,
 	})
 	if err != nil {
 		t.Fatalf("runRun returned error: %v", err)
@@ -869,6 +871,7 @@ func TestRunUsesSavedBundleMetadataForLocalResume(t *testing.T) {
 	}()
 
 	resumeRoot := t.TempDir()
+	sourceRunDir := runfs.RunDir(resumeRoot, "run_source")
 	sourceCreatedAt := time.Date(2026, 3, 1, 2, 3, 4, 0, time.UTC)
 	sourceBundle := runbundle.Bundle{
 		SchemaVersion: runbundle.SchemaVersionV1,
@@ -884,7 +887,8 @@ func TestRunUsesSavedBundleMetadataForLocalResume(t *testing.T) {
 			Execution: runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1},
 		},
 	}
-	writeSavedBundle(t, resumeRoot, "run_source", sourceBundle)
+	writeSavedBundle(t, sourceRunDir, sourceBundle)
+	writeSavedProgress(t, sourceRunDir, "run_source", "hash_source", map[string]domain.InstanceState{})
 
 	compileBundle = func(_ compiler.CompileInput) (runbundle.Bundle, error) {
 		t.Fatalf("did not expect compile during resume")
@@ -908,8 +912,7 @@ func TestRunUsesSavedBundleMetadataForLocalResume(t *testing.T) {
 	a := New(&stdout, &stderr)
 	err := a.runRun(context.Background(), []string{
 		"--agent-server-binary", "agent-server",
-		"--root", resumeRoot,
-		"--resume-from", "run_source",
+		"--resume-from", sourceRunDir,
 	})
 	if err != nil {
 		t.Fatalf("runRun returned error: %v", err)
@@ -938,7 +941,7 @@ func TestRunRejectsPartialUpdatedInputsWhenResumeFromIsSet(t *testing.T) {
 
 	err := a.runRun(context.Background(), []string{
 		"--suite", "suite",
-		"--resume-from", "run_123",
+		"--resume-from", "/tmp/run_123",
 	})
 	if err == nil || !strings.Contains(err.Error(), "--resume-from with updated inputs requires --suite, --agent-config, and --eval") {
 		t.Fatalf("expected resume/source flag validation error, got %v", err)
@@ -958,6 +961,7 @@ func TestRunOverrideResumeCompilesBundleAndAllowsMismatch(t *testing.T) {
 	}()
 
 	resumeRoot := t.TempDir()
+	sourceRunDir := runfs.RunDir(resumeRoot, "run_123")
 	compiledBundle := runbundle.Bundle{
 		SchemaVersion: runbundle.SchemaVersionV1,
 		BundleID:      "bun_new",
@@ -976,8 +980,18 @@ func TestRunOverrideResumeCompilesBundleAndAllowsMismatch(t *testing.T) {
 			},
 		},
 	}
-	writeSavedProgress(t, resumeRoot, "run_123", "hash_old", map[string]domain.InstanceState{
+	writeSavedProgress(t, sourceRunDir, "run_123", "hash_old", map[string]domain.InstanceState{
 		"case-1": domain.InstanceStateSucceeded,
+	})
+	writeSavedBundle(t, sourceRunDir, runbundle.Bundle{
+		SchemaVersion: runbundle.SchemaVersionV1,
+		BundleID:      "bun_old",
+		CreatedAt:     time.Date(2026, 3, 1, 2, 3, 4, 0, time.UTC),
+		Source:        runbundle.Source{Kind: runbundle.SourceKindRunSnapshot, SubmitProjectID: "proj_source"},
+		ResolvedSnapshot: runbundle.ResolvedSnapshot{
+			Name:      "saved",
+			Execution: runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1},
+		},
 	})
 
 	compiled := false
@@ -1008,8 +1022,7 @@ func TestRunOverrideResumeCompilesBundleAndAllowsMismatch(t *testing.T) {
 		"--suite", "suite",
 		"--agent-config", "agent-config",
 		"--eval", "eval",
-		"--resume-from", "run_123",
-		"--root", resumeRoot,
+		"--resume-from", sourceRunDir,
 		"--agent-server-binary", "agent-server",
 	})
 	if err != nil {
@@ -1042,6 +1055,7 @@ func TestRunOverrideResumeWithoutMismatchDoesNotPrintWarning(t *testing.T) {
 	}()
 
 	resumeRoot := t.TempDir()
+	sourceRunDir := runfs.RunDir(resumeRoot, "run_123")
 	compiledBundle := runbundle.Bundle{
 		SchemaVersion: runbundle.SchemaVersionV1,
 		BundleID:      "bun_new",
@@ -1058,9 +1072,10 @@ func TestRunOverrideResumeWithoutMismatchDoesNotPrintWarning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("hash bundle: %v", err)
 	}
-	writeSavedProgress(t, resumeRoot, "run_123", hash, map[string]domain.InstanceState{
+	writeSavedProgress(t, sourceRunDir, "run_123", hash, map[string]domain.InstanceState{
 		"case-1": domain.InstanceStateSucceeded,
 	})
+	writeSavedBundle(t, sourceRunDir, compiledBundle)
 
 	compileBundle = func(_ compiler.CompileInput) (runbundle.Bundle, error) {
 		return compiledBundle, nil
@@ -1084,8 +1099,7 @@ func TestRunOverrideResumeWithoutMismatchDoesNotPrintWarning(t *testing.T) {
 		"--suite", "suite",
 		"--agent-config", "agent-config",
 		"--eval", "eval",
-		"--resume-from", "run_123",
-		"--root", resumeRoot,
+		"--resume-from", sourceRunDir,
 		"--agent-server-binary", "agent-server",
 	})
 	if err != nil {
@@ -1126,12 +1140,12 @@ func TestRunResumeWithoutSavedBundleReturnsLoadError(t *testing.T) {
 	var stderr bytes.Buffer
 	a := New(&stdout, &stderr)
 
+	missingRunDir := runfs.RunDir(t.TempDir(), "run_missing")
 	err := a.runRun(context.Background(), []string{
 		"--agent-server-binary", "agent-server",
-		"--root", t.TempDir(),
-		"--resume-from", "run_missing",
+		"--resume-from", missingRunDir,
 	})
-	if err == nil || !strings.Contains(err.Error(), "read source bundle for resume") {
+	if err == nil || !strings.Contains(err.Error(), "stat --resume-from") {
 		t.Fatalf("expected saved bundle read error, got %v", err)
 	}
 }
@@ -1424,7 +1438,7 @@ func TestRunSkipsPreRunConfirmationInNonInteractiveMode(t *testing.T) {
 }
 
 func TestBuildRunConfirmationSpecUsesOAuthCredentialWording(t *testing.T) {
-	spec := buildRunConfirmationSpec("codex", []localexecutor.AuthPreview{{
+	spec := buildRunConfirmationSpec("codex", "run_test_1", "/tmp/output", "", []localexecutor.AuthPreview{{
 		RequiredEnv: "OPENAI_API_KEY",
 		Mode:        localexecutor.AuthPreviewModeOAuth,
 		SourceKind:  "home_file",
@@ -1446,7 +1460,7 @@ func TestBuildRunConfirmationSpecUsesOAuthCredentialWording(t *testing.T) {
 }
 
 func TestBuildRunConfirmationSpecUsesKeychainOAuthWording(t *testing.T) {
-	spec := buildRunConfirmationSpec("claude-code", []localexecutor.AuthPreview{{
+	spec := buildRunConfirmationSpec("claude-code", "run_test_1", "/tmp/output", "", []localexecutor.AuthPreview{{
 		RequiredEnv: "ANTHROPIC_API_KEY",
 		Mode:        localexecutor.AuthPreviewModeOAuth,
 		SourceKind:  "macos_keychain",
@@ -1465,7 +1479,7 @@ func TestBuildRunConfirmationSpecUsesKeychainOAuthWording(t *testing.T) {
 }
 
 func TestBuildRunConfirmationSpecMarksDryRun(t *testing.T) {
-	spec := buildRunConfirmationSpec("codex", []localexecutor.AuthPreview{{
+	spec := buildRunConfirmationSpec("codex", "run_test_1", "/tmp/output", "", []localexecutor.AuthPreview{{
 		RequiredEnv: "OPENAI_API_KEY",
 		Mode:        localexecutor.AuthPreviewModeAPIKey,
 	}}, 0, true, nil)

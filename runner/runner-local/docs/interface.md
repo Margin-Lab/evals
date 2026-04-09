@@ -6,7 +6,6 @@ Request example:
 
 ```go
 svc, err := localrunner.NewService(localrunner.Config{
-  RootDir:  "/tmp/marginlab-local",
   Executor: myExecutor,
 })
 ```
@@ -38,6 +37,8 @@ Request example:
 
 ```go
 run, err := svc.SubmitRun(ctx, runnerapi.SubmitInput{
+  RunID:         "run_20260409_153022_1f3a9c2d",
+  OutputDir:     "/tmp/marginlab-local/run_20260409_153022_1f3a9c2d",
   ProjectID:     "proj_local",
   CreatedByUser: "user_local",
   Name:          "smoke",
@@ -48,7 +49,7 @@ run, err := svc.SubmitRun(ctx, runnerapi.SubmitInput{
 Response example:
 
 ```go
-run.RunID == "run_000001"
+run.RunID == "run_20260409_153022_1f3a9c2d"
 run.State == domain.RunStateQueued
 err == nil
 ```

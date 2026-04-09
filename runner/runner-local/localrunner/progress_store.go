@@ -19,7 +19,7 @@ import (
 
 type progressStore struct {
 	store.RunStore
-	rootDir    string
+	runDirFor  func(string) (string, error)
 	onTerminal func(context.Context, string) error
 	mu         sync.Mutex
 }
@@ -42,8 +42,8 @@ type progressCase struct {
 	Artifacts   []store.Artifact           `json:"artifacts,omitempty"`
 }
 
-func newProgressStore(runStore store.RunStore, rootDir string, onTerminal func(context.Context, string) error) *progressStore {
-	return &progressStore{RunStore: runStore, rootDir: rootDir, onTerminal: onTerminal}
+func newProgressStore(runStore store.RunStore, runDirFor func(string) (string, error), onTerminal func(context.Context, string) error) *progressStore {
+	return &progressStore{RunStore: runStore, runDirFor: runDirFor, onTerminal: onTerminal}
 }
 
 func (p *progressStore) CreateRun(ctx context.Context, in store.CreateRunInput) (store.Run, error) {
@@ -142,7 +142,11 @@ func (p *progressStore) syncRunProgress(ctx context.Context, runID string) error
 		CaseIDs:     caseIDs,
 		Cases:       cases,
 	}
-	if err := writeJSONAtomic(p.progressPath(runID), payload); err != nil {
+	runDir, err := p.runDir(runID)
+	if err != nil {
+		return err
+	}
+	if err := writeJSONAtomic(runfs.ProgressPath(runDir), payload); err != nil {
 		return err
 	}
 	artifacts := make([]store.Artifact, 0)
@@ -150,14 +154,10 @@ func (p *progressStore) syncRunProgress(ctx context.Context, runID string) error
 		artifacts = append(artifacts, items...)
 	}
 	sortArtifacts(artifacts)
-	if err := writeArtifactsIndex(p.rootDir, runID, artifacts); err != nil {
+	if err := writeArtifactsIndex(runDir, artifacts); err != nil {
 		return err
 	}
-	return writeInstanceResults(p.rootDir, runID, instances, resultsByInstance, artifactsByInstance)
-}
-
-func (p *progressStore) progressPath(runID string) string {
-	return runfs.ProgressPath(p.rootDir, runID)
+	return writeInstanceResults(runDir, instances, resultsByInstance, artifactsByInstance)
 }
 
 func (p *progressStore) maybePersistTerminalSnapshot(ctx context.Context, runID string) error {
@@ -174,8 +174,8 @@ func (p *progressStore) maybePersistTerminalSnapshot(ctx context.Context, runID 
 	return p.onTerminal(ctx, runID)
 }
 
-func LoadProgressSnapshot(rootDir, runID string) (resume.Snapshot, error) {
-	path := runfs.ProgressPath(rootDir, runID)
+func LoadProgressSnapshot(runDir string) (resume.Snapshot, error) {
+	path := runfs.ProgressPath(runDir)
 	body, err := os.ReadFile(path)
 	if err != nil {
 		return resume.Snapshot{}, fmt.Errorf("read progress file: %w", err)
@@ -212,8 +212,15 @@ func LoadProgressSnapshot(rootDir, runID string) (resume.Snapshot, error) {
 	}, nil
 }
 
-func loadProgressSnapshot(rootDir, runID string) (resume.Snapshot, error) {
-	return LoadProgressSnapshot(rootDir, runID)
+func loadProgressSnapshot(runDir string) (resume.Snapshot, error) {
+	return LoadProgressSnapshot(runDir)
+}
+
+func (p *progressStore) runDir(runID string) (string, error) {
+	if p.runDirFor == nil {
+		return "", fmt.Errorf("run dir resolver is required")
+	}
+	return p.runDirFor(runID)
 }
 
 func writeJSONAtomic(path string, payload any) error {

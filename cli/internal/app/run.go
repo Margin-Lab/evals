@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/marginlab/margin-eval/cli/internal/agentserverembed"
@@ -46,6 +45,7 @@ var (
 		}, nil
 	}
 	runConfirmationInput io.Reader = os.Stdin
+	newRunID                       = defaultRunID
 	shouldConfirmRun               = func(out io.Writer) bool {
 		fdWriter, ok := out.(interface{ Fd() uintptr })
 		if !ok {
@@ -68,9 +68,9 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	agentConfigPath := fs.String("agent-config", "", "agent config directory path")
 	evalPath := fs.String("eval", "", "eval config file path")
 
-	rootDir := fs.String("root", ".", "local runner root directory")
+	outputDir := fs.String("output", "", "exact output run directory path")
 	runName := fs.String("name", "", "run name")
-	resumeFromRunID := fs.String("resume-from", "", "source run id to resume from")
+	resumeFromDir := fs.String("resume-from", "", "source run directory path to resume from")
 	resumeModeValue := fs.String("resume-mode", string(runnerapi.DefaultResumeMode()), "resume behavior: resume|retry-failed (resume reruns infra_failed only)")
 
 	agentServerBinary := fs.String("agent-server-binary", "", "exact agent-server binary path on host (default embedded payloads)")
@@ -89,25 +89,36 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if err := validateRunSourceFlags(*resumeFromRunID, *suitePath, *agentConfigPath, *evalPath); err != nil {
+	if err := validateRunSourceFlags(*resumeFromDir, *suitePath, *agentConfigPath, *evalPath); err != nil {
 		return err
 	}
-	resolvedSuite, err := a.resolveSuiteInput(ctx, *suitePath)
+	runID, err := newRunID()
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(*rootDir) == "" {
-		return fmt.Errorf("--root must not be empty")
+	resolvedOutputDir, err := resolveOutputDir(*outputDir, runID)
+	if err != nil {
+		return err
+	}
+	resolvedResumeFromDir, err := resolveResumeFromDir(*resumeFromDir)
+	if err != nil {
+		return err
+	}
+	if err := validateRunDirRelationship(resolvedOutputDir, resolvedResumeFromDir); err != nil {
+		return err
+	}
+	var resolvedSuite resolvedSuiteInput
+	if strings.TrimSpace(*suitePath) != "" {
+		resolvedSuite, err = a.resolveSuiteInput(ctx, *suitePath)
+		if err != nil {
+			return err
+		}
 	}
 	if strings.TrimSpace(*dockerBinary) == "" {
 		return fmt.Errorf("--docker-binary must not be empty")
 	}
 	if *pruneBuiltImage < 0 {
 		return fmt.Errorf("--prune-built-image must be >= 0")
-	}
-	absRoot, err := filepath.Abs(strings.TrimSpace(*rootDir))
-	if err != nil {
-		return fmt.Errorf("resolve root dir %q: %w", *rootDir, err)
 	}
 	if *pruneBuiltImage > 0 {
 		fmt.Fprintf(
@@ -117,7 +128,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 			*pruneBuiltImage,
 		)
 	}
-	resumeMode, err := resolveResumeMode(*resumeFromRunID, *resumeModeValue)
+	resumeMode, err := resolveResumeMode(resolvedResumeFromDir, *resumeModeValue)
 	if err != nil {
 		return err
 	}
@@ -127,12 +138,11 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	}
 
 	prepared, err := a.prepareRunBundle(ctx, runBundleInput{
-		RootDir:         absRoot,
 		SuitePath:       resolvedSuite.LocalPath,
 		SuiteGit:        resolvedSuite.SuiteGit,
 		AgentConfigPath: *agentConfigPath,
 		EvalPath:        *evalPath,
-		ResumeFromRunID: strings.TrimSpace(*resumeFromRunID),
+		ResumeFromDir:   resolvedResumeFromDir,
 		NonInteractive:  *nonInteractive,
 	}, resumeMode)
 	if err != nil {
@@ -177,6 +187,9 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 			a.stderr,
 			buildRunConfirmationSpec(
 				bundle.ResolvedSnapshot.Agent.Definition.Manifest.Name,
+				runID,
+				resolvedOutputDir,
+				resolvedResumeFromDir,
 				authPreview,
 				*pruneBuiltImage,
 				*dryRun,
@@ -195,7 +208,6 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 		AgentServerBinary:         resolvedAgentServerBinary,
 		AgentServerBinaryProvider: agentServerBinaryProvider,
 		DockerBinary:              *dockerBinary,
-		OutputRoot:                absRoot,
 		Env:                       agentEnv.Clone(),
 		Binds:                     agentBinds.Clone(),
 		AuthFileOverridePath:      strings.TrimSpace(*authFilePath),
@@ -206,7 +218,6 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	}
 
 	svc, err := newLocalRunnerService(localrunner.Config{
-		RootDir:               absRoot,
 		Executor:              executor,
 		DockerBinary:          *dockerBinary,
 		GlobalImagePruneEvery: *pruneBuiltImage,
@@ -230,11 +241,13 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	}
 
 	run, err := dataSource.SubmitRun(ctx, runnerapi.SubmitInput{
+		RunID:              runID,
+		OutputDir:          resolvedOutputDir,
 		ProjectID:          defaultLocalProjectID,
 		CreatedByUser:      defaultLocalUserID,
 		Name:               resolvedRunName,
 		Bundle:             bundle,
-		ResumeFromRunID:    strings.TrimSpace(*resumeFromRunID),
+		ResumeFromDir:      resolvedResumeFromDir,
 		ResumeMode:         resumeMode,
 		ResumeBundlePolicy: prepared.ResumeBundlePolicy,
 	})
@@ -256,7 +269,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	if *nonInteractive {
 		outcome, err = launchPlainControl(missionControlCtx, plaincontrol.Config{
 			RunID:  run.RunID,
-			RunDir: filepath.Join(absRoot, "runs", run.RunID),
+			RunDir: resolvedOutputDir,
 			Source: dataSource,
 			Out:    a.stdout,
 		})
@@ -264,7 +277,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 			return fmt.Errorf("run non-interactive monitor: %w", err)
 		}
 	} else {
-		localSource, err := missioncontrol.NewLocalSource(dataSource, filepath.Join(absRoot, "runs", run.RunID))
+		localSource, err := missioncontrol.NewLocalSource(dataSource, resolvedOutputDir)
 		if err != nil {
 			return fmt.Errorf("create mission-control local source: %w", err)
 		}
@@ -283,10 +296,9 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 		finalRun = run
 	}
 
-	runDir := filepath.Join(absRoot, "runs", finalRun.RunID)
 	fmt.Fprintf(a.stdout, "run_id: %s\n", finalRun.RunID)
 	fmt.Fprintf(a.stdout, "state: %s\n", finalRun.State)
-	fmt.Fprintf(a.stdout, "run_dir: %s\n", runDir)
+	fmt.Fprintf(a.stdout, "run_dir: %s\n", resolvedOutputDir)
 
 	if outcome.Aborted {
 		return fmt.Errorf("run %s aborted before terminal state", finalRun.RunID)
@@ -298,12 +310,11 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 }
 
 type runBundleInput struct {
-	RootDir         string
 	SuitePath       string
 	SuiteGit        *runbundle.SuiteGitRef
 	AgentConfigPath string
 	EvalPath        string
-	ResumeFromRunID string
+	ResumeFromDir   string
 	NonInteractive  bool
 }
 
@@ -361,12 +372,12 @@ func (a *App) resolveSuiteInput(ctx context.Context, suitePath string) (resolved
 	}, nil
 }
 
-func (a *App) loadSavedResumeBundle(rootDir, runID string, nonInteractive bool) (runbundle.Bundle, error) {
-	path := savedRunBundlePath(rootDir, runID)
+func (a *App) loadSavedResumeBundle(runDir string, nonInteractive bool) (runbundle.Bundle, error) {
+	path := savedRunBundlePath(runDir)
 	if nonInteractive {
 		fmt.Fprintf(a.stdout, "[resume] loading %s\n", path)
 	}
-	bundle, err := loadSavedRunBundle(rootDir, runID)
+	bundle, err := loadSavedRunBundle(runDir)
 	if err != nil {
 		return runbundle.Bundle{}, err
 	}
@@ -391,9 +402,12 @@ func localWorkerCount(maxConcurrency int) (int, error) {
 	return maxConcurrency, nil
 }
 
-func buildRunConfirmationSpec(agentName string, authPreview []localexecutor.AuthPreview, pruneBuiltImage int, dryRun bool, resumeWarning *resumeWarningSummary) runConfirmationSpec {
+func buildRunConfirmationSpec(agentName, runID, outputDir, resumeFromDir string, authPreview []localexecutor.AuthPreview, pruneBuiltImage int, dryRun bool, resumeWarning *resumeWarningSummary) runConfirmationSpec {
 	spec := runConfirmationSpec{
 		AgentName:       strings.TrimSpace(agentName),
+		RunID:           strings.TrimSpace(runID),
+		OutputDir:       strings.TrimSpace(outputDir),
+		ResumeFromDir:   strings.TrimSpace(resumeFromDir),
 		PruneBuiltImage: pruneBuiltImage,
 		DryRun:          dryRun,
 		ResumeWarning:   resumeWarning,

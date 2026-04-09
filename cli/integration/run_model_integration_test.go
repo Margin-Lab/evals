@@ -23,7 +23,7 @@ func TestCLIRunWithRealAgentServerMatrix(t *testing.T) {
 		tc := tc
 		t.Run(caseName(tc.DefinitionName, tc.ConfigName, tc.AgentVersion), func(t *testing.T) {
 			suitePath, configPath, evalPath := writeModelRunFixture(t, tc.DefinitionName, tc.ConfigName, tc.AgentVersion)
-			rootDir := t.TempDir()
+			runDir := t.TempDir()
 
 			result := runMargin(t, 7*time.Minute, nil,
 				append([]string{
@@ -31,7 +31,7 @@ func TestCLIRunWithRealAgentServerMatrix(t *testing.T) {
 					"--suite", suitePath,
 					"--agent-config", configPath,
 					"--eval", evalPath,
-					"--root", rootDir,
+					"--output", runDir,
 					"--agent-server-binary", agentServerBinary,
 					"--non-interactive",
 					"--run-timeout", "5m",
@@ -47,7 +47,7 @@ func TestCLIRunWithRealAgentServerMatrix(t *testing.T) {
 			}
 
 			summary := parseCLIRunSummary(t, result.Stdout)
-			run := loadPersistedRun(t, rootDir, summary)
+			run := loadPersistedRun(t, runDir, summary)
 			if run.Results.Status.Succeeded.Count != 1 || run.Results.Status.Succeeded.Percentage != 100 {
 				t.Fatalf("unexpected succeeded summary: %+v", run.Results.Status.Succeeded)
 			}

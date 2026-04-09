@@ -20,19 +20,19 @@
 
 For each local run, the run directory is the single output root:
 
-1. `<root>/runs/<run_id>/results.json`
-2. `<root>/runs/<run_id>/internal/bundle.json`
-3. `<root>/runs/<run_id>/internal/manifest.json`
-4. `<root>/runs/<run_id>/internal/progress.json`
-5. `<root>/runs/<run_id>/internal/events.jsonl`
-6. `<root>/runs/<run_id>/internal/artifacts.json`
-7. `<root>/runs/<run_id>/instances/<instance_id>/result.json`
-8. `<root>/runs/<run_id>/instances/<instance_id>/trajectory.json`
-9. `<root>/runs/<run_id>/instances/<instance_id>/{image,bootstrap,run,test}/...`
+1. `<run_dir>/results.json`
+2. `<run_dir>/internal/bundle.json`
+3. `<run_dir>/internal/manifest.json`
+4. `<run_dir>/internal/progress.json`
+5. `<run_dir>/internal/events.jsonl`
+6. `<run_dir>/internal/artifacts.json`
+7. `<run_dir>/instances/<instance_id>/result.json`
+8. `<run_dir>/instances/<instance_id>/trajectory.json`
+9. `<run_dir>/instances/<instance_id>/{image,bootstrap,run,test}/...`
 
 ## Lifecycle
 
-1. `NewService` validates config and creates run root directory.
-2. `SubmitRun` writes bundle + creates run rows.
+1. `NewService` validates config and prepares the worker service.
+2. `SubmitRun` validates the requested output directory, creates it, writes the bundle, and creates run rows.
 3. `Start` launches workers.
 4. `WaitForTerminalRun` blocks until terminal run state, then persists snapshots.

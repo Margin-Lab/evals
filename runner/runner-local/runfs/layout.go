@@ -23,60 +23,60 @@ type ArtifactView struct {
 	Key   string
 }
 
-func RunDir(rootDir, runID string) string {
-	return filepath.Join(rootDir, "runs", strings.TrimSpace(runID))
+func RunDir(baseDir, runID string) string {
+	return filepath.Join(baseDir, "runs", strings.TrimSpace(runID))
 }
 
-func InternalDir(rootDir, runID string) string {
-	return filepath.Join(RunDir(rootDir, runID), dirInternal)
+func InternalDir(runDir string) string {
+	return filepath.Join(strings.TrimSpace(runDir), dirInternal)
 }
 
-func InstancesDir(rootDir, runID string) string {
-	return filepath.Join(RunDir(rootDir, runID), dirInstances)
+func InstancesDir(runDir string) string {
+	return filepath.Join(strings.TrimSpace(runDir), dirInstances)
 }
 
-func InstanceDir(rootDir, runID, instanceID string) string {
-	return filepath.Join(InstancesDir(rootDir, runID), strings.TrimSpace(instanceID))
+func InstanceDir(runDir, instanceID string) string {
+	return filepath.Join(InstancesDir(runDir), strings.TrimSpace(instanceID))
 }
 
-func BundlePath(rootDir, runID string) string {
-	return filepath.Join(InternalDir(rootDir, runID), "bundle.json")
+func BundlePath(runDir string) string {
+	return filepath.Join(InternalDir(runDir), "bundle.json")
 }
 
-func ManifestPath(rootDir, runID string) string {
-	return filepath.Join(InternalDir(rootDir, runID), "manifest.json")
+func ManifestPath(runDir string) string {
+	return filepath.Join(InternalDir(runDir), "manifest.json")
 }
 
-func ProgressPath(rootDir, runID string) string {
-	return filepath.Join(InternalDir(rootDir, runID), "progress.json")
+func ProgressPath(runDir string) string {
+	return filepath.Join(InternalDir(runDir), "progress.json")
 }
 
-func EventsPath(rootDir, runID string) string {
-	return filepath.Join(InternalDir(rootDir, runID), "events.jsonl")
+func EventsPath(runDir string) string {
+	return filepath.Join(InternalDir(runDir), "events.jsonl")
 }
 
-func ArtifactsIndexPath(rootDir, runID string) string {
-	return filepath.Join(InternalDir(rootDir, runID), "artifacts.json")
+func ArtifactsIndexPath(runDir string) string {
+	return filepath.Join(InternalDir(runDir), "artifacts.json")
 }
 
-func ResultsPath(rootDir, runID string) string {
-	return filepath.Join(RunDir(rootDir, runID), "results.json")
+func ResultsPath(runDir string) string {
+	return filepath.Join(strings.TrimSpace(runDir), "results.json")
 }
 
-func InstanceResultPath(rootDir, runID, instanceID string) string {
-	return filepath.Join(InstanceDir(rootDir, runID, instanceID), "result.json")
+func InstanceResultPath(runDir, instanceID string) string {
+	return filepath.Join(InstanceDir(runDir, instanceID), "result.json")
 }
 
 func RelativeInstanceResultPath(instanceID string) string {
 	return filepath.ToSlash(filepath.Join(dirInstances, strings.TrimSpace(instanceID), "result.json"))
 }
 
-func AbsoluteArtifactPath(rootDir, runID, instanceID, role string) (string, string, ArtifactView, bool) {
+func AbsoluteArtifactPath(runDir, instanceID, role string) (string, string, ArtifactView, bool) {
 	rel, view, ok := RelativePathForRole(instanceID, role)
 	if !ok {
 		return "", "", ArtifactView{}, false
 	}
-	return filepath.Join(RunDir(rootDir, runID), filepath.FromSlash(rel)), rel, view, true
+	return filepath.Join(strings.TrimSpace(runDir), filepath.FromSlash(rel)), rel, view, true
 }
 
 func RelativePathForRole(instanceID, role string) (string, ArtifactView, bool) {
