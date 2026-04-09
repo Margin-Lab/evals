@@ -96,7 +96,8 @@ func (p *Pool) workerLoop(ctx context.Context) {
 }
 
 func (p *Pool) runClaim(ctx context.Context, claim store.ClaimedWork) {
-	runCtx, cancel := context.WithCancel(ctx)
+	instanceTimeout := time.Duration(claim.Run.Bundle.ResolvedSnapshot.Execution.InstanceTimeoutSecond) * time.Second
+	runCtx, cancel := context.WithTimeout(ctx, instanceTimeout)
 	defer cancel()
 	done := make(chan struct{})
 	go p.heartbeatLoop(runCtx, done, claim)

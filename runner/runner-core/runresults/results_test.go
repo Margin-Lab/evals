@@ -124,11 +124,13 @@ func TestBuildClassifiesInfraFailureReasons(t *testing.T) {
 	run := store.Run{RunID: "run_2"}
 	instances := []store.Instance{
 		{InstanceID: "inst_exec", Ordinal: 0, Case: runbundle.Case{CaseID: "case_exec"}, State: domain.InstanceStateInfraFailed},
-		{InstanceID: "inst_invalid", Ordinal: 1, Case: runbundle.Case{CaseID: "case_invalid"}, State: domain.InstanceStateInfraFailed},
-		{InstanceID: "inst_unknown", Ordinal: 2, Case: runbundle.Case{CaseID: "case_unknown"}, State: domain.InstanceStateInfraFailed},
+		{InstanceID: "inst_timeout", Ordinal: 1, Case: runbundle.Case{CaseID: "case_timeout"}, State: domain.InstanceStateInfraFailed},
+		{InstanceID: "inst_invalid", Ordinal: 2, Case: runbundle.Case{CaseID: "case_invalid"}, State: domain.InstanceStateInfraFailed},
+		{InstanceID: "inst_unknown", Ordinal: 3, Case: runbundle.Case{CaseID: "case_unknown"}, State: domain.InstanceStateInfraFailed},
 	}
 	results := []store.StoredInstanceResult{
 		{InstanceID: "inst_exec", FinalState: domain.InstanceStateInfraFailed, ErrorCode: "EXECUTOR_ERROR"},
+		{InstanceID: "inst_timeout", FinalState: domain.InstanceStateInfraFailed, ErrorCode: "INSTANCE_TIMEOUT"},
 		{InstanceID: "inst_invalid", FinalState: domain.InstanceStateInfraFailed, ErrorCode: "INVALID_FINAL_STATE"},
 		{InstanceID: "inst_unknown", FinalState: domain.InstanceStateInfraFailed},
 	}
@@ -141,6 +143,9 @@ func TestBuildClassifiesInfraFailureReasons(t *testing.T) {
 	}
 	if reasons[InfraFailureReasonExecutorError] != 1 {
 		t.Fatalf("missing executor_error reason: %+v", summary.InfraFailureReasons)
+	}
+	if reasons[InfraFailureReasonInstanceTimeout] != 1 {
+		t.Fatalf("missing instance_timeout reason: %+v", summary.InfraFailureReasons)
 	}
 	if reasons[InfraFailureReasonInvalidFinalState] != 1 {
 		t.Fatalf("missing invalid_final_state reason: %+v", summary.InfraFailureReasons)

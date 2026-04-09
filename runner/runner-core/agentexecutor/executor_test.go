@@ -3,6 +3,7 @@ package agentexecutor
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -317,6 +318,144 @@ func TestExecuteInstanceDryRunSkipsTrajectoryAndExitMetadata(t *testing.T) {
 			t.Fatalf("unexpected trajectory request: %v", requests)
 		}
 	}
+}
+
+func TestExecuteInstanceDoesNotUseCaseTestTimeoutForAgentRun(t *testing.T) {
+	t.Parallel()
+
+	events := make([]StepEvent, 0, 8)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/state":
+			_ = json.NewEncoder(w).Encode(map[string]any{"paths": map[string]any{"root": "/marginlab"}})
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/agent-definition":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "definition_loaded"})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/agent/install":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "installed"})
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/agent-config":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "configured"})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/run":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"run_id": "r_1", "state": "running"})
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/run":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"state":             "exited",
+				"exit_code":         0,
+				"trajectory_status": "none",
+			})
+		case r.Method == http.MethodDelete && r.URL.Path == "/v1/run":
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "idle"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	exec, err := New(Config{
+		BaseURL:      server.URL,
+		ArtifactRoot: t.TempDir(),
+		OnStep: func(ev StepEvent) {
+			events = append(events, ev)
+		},
+	})
+	if err != nil {
+		t.Fatalf("new executor: %v", err)
+	}
+
+	bundle := validBundle()
+	bundle.ResolvedSnapshot.Cases[0].TestTimeoutSecond = 0
+	run := store.Run{RunID: "run_1", Bundle: bundle}
+	inst := store.Instance{
+		InstanceID: "inst-1",
+		Case:       run.Bundle.ResolvedSnapshot.Cases[0],
+	}
+
+	result, _, err := exec.ExecuteInstance(context.Background(), run, inst, func(domain.InstanceState) error { return nil })
+	if err != nil {
+		t.Fatalf("execute instance: %v", err)
+	}
+	if result.FinalState != domain.InstanceStateSucceeded {
+		t.Fatalf("final state = %s, want %s", result.FinalState, domain.InstanceStateSucceeded)
+	}
+
+	for _, ev := range events {
+		if ev.Step == "run.wait_exit" && ev.Status == "start" {
+			if ev.Details["instance_timeout_seconds"] != "120" {
+				t.Fatalf("instance timeout detail = %q, want 120", ev.Details["instance_timeout_seconds"])
+			}
+			return
+		}
+	}
+	t.Fatalf("missing run.wait_exit start event: %+v", events)
+}
+
+func TestExecuteInstanceWaitForExitStopsOnContextDeadline(t *testing.T) {
+	t.Parallel()
+
+	events := make([]StepEvent, 0, 8)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/state":
+			_ = json.NewEncoder(w).Encode(map[string]any{"paths": map[string]any{"root": "/marginlab"}})
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/agent-definition":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "definition_loaded"})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/agent/install":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "installed"})
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/agent-config":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "configured"})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/run":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"run_id": "r_1", "state": "running"})
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/run":
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "running"})
+		case r.Method == http.MethodDelete && r.URL.Path == "/v1/run":
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "idle"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	exec, err := New(Config{
+		BaseURL:      server.URL,
+		ArtifactRoot: t.TempDir(),
+		PollInterval: 10 * time.Millisecond,
+		OnStep: func(ev StepEvent) {
+			events = append(events, ev)
+		},
+	})
+	if err != nil {
+		t.Fatalf("new executor: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	defer cancel()
+	run := store.Run{RunID: "run_1", Bundle: validBundle()}
+	inst := store.Instance{
+		InstanceID: "inst-1",
+		Case:       run.Bundle.ResolvedSnapshot.Cases[0],
+	}
+
+	_, _, err = exec.ExecuteInstance(ctx, run, inst, func(domain.InstanceState) error { return nil })
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want context deadline exceeded", err)
+	}
+
+	for _, ev := range events {
+		if ev.Step == "run.wait_exit" && ev.Status == "failed" {
+			if !strings.Contains(ev.Details["error"], "context deadline exceeded") {
+				t.Fatalf("run.wait_exit error detail = %q", ev.Details["error"])
+			}
+			return
+		}
+	}
+	t.Fatalf("missing run.wait_exit failed event: %+v", events)
 }
 
 func TestExecuteInstanceFailsForInvalidDefinition(t *testing.T) {
