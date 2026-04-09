@@ -29,6 +29,7 @@ filename = "AGENTS.md"
 [config.unified]
 translate = "hooks/translate-unified.js"
 allowed_models = [
+  "gpt-5.4",
   "gpt-5.3-codex",
   "gpt-5.3-codex-spark",
   "gpt-5.2-codex",
@@ -40,7 +41,7 @@ allowed_models = [
   "gpt-5-codex-mini",
   "gpt-5",
 ]
-allowed_reasoning_levels = ["low", "medium", "high"]
+allowed_reasoning_levels = ["low", "medium", "high", "xhigh"]
 
 [install]
 check = "hooks/install-check.js"
