@@ -56,17 +56,17 @@ func (t timeValue) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + t.value + `"`), nil
 }
 
-func writeArtifactsIndex(rootDir, runID string, artifacts []store.Artifact) error {
-	return writeJSONAtomic(runfs.ArtifactsIndexPath(rootDir, runID), artifacts)
+func writeArtifactsIndex(runDir string, artifacts []store.Artifact) error {
+	return writeJSONAtomic(runfs.ArtifactsIndexPath(runDir), artifacts)
 }
 
-func writeInstanceResults(rootDir, runID string, instances []store.Instance, resultsByInstance map[string]store.StoredInstanceResult, artifactsByInstance map[string][]store.Artifact) error {
+func writeInstanceResults(runDir string, instances []store.Instance, resultsByInstance map[string]store.StoredInstanceResult, artifactsByInstance map[string][]store.Artifact) error {
 	for _, inst := range instances {
 		result, ok := resultsByInstance[inst.InstanceID]
 		if !ok || !result.FinalState.IsTerminal() {
 			continue
 		}
-		if err := writeJSONAtomic(runfs.InstanceResultPath(rootDir, runID, inst.InstanceID), buildInstanceResultFile(inst, result, artifactsByInstance[inst.InstanceID])); err != nil {
+		if err := writeJSONAtomic(runfs.InstanceResultPath(runDir, inst.InstanceID), buildInstanceResultFile(inst, result, artifactsByInstance[inst.InstanceID])); err != nil {
 			return err
 		}
 	}

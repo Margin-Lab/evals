@@ -22,7 +22,6 @@ func TestRunnerCoreWorkerWithFakeAgentServer(t *testing.T) {
 
 	executor, err := localexecutor.New(localexecutor.Config{
 		AgentServerBinary: agentServerBinary,
-		OutputRoot:        t.TempDir(),
 		AgentPollInterval: 300 * time.Millisecond,
 	})
 	if err != nil {
@@ -42,6 +41,10 @@ func TestRunnerCoreWorkerWithFakeAgentServer(t *testing.T) {
 	defer cancel()
 	pool.Start(ctx)
 
+	successRunDir := t.TempDir()
+	if err := executor.RegisterRunDir("run_fake_success", successRunDir); err != nil {
+		t.Fatalf("register success run dir: %v", err)
+	}
 	success, err := runStore.CreateRun(context.Background(), store.CreateRunInput{
 		RunID:         "run_fake_success",
 		ProjectID:     "proj_it",
@@ -59,6 +62,10 @@ func TestRunnerCoreWorkerWithFakeAgentServer(t *testing.T) {
 	}
 
 	failedBundle := bundleWithCaseImage(bundleWithFakeEval(buildBundleWithAgent("fake run failure [FAKE_TEST_FAIL]", testfixture.MinimalAgent())), fakeImageTag)
+	failedRunDir := t.TempDir()
+	if err := executor.RegisterRunDir("run_fake_fail", failedRunDir); err != nil {
+		t.Fatalf("register failed run dir: %v", err)
+	}
 	failed, err := runStore.CreateRun(context.Background(), store.CreateRunInput{
 		RunID:         "run_fake_fail",
 		ProjectID:     "proj_it",

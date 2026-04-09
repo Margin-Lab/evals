@@ -19,6 +19,7 @@ type preparedRunBundle struct {
 
 type resumeWarningSummary struct {
 	SourceRunID  string
+	SourceRunDir string
 	ReusedCount  int
 	RerunCount   int
 	AddedCount   int
@@ -27,7 +28,7 @@ type resumeWarningSummary struct {
 }
 
 func (a *App) prepareRunBundle(ctx context.Context, in runBundleInput, resumeMode runnerapi.ResumeMode) (preparedRunBundle, error) {
-	sourceMode, err := classifyRunSourceMode(in.ResumeFromRunID, in.SuitePath, in.AgentConfigPath, in.EvalPath)
+	sourceMode, err := classifyRunSourceMode(in.ResumeFromDir, in.SuitePath, in.AgentConfigPath, in.EvalPath)
 	if err != nil {
 		return preparedRunBundle{}, err
 	}
@@ -48,7 +49,7 @@ func (a *App) prepareRunBundle(ctx context.Context, in runBundleInput, resumeMod
 		out.Bundle = bundle
 		return out, nil
 	case runSourceModeResumeExact:
-		bundle, err := a.loadSavedResumeBundle(in.RootDir, in.ResumeFromRunID, in.NonInteractive)
+		bundle, err := a.loadSavedResumeBundle(in.ResumeFromDir, in.NonInteractive)
 		if err != nil {
 			return preparedRunBundle{}, err
 		}
@@ -59,9 +60,9 @@ func (a *App) prepareRunBundle(ctx context.Context, in runBundleInput, resumeMod
 		if err != nil {
 			return preparedRunBundle{}, err
 		}
-		snapshot, err := localrunner.LoadProgressSnapshot(in.RootDir, in.ResumeFromRunID)
+		snapshot, err := localrunner.LoadProgressSnapshot(in.ResumeFromDir)
 		if err != nil {
-			return preparedRunBundle{}, fmt.Errorf("load local resume progress for run %s: %w", strings.TrimSpace(in.ResumeFromRunID), err)
+			return preparedRunBundle{}, fmt.Errorf("load local resume progress from %s: %w", strings.TrimSpace(in.ResumeFromDir), err)
 		}
 		hash, err := runbundle.HashSHA256(bundle)
 		if err != nil {
@@ -74,7 +75,8 @@ func (a *App) prepareRunBundle(ctx context.Context, in runBundleInput, resumeMod
 		out.Bundle = bundle
 		if plan.HasBundleMismatch() {
 			out.ResumeWarning = &resumeWarningSummary{
-				SourceRunID:  strings.TrimSpace(in.ResumeFromRunID),
+				SourceRunID:  strings.TrimSpace(inferSourceRunID(snapshot.RunID)),
+				SourceRunDir: strings.TrimSpace(in.ResumeFromDir),
 				ReusedCount:  len(plan.CarryByCase),
 				RerunCount:   len(plan.RerunCaseIDs),
 				AddedCount:   len(plan.AddedCaseIDs),
@@ -102,6 +104,7 @@ func resumeReusePolicyText(mode runnerapi.ResumeMode) string {
 func resumeWarningLines(summary resumeWarningSummary) []string {
 	lines := []string{
 		fmt.Sprintf("Warning: the current suite, agent config, or eval config differs from saved run %s.", orUnknown(summary.SourceRunID)),
+		fmt.Sprintf("Resume source: %s", orUnknown(summary.SourceRunDir)),
 		fmt.Sprintf("Margin will reuse %d earlier result(s) and execute %d case(s) with the current inputs.", summary.ReusedCount, summary.RerunCount),
 	}
 	if summary.AddedCount > 0 {
@@ -114,4 +117,8 @@ func resumeWarningLines(summary resumeWarningSummary) []string {
 		lines = append(lines, summary.PolicyText)
 	}
 	return lines
+}
+
+func inferSourceRunID(runID string) string {
+	return strings.TrimSpace(runID)
 }

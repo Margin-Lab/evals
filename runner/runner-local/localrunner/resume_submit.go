@@ -16,7 +16,7 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
-func (s *Service) submitResumedRun(ctx context.Context, in runnerapi.SubmitInput, bundle runbundle.Bundle, resumeFromRunID string) (store.Run, error) {
+func (s *Service) submitResumedRun(ctx context.Context, in runnerapi.SubmitInput, bundle runbundle.Bundle, outputDir, resumeFromDir string) (store.Run, error) {
 	if err := in.ResumeBundlePolicy.Validate(); err != nil {
 		return store.Run{}, fmt.Errorf("validate resume bundle policy: %w", err)
 	}
@@ -24,9 +24,9 @@ func (s *Service) submitResumedRun(ctx context.Context, in runnerapi.SubmitInput
 	if err != nil {
 		return store.Run{}, fmt.Errorf("compute resume bundle hash: %w", err)
 	}
-	snapshot, err := loadProgressSnapshot(s.rootDir, resumeFromRunID)
+	snapshot, err := loadProgressSnapshot(resumeFromDir)
 	if err != nil {
-		return store.Run{}, fmt.Errorf("load local resume progress for run %s: %w", resumeFromRunID, err)
+		return store.Run{}, fmt.Errorf("load local resume progress from %s: %w", resumeFromDir, err)
 	}
 	plan, err := resume.BuildPlan(bundle, planHash, snapshot, in.ResumeMode, in.ResumeBundlePolicy)
 	if err != nil {
@@ -45,16 +45,16 @@ func (s *Service) submitResumedRun(ctx context.Context, in runnerapi.SubmitInput
 	if err != nil {
 		return store.Run{}, err
 	}
-	if err := s.writeJSON(runfs.BundlePath(s.rootDir, run.RunID), bundle); err != nil {
+	if err := s.writeJSON(runfs.BundlePath(outputDir), bundle); err != nil {
 		return store.Run{}, err
 	}
-	if err := s.carryForwardLocalCases(ctx, run.RunID, plan); err != nil {
+	if err := s.carryForwardLocalCases(ctx, run.RunID, outputDir, resumeFromDir, plan); err != nil {
 		return store.Run{}, err
 	}
 	return run, nil
 }
 
-func (s *Service) carryForwardLocalCases(ctx context.Context, runID string, plan resume.Plan) error {
+func (s *Service) carryForwardLocalCases(ctx context.Context, runID, runDir, resumeFromDir string, plan resume.Plan) error {
 	if len(plan.CarryByCase) == 0 {
 		return nil
 	}
@@ -78,7 +78,7 @@ func (s *Service) carryForwardLocalCases(ctx context.Context, runID string, plan
 			return fmt.Errorf("carry-forward case %q has no target instance in resumed run", caseID)
 		}
 		result := storedToInstanceResult(item.Result)
-		artifacts, rewritten, err := s.copyCarriedArtifacts(runID, inst.InstanceID, result, item)
+		artifacts, rewritten, err := s.copyCarriedArtifacts(runID, runDir, resumeFromDir, inst.InstanceID, result, item)
 		if err != nil {
 			return fmt.Errorf("copy carry-forward artifacts for case %q: %w", caseID, err)
 		}
@@ -97,19 +97,21 @@ func (s *Service) carryForwardLocalCases(ctx context.Context, runID string, plan
 	return nil
 }
 
-func (s *Service) copyCarriedArtifacts(runID, instanceID string, result store.InstanceResult, item resume.CompletedCase) ([]store.Artifact, store.InstanceResult, error) {
+func (s *Service) copyCarriedArtifacts(runID, runDir, resumeFromDir, instanceID string, result store.InstanceResult, item resume.CompletedCase) ([]store.Artifact, store.InstanceResult, error) {
 	if len(item.Artifacts) == 0 {
 		return nil, result, nil
 	}
 	copied := make([]store.Artifact, 0, len(item.Artifacts))
 	storeKeyMap := map[string]string{}
 	uriMap := map[string]string{}
-	runDir := runfs.RunDir(s.rootDir, runID)
 	for idx := range item.Artifacts {
 		src := item.Artifacts[idx]
 		sourcePath, err := fileURIPath(src.URI)
 		if err != nil {
-			return nil, store.InstanceResult{}, err
+			if strings.TrimSpace(src.StoreKey) == "" {
+				return nil, store.InstanceResult{}, err
+			}
+			sourcePath = filepath.Join(resumeFromDir, filepath.FromSlash(src.StoreKey))
 		}
 		storeKey, _ := runfs.RelativePathForArtifact(instanceID, src, sourcePath)
 		destPath := filepath.Join(runDir, filepath.FromSlash(storeKey))

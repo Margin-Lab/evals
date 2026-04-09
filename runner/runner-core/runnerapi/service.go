@@ -26,11 +26,12 @@ func DefaultResumeMode() ResumeMode {
 // SubmitInput is the shared runner submission payload across runner implementations.
 type SubmitInput struct {
 	RunID              string
+	OutputDir          string
 	ProjectID          string
 	CreatedByUser      string
 	Name               string
 	Bundle             runbundle.Bundle
-	ResumeFromRunID    string
+	ResumeFromDir      string
 	ResumeMode         ResumeMode
 	ResumeBundlePolicy ResumeBundlePolicy
 }

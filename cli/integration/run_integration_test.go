@@ -21,7 +21,7 @@ func TestCLIRunWithFakeAgentServerSuccess(t *testing.T) {
 		"#!/usr/bin/env bash\n/marginlab/tests/run-eval\n",
 		false,
 	)
-	rootDir := t.TempDir()
+	runDir := t.TempDir()
 
 	result := runMargin(t, 3*time.Minute, nil,
 		append([]string{
@@ -29,7 +29,7 @@ func TestCLIRunWithFakeAgentServerSuccess(t *testing.T) {
 			"--suite", suitePath,
 			"--agent-config", configPath,
 			"--eval", evalPath,
-			"--root", rootDir,
+			"--output", runDir,
 			"--agent-server-binary", agentServerBinary,
 			"--non-interactive",
 			"--run-timeout", "2m",
@@ -45,7 +45,7 @@ func TestCLIRunWithFakeAgentServerSuccess(t *testing.T) {
 	}
 
 	summary := parseCLIRunSummary(t, result.Stdout)
-	run := loadPersistedRun(t, rootDir, summary)
+	run := loadPersistedRun(t, runDir, summary)
 	if run.Results.Status.Succeeded.Count != 1 || run.Results.Status.Succeeded.Percentage != 100 {
 		t.Fatalf("unexpected succeeded summary: %+v", run.Results.Status.Succeeded)
 	}
@@ -66,7 +66,7 @@ func TestCLIRunWithFakeAgentServerDryRun(t *testing.T) {
 		"#!/usr/bin/env bash\n/marginlab/tests/run-eval\n",
 		false,
 	)
-	rootDir := t.TempDir()
+	runDir := t.TempDir()
 
 	result := runMargin(t, 3*time.Minute, nil,
 		append([]string{
@@ -74,7 +74,7 @@ func TestCLIRunWithFakeAgentServerDryRun(t *testing.T) {
 			"--suite", suitePath,
 			"--agent-config", configPath,
 			"--eval", evalPath,
-			"--root", rootDir,
+			"--output", runDir,
 			"--agent-server-binary", agentServerBinary,
 			"--non-interactive",
 			"--dry-run",
@@ -89,7 +89,7 @@ func TestCLIRunWithFakeAgentServerDryRun(t *testing.T) {
 	}
 
 	summary := parseCLIRunSummary(t, result.Stdout)
-	run := loadPersistedRun(t, rootDir, summary)
+	run := loadPersistedRun(t, runDir, summary)
 	if run.Results.Usage.InputTokens != 0 || run.Results.Usage.OutputTokens != 0 || run.Results.Usage.ToolCalls != 0 {
 		t.Fatalf("unexpected dry-run usage summary: %+v", run.Results.Usage)
 	}
@@ -115,7 +115,7 @@ func TestCLIRunWithFakeAgentServerDryRunTestInfra(t *testing.T) {
 		"#!/usr/bin/env bash\nexit 2\n",
 		false,
 	)
-	rootDir := t.TempDir()
+	runDir := t.TempDir()
 
 	result := runMargin(t, 3*time.Minute, nil,
 		append([]string{
@@ -123,7 +123,7 @@ func TestCLIRunWithFakeAgentServerDryRunTestInfra(t *testing.T) {
 			"--suite", suitePath,
 			"--agent-config", configPath,
 			"--eval", evalPath,
-			"--root", rootDir,
+			"--output", runDir,
 			"--agent-server-binary", agentServerBinary,
 			"--non-interactive",
 			"--dry-run",
@@ -141,7 +141,7 @@ func TestCLIRunWithFakeAgentServerDryRunTestInfra(t *testing.T) {
 	}
 
 	summary := parseCLIRunSummary(t, result.Stdout)
-	run := loadPersistedRun(t, rootDir, summary)
+	run := loadPersistedRun(t, runDir, summary)
 	if run.Results.Status.InfraFailed.Count != 1 || run.Results.Status.TestFailed.Count != 0 {
 		t.Fatalf("unexpected dry-run failure breakdown: %+v", run.Results.Status)
 	}
@@ -161,7 +161,7 @@ func TestCLIRunWithFakeAgentServerFailure(t *testing.T) {
 		"#!/usr/bin/env bash\n/marginlab/tests/run-eval\n",
 		false,
 	)
-	rootDir := t.TempDir()
+	runDir := t.TempDir()
 
 	result := runMargin(t, 3*time.Minute, nil,
 		append([]string{
@@ -169,7 +169,7 @@ func TestCLIRunWithFakeAgentServerFailure(t *testing.T) {
 			"--suite", suitePath,
 			"--agent-config", configPath,
 			"--eval", evalPath,
-			"--root", rootDir,
+			"--output", runDir,
 			"--agent-server-binary", agentServerBinary,
 			"--non-interactive",
 			"--run-timeout", "2m",
@@ -191,7 +191,7 @@ func TestCLIRunWithFakeAgentServerFailure(t *testing.T) {
 	if summary.State == "completed" {
 		t.Fatalf("unexpected completed state in failure case")
 	}
-	run := loadPersistedRun(t, rootDir, summary)
+	run := loadPersistedRun(t, runDir, summary)
 	if run.Results.Status.TestFailed.Count != 1 {
 		t.Fatalf("unexpected failure summary: %+v", run.Results.Status)
 	}
