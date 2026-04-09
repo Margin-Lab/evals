@@ -64,7 +64,6 @@ type Config struct {
 	AgentPollInterval time.Duration
 	HTTPClient        *http.Client
 
-	OutputRoot           string
 	Env                  map[string]string
 	Binds                map[string]string
 	AuthFileOverridePath string
@@ -85,7 +84,6 @@ type Executor struct {
 	agentPollInterval time.Duration
 	httpClient        *http.Client
 
-	outputRoot           string
 	env                  map[string]string
 	binds                map[string]string
 	authFileOverridePath string
@@ -96,6 +94,8 @@ type Executor struct {
 
 	imageBuildRefMu sync.Mutex
 	imageBuildRefs  map[string]int
+	runDirMu        sync.RWMutex
+	runDirs         map[string]string
 }
 
 type buildLogResolver interface {
@@ -143,17 +143,6 @@ func New(cfg Config) (*Executor, error) {
 	if readyPollInterval <= 0 {
 		readyPollInterval = defaultReadyPollInterval
 	}
-	outputRoot := strings.TrimSpace(cfg.OutputRoot)
-	if outputRoot == "" {
-		return nil, fmt.Errorf("output_root is required")
-	}
-	absOutputRoot, err := filepath.Abs(outputRoot)
-	if err != nil {
-		return nil, fmt.Errorf("resolve output_root: %w", err)
-	}
-	if err := os.MkdirAll(absOutputRoot, 0o755); err != nil {
-		return nil, fmt.Errorf("create output_root: %w", err)
-	}
 	client := cfg.HTTPClient
 	if client == nil {
 		client = &http.Client{Timeout: defaultHTTPTimeout}
@@ -188,7 +177,6 @@ func New(cfg Config) (*Executor, error) {
 		readyPollInterval:         readyPollInterval,
 		agentPollInterval:         cfg.AgentPollInterval,
 		httpClient:                client,
-		outputRoot:                absOutputRoot,
 		env:                       env,
 		binds:                     cloneStringMap(cfg.Binds),
 		authFileOverridePath:      authFileOverridePath,
@@ -196,7 +184,43 @@ func New(cfg Config) (*Executor, error) {
 		imageCleaner:              imageCleaner,
 		cleanupBuiltImages:        cfg.CleanupBuiltImages,
 		imageBuildRefs:            map[string]int{},
+		runDirs:                   map[string]string{},
 	}, nil
+}
+
+func (e *Executor) RegisterRunDir(runID, runDir string) error {
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return fmt.Errorf("run id is required")
+	}
+	trimmedRunDir := strings.TrimSpace(runDir)
+	if trimmedRunDir == "" {
+		return fmt.Errorf("run dir is required")
+	}
+	absRunDir, err := filepath.Abs(trimmedRunDir)
+	if err != nil {
+		return fmt.Errorf("resolve run dir %q: %w", runDir, err)
+	}
+	if err := os.MkdirAll(absRunDir, 0o755); err != nil {
+		return fmt.Errorf("create run dir %q: %w", absRunDir, err)
+	}
+	e.runDirMu.Lock()
+	defer e.runDirMu.Unlock()
+	if existing, ok := e.runDirs[trimmedRunID]; ok && existing != absRunDir {
+		return fmt.Errorf("run dir already registered for run %s", trimmedRunID)
+	}
+	e.runDirs[trimmedRunID] = absRunDir
+	return nil
+}
+
+func (e *Executor) runDir(runID string) (string, error) {
+	e.runDirMu.RLock()
+	defer e.runDirMu.RUnlock()
+	runDir := strings.TrimSpace(e.runDirs[strings.TrimSpace(runID)])
+	if runDir == "" {
+		return "", fmt.Errorf("run dir not registered for run %s", strings.TrimSpace(runID))
+	}
+	return runDir, nil
 }
 
 func resolveAgentServerBinaryPath(value string, field string) (string, error) {
@@ -227,7 +251,11 @@ func (e *Executor) ExecuteInstance(
 	if updateResolvedImage == nil {
 		return store.InstanceResult{}, nil, fmt.Errorf("update_resolved_image callback is required")
 	}
-	logs, err := newExecutionLogs(e.outputRoot, run.RunID, inst.InstanceID)
+	runDir, err := e.runDir(run.RunID)
+	if err != nil {
+		return store.InstanceResult{}, nil, err
+	}
+	logs, err := newExecutionLogs(runDir, inst.InstanceID)
 	if err != nil {
 		return store.InstanceResult{}, nil, err
 	}
@@ -460,7 +488,7 @@ func (e *Executor) ExecuteInstance(
 	agentExec, err := agentexecutor.New(agentexecutor.Config{
 		BaseURL:      baseURL,
 		HTTPClient:   e.httpClient,
-		ArtifactRoot: runfs.InstanceDir(e.outputRoot, run.RunID, inst.InstanceID),
+		ArtifactRoot: runfs.InstanceDir(runDir, inst.InstanceID),
 		AuthFiles:    toAgentExecutorAuthFiles(stagedAuthFiles),
 		PollInterval: e.agentPollInterval,
 		OnStep: func(ev agentexecutor.StepEvent) {
@@ -498,7 +526,7 @@ func (e *Executor) ExecuteInstance(
 	if err := e.stageCaseTestAssets(ctx, containerID, caseSpec); err != nil {
 		return fail(store.InstanceResult{}, artifacts, err)
 	}
-	testResult, err := e.executeCaseTest(ctx, run.RunID, inst.InstanceID, containerID, caseSpec)
+	testResult, err := e.executeCaseTest(ctx, runDir, inst.InstanceID, containerID, caseSpec)
 	if err != nil {
 		return fail(store.InstanceResult{}, append(artifacts, testResult.Artifacts...), err)
 	}
@@ -1228,7 +1256,7 @@ func readContainerID(path string) (string, error) {
 	return containerID, nil
 }
 
-func (e *Executor) executeCaseTest(ctx context.Context, runID, instanceID, containerID string, tc runbundle.Case) (testExecutionResult, error) {
+func (e *Executor) executeCaseTest(ctx context.Context, runDir, instanceID, containerID string, tc runbundle.Case) (testExecutionResult, error) {
 	timeout := time.Duration(tc.TestTimeoutSecond) * time.Second
 	if timeout <= 0 {
 		return testExecutionResult{}, fmt.Errorf("case test_timeout_seconds must be > 0")
@@ -1236,7 +1264,7 @@ func (e *Executor) executeCaseTest(ctx context.Context, runID, instanceID, conta
 	testCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	capture, err := newTestOutputCapture(e.outputRoot, runID, instanceID)
+	capture, err := newTestOutputCapture(runDir, instanceID)
 	if err != nil {
 		return testExecutionResult{}, err
 	}

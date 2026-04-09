@@ -111,19 +111,20 @@ margin run \
   --suite git::https://github.com/Margin-Lab/swe-suites.git//terminal-bench-2 \
   --agent-config ~/.margin/configs/example-agent-configs/codex-unified \
   --eval ~/.margin/configs/example-eval-configs/default.toml \
+  --output ./runs/codex-terminal-bench-2
 ```
 
 **Resume a run:**
 
 ```bash
-margin run --resume-from <run-id>
+margin run --resume-from ./runs/codex-terminal-bench-2
 ```
 
 **Resume with updated suite/config inputs:**
 
 ```bash
 margin run \
-  --resume-from <run-id> \
+  --resume-from ./runs/codex-terminal-bench-2 \
   --suite ./suites/smoke \
   --agent-config ./configs/my-agent-configs/claude-sonnet \
   --eval ./configs/my-evals/local.toml

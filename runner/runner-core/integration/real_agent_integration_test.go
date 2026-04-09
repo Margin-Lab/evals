@@ -34,7 +34,6 @@ func TestRunnerCoreWorkerWithRealAgentServerMatrix(t *testing.T) {
 					"AGENT_SERVER_TRAJECTORY_POLL_INTERVAL":   "200ms",
 				},
 				ReadyPath:         "/readyz",
-				OutputRoot:        t.TempDir(),
 				AgentPollInterval: 500 * time.Millisecond,
 			})
 			if err != nil {
@@ -54,8 +53,12 @@ func TestRunnerCoreWorkerWithRealAgentServerMatrix(t *testing.T) {
 			defer cancel()
 			pool.Start(ctx)
 
+			runID := "run_real_" + c.DefinitionName + "_" + c.ConfigName
+			if err := executor.RegisterRunDir(runID, t.TempDir()); err != nil {
+				t.Fatalf("register run dir: %v", err)
+			}
 			r, err := runStore.CreateRun(context.Background(), store.CreateRunInput{
-				RunID:         "run_real_" + c.DefinitionName + "_" + c.ConfigName,
+				RunID:         runID,
 				ProjectID:     "proj_it",
 				CreatedByUser: "it_user",
 				SourceKind:    "catalog_refs",

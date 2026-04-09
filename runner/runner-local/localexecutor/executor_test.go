@@ -39,7 +39,6 @@ func TestContainerEnvInheritsRequiredAgentEnvFromHost(t *testing.T) {
 
 	exec, err := New(Config{
 		AgentServerBinary: writeTempBinary(t),
-		OutputRoot:        t.TempDir(),
 	})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -60,7 +59,6 @@ func TestContainerEnvExplicitRequiredAgentEnvOverridesHost(t *testing.T) {
 
 	exec, err := New(Config{
 		AgentServerBinary: writeTempBinary(t),
-		OutputRoot:        t.TempDir(),
 		Env: map[string]string{
 			envKeyOpenAIAPIKey:    "sk-config-openai",
 			envKeyAnthropicAPIKey: "",
@@ -129,7 +127,6 @@ exit 1
 func TestNewInitializesDefaultImageResolver(t *testing.T) {
 	exec, err := New(Config{
 		AgentServerBinary: writeTempBinary(t),
-		OutputRoot:        t.TempDir(),
 	})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -143,7 +140,6 @@ func TestNewAcceptsAgentServerBinaryProvider(t *testing.T) {
 	provider := &stubAgentServerBinaryProvider{path: "/tmp/agent-server"}
 	exec, err := New(Config{
 		AgentServerBinaryProvider: provider,
-		OutputRoot:                t.TempDir(),
 	})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -277,7 +273,7 @@ func TestClassifyTestFinalState(t *testing.T) {
 }
 
 func TestExecuteCaseTestStreamsOutputToArtifacts(t *testing.T) {
-	outputRoot := t.TempDir()
+	runDir := t.TempDir()
 	dockerBin := writeFakeDockerBinary(t, `#!/bin/sh
 set -eu
 if [ "$1" != "exec" ]; then
@@ -290,10 +286,12 @@ exit 1
 `)
 	exec := &Executor{
 		dockerBinary: dockerBin,
-		outputRoot:   outputRoot,
+		runDirs: map[string]string{
+			"run_1": runDir,
+		},
 	}
 
-	result, err := exec.executeCaseTest(context.Background(), "run_1", "inst_1", "container-123", runbundle.Case{
+	result, err := exec.executeCaseTest(context.Background(), runDir, "inst_1", "container-123", runbundle.Case{
 		TestCwd:           "/workspace",
 		TestCommand:       []string{"sh", "-lc", "echo ignored"},
 		TestTimeoutSecond: 30,
@@ -314,8 +312,8 @@ exit 1
 		t.Fatalf("artifact count = %d, want 2", len(result.Artifacts))
 	}
 
-	stdoutPath := filepath.Join(outputRoot, "runs", "run_1", filepath.FromSlash(result.StdoutRef))
-	stderrPath := filepath.Join(outputRoot, "runs", "run_1", filepath.FromSlash(result.StderrRef))
+	stdoutPath := filepath.Join(runDir, filepath.FromSlash(result.StdoutRef))
+	stderrPath := filepath.Join(runDir, filepath.FromSlash(result.StderrRef))
 	stdoutBody, err := os.ReadFile(stdoutPath)
 	if err != nil {
 		t.Fatalf("read stdout artifact: %v", err)
@@ -369,7 +367,7 @@ exit 1
 		dockerBinary:  dockerBin,
 		containerPort: 8080,
 	}
-	logs, err := newExecutionLogs(root, "run_1", "inst_1")
+	logs, err := newExecutionLogs(root, "inst_1")
 	if err != nil {
 		t.Fatalf("newExecutionLogs() error = %v", err)
 	}
@@ -390,7 +388,7 @@ exit 1
 		t.Fatalf("baseURL = %q, want %q", baseURL, "http://127.0.0.1:32771")
 	}
 
-	bootPath, _, _, ok := runfs.AbsoluteArtifactPath(root, "run_1", "inst_1", store.ArtifactRoleAgentBoot)
+	bootPath, _, _, ok := runfs.AbsoluteArtifactPath(root, "inst_1", store.ArtifactRoleAgentBoot)
 	if !ok {
 		t.Fatalf("expected boot artifact path")
 	}
@@ -417,7 +415,7 @@ echo "unexpected docker invocation: $*" >&2
 exit 1
 `, runtimeSourcePath))
 	exec := &Executor{dockerBinary: dockerBin}
-	logs, err := newExecutionLogs(root, "run_1", "inst_1")
+	logs, err := newExecutionLogs(root, "inst_1")
 	if err != nil {
 		t.Fatalf("newExecutionLogs() error = %v", err)
 	}
@@ -431,7 +429,7 @@ exit 1
 	}()
 
 	deadline := time.Now().Add(time.Second)
-	runtimePath, _, _, ok := runfs.AbsoluteArtifactPath(root, "run_1", "inst_1", store.ArtifactRoleAgentRuntime)
+	runtimePath, _, _, ok := runfs.AbsoluteArtifactPath(root, "inst_1", store.ArtifactRoleAgentRuntime)
 	if !ok {
 		t.Fatalf("expected runtime artifact path")
 	}
@@ -468,7 +466,6 @@ exit 1
 func TestNewRejectsCleanupWhenResolverDoesNotSupportCleanup(t *testing.T) {
 	_, err := New(Config{
 		AgentServerBinary:  writeTempBinary(t),
-		OutputRoot:         t.TempDir(),
 		ImageResolver:      &stubImageResolver{out: "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"},
 		CleanupBuiltImages: true,
 	})

@@ -28,12 +28,12 @@ type testOutputCapture struct {
 	stderrFile     *os.File
 }
 
-func newTestOutputCapture(rootDir, runID, instanceID string) (*testOutputCapture, error) {
-	stdoutPath, stdoutStoreKey, stdoutFile, err := openTestOutputFile(rootDir, runID, instanceID, store.ArtifactRoleTestStdout)
+func newTestOutputCapture(runDir, instanceID string) (*testOutputCapture, error) {
+	stdoutPath, stdoutStoreKey, stdoutFile, err := openTestOutputFile(runDir, instanceID, store.ArtifactRoleTestStdout)
 	if err != nil {
 		return nil, err
 	}
-	stderrPath, stderrStoreKey, stderrFile, err := openTestOutputFile(rootDir, runID, instanceID, store.ArtifactRoleTestStderr)
+	stderrPath, stderrStoreKey, stderrFile, err := openTestOutputFile(runDir, instanceID, store.ArtifactRoleTestStderr)
 	if err != nil {
 		_ = stdoutFile.Close()
 		return nil, err
@@ -49,8 +49,8 @@ func newTestOutputCapture(rootDir, runID, instanceID string) (*testOutputCapture
 	}, nil
 }
 
-func openTestOutputFile(rootDir, runID, instanceID, role string) (string, string, *os.File, error) {
-	path, storeKey, _, ok := runfs.AbsoluteArtifactPath(rootDir, runID, instanceID, role)
+func openTestOutputFile(runDir, instanceID, role string) (string, string, *os.File, error) {
+	path, storeKey, _, ok := runfs.AbsoluteArtifactPath(runDir, instanceID, role)
 	if !ok {
 		return "", "", nil, fmt.Errorf("resolve %s artifact path", role)
 	}
