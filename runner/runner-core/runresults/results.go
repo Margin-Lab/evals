@@ -16,6 +16,7 @@ import (
 const (
 	InfraFailureReasonAgentFailed       = instancestatus.InfraFailureReasonAgentFailed
 	InfraFailureReasonExecutorError     = instancestatus.InfraFailureReasonExecutorError
+	InfraFailureReasonInstanceTimeout   = instancestatus.InfraFailureReasonInstanceTimeout
 	InfraFailureReasonInvalidFinalState = instancestatus.InfraFailureReasonInvalidFinalState
 	InfraFailureReasonUnknownFailure    = instancestatus.InfraFailureReasonUnknownFailure
 )

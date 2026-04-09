@@ -197,10 +197,6 @@ func (e *Executor) ExecuteInstance(ctx context.Context, run store.Run, inst stor
 		executionMode = runbundle.ExecutionModeFull
 	}
 	dryRun := executionMode == runbundle.ExecutionModeDryRun
-	caseTimeout := time.Duration(inst.Case.TestTimeoutSecond) * time.Second
-	if caseTimeout <= 0 {
-		return store.InstanceResult{}, nil, fmt.Errorf("case test_timeout_seconds must be > 0")
-	}
 	startReq := startRunRequest{
 		CWD:           inst.Case.AgentCwd,
 		InitialPrompt: inst.Case.InitialPrompt,
@@ -242,15 +238,15 @@ func (e *Executor) ExecuteInstance(ctx context.Context, run store.Run, inst stor
 	e.emitStep("run.start", "completed", runStartCompletedMessage, runStartCompletedDetails)
 
 	runWaitDetails := map[string]string{
-		"endpoint":        "/v1/run",
-		"timeout_seconds": fmt.Sprintf("%d", int(caseTimeout/time.Second)),
+		"endpoint":                 "/v1/run",
+		"instance_timeout_seconds": fmt.Sprintf("%d", run.Bundle.ResolvedSnapshot.Execution.InstanceTimeoutSecond),
 	}
-	e.emitStep("run.wait_exit", "start", "Polling GET /v1/run until the run exits or the case timeout is reached.", cloneStringMap(runWaitDetails))
-	exitCode, trajectoryStatus, err := e.waitForExit(ctx, caseTimeout)
+	e.emitStep("run.wait_exit", "start", "Polling GET /v1/run until the run exits or the instance deadline is reached.", cloneStringMap(runWaitDetails))
+	exitCode, trajectoryStatus, err := e.waitForExit(ctx)
 	if err != nil {
 		failedDetails := cloneStringMap(runWaitDetails)
 		failedDetails["error"] = err.Error()
-		e.emitStep("run.wait_exit", "failed", "Polling GET /v1/run failed before the run reached exited state.", failedDetails)
+		e.emitStep("run.wait_exit", "failed", "Polling GET /v1/run failed before the run reached exited state or the instance deadline expired.", failedDetails)
 		return store.InstanceResult{}, nil, err
 	}
 	runWaitCompletedDetails := cloneStringMap(runWaitDetails)
@@ -433,9 +429,7 @@ func (e *Executor) deleteRun(ctx context.Context) error {
 	return e.doJSON(ctx, http.MethodDelete, "/v1/run", nil, nil)
 }
 
-func (e *Executor) waitForExit(ctx context.Context, timeout time.Duration) (int, string, error) {
-	deadline := time.NewTimer(timeout)
-	defer deadline.Stop()
+func (e *Executor) waitForExit(ctx context.Context) (int, string, error) {
 	ticker := time.NewTicker(e.pollInterval)
 	defer ticker.Stop()
 
@@ -454,8 +448,6 @@ func (e *Executor) waitForExit(ctx context.Context, timeout time.Duration) (int,
 		select {
 		case <-ctx.Done():
 			return 0, "", ctx.Err()
-		case <-deadline.C:
-			return 0, "", fmt.Errorf("timed out waiting for /v1/run to exit")
 		case <-ticker.C:
 		}
 	}

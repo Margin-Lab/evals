@@ -11,6 +11,7 @@ import (
 const (
 	InfraFailureReasonAgentFailed       = "agent_failed"
 	InfraFailureReasonExecutorError     = "executor_error"
+	InfraFailureReasonInstanceTimeout   = "instance_timeout"
 	InfraFailureReasonInvalidFinalState = "invalid_final_state"
 	InfraFailureReasonUnknownFailure    = "unknown_failure"
 )
@@ -21,7 +22,7 @@ func NormalizeExecutionResult(result store.InstanceResult, err error) store.Inst
 			result.FinalState = terminalStateForErr(err)
 		}
 		if result.ErrorCode == "" && result.FinalState.IsInfraFailure() {
-			result.ErrorCode = "EXECUTOR_ERROR"
+			result.ErrorCode = errorCodeForErr(err)
 		}
 		if result.ErrorMessage == "" && result.FinalState.IsInfraFailure() {
 			result.ErrorMessage = err.Error()
@@ -48,6 +49,15 @@ func terminalStateForErr(err error) domain.InstanceState {
 	}
 }
 
+func errorCodeForErr(err error) string {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "INSTANCE_TIMEOUT"
+	default:
+		return "EXECUTOR_ERROR"
+	}
+}
+
 func InfraFailureReason(result store.StoredInstanceResult) *string {
 	if !result.FinalState.IsInfraFailure() {
 		return nil
@@ -55,6 +65,8 @@ func InfraFailureReason(result store.StoredInstanceResult) *string {
 	switch result.ErrorCode {
 	case "EXECUTOR_ERROR":
 		return strPtr(InfraFailureReasonExecutorError)
+	case "INSTANCE_TIMEOUT":
+		return strPtr(InfraFailureReasonInstanceTimeout)
 	case "INVALID_FINAL_STATE":
 		return strPtr(InfraFailureReasonInvalidFinalState)
 	}

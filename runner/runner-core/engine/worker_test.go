@@ -23,6 +23,8 @@ type scriptedExecutor struct {
 	calls   int
 }
 
+type blockingExecutor struct{}
+
 func (f fakeExecutor) ExecuteInstance(_ context.Context, _ store.Run, _ store.Instance, updateState func(domain.InstanceState) error, _ func(string) error) (store.InstanceResult, []store.Artifact, error) {
 	for _, state := range []domain.InstanceState{
 		domain.InstanceStateAgentServerInstalling,
@@ -67,6 +69,11 @@ func (s *scriptedExecutor) ExecuteInstance(_ context.Context, _ store.Run, _ sto
 		err = s.errs[idx]
 	}
 	return result, []store.Artifact{{Role: "test_stdout", StoreKey: "k", URI: "u"}}, err
+}
+
+func (blockingExecutor) ExecuteInstance(ctx context.Context, _ store.Run, _ store.Instance, _ func(domain.InstanceState) error, _ func(string) error) (store.InstanceResult, []store.Artifact, error) {
+	<-ctx.Done()
+	return store.InstanceResult{}, nil, ctx.Err()
 }
 
 func testBundle() runbundle.Bundle {
@@ -221,4 +228,56 @@ func TestPoolRetriesInfraFailuresWithinRun(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("run did not complete after retry")
+}
+
+func TestPoolAppliesInstanceTimeoutToEntireAttempt(t *testing.T) {
+	s := store.NewMemoryStore()
+	bundle := testBundle()
+	bundle.ResolvedSnapshot.Execution.InstanceTimeoutSecond = 1
+	_, err := s.CreateRun(context.Background(), store.CreateRunInput{
+		RunID:         "run_timeout",
+		ProjectID:     "proj_1",
+		CreatedByUser: "u1",
+		SourceKind:    runbundle.SourceKindLocalFiles,
+		Bundle:        bundle,
+		At:            time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+
+	pool := NewPool(s, blockingExecutor{}, Config{
+		WorkerID:          "w1",
+		WorkerCount:       1,
+		PollInterval:      5 * time.Millisecond,
+		LeaseDuration:     2 * time.Second,
+		HeartbeatInterval: 20 * time.Millisecond,
+		ReaperInterval:    50 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	pool.Start(ctx)
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		r, err := s.GetRun(context.Background(), "run_timeout", false)
+		if err != nil {
+			t.Fatalf("get run: %v", err)
+		}
+		if r.State == domain.RunStateFailed {
+			result, err := s.GetInstanceResult(context.Background(), "run_timeout-inst-0001")
+			if err != nil {
+				t.Fatalf("get instance result: %v", err)
+			}
+			if result.FinalState != domain.InstanceStateInfraFailed {
+				t.Fatalf("final state = %s, want %s", result.FinalState, domain.InstanceStateInfraFailed)
+			}
+			if result.ErrorCode != "INSTANCE_TIMEOUT" {
+				t.Fatalf("error code = %q, want INSTANCE_TIMEOUT", result.ErrorCode)
+			}
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("run did not fail after instance timeout")
 }
