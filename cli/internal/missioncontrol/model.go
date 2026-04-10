@@ -156,6 +156,7 @@ type model struct {
 	runID            string
 	pollInterval     time.Duration
 	textPreviewLimit int64
+	exitOnComplete   bool
 
 	snapshot        runnerapi.RunSnapshot
 	snapshotLoaded  bool
@@ -200,6 +201,7 @@ func newModel(ctx context.Context, cfg Config) *model {
 		runID:            cfg.RunID,
 		pollInterval:     cfg.PollInterval,
 		textPreviewLimit: cfg.TextPreviewLimit,
+		exitOnComplete:   cfg.ExitOnComplete,
 		selectedState:    simplifiedStatePending,
 		autoStateSelect:  true,
 		logFollowTail:    true,
@@ -247,7 +249,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tickCmd(m.pollInterval)
 		}
 		m.errMsg = ""
+		wasTerminal := m.terminal
 		m.applySnapshot(msg.snapshot)
+		if m.exitOnComplete && m.terminal && !wasTerminal {
+			return m, tea.Quit
+		}
 		cmds := make([]tea.Cmd, 0, 2)
 		if cmd := m.maybeLoadSelectedLog(); cmd != nil {
 			cmds = append(cmds, cmd)

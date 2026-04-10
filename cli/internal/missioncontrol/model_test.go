@@ -1124,6 +1124,77 @@ func TestStateTabUsesPlaceholderForTerminalStates(t *testing.T) {
 	}
 }
 
+func TestTerminalSnapshotQuitsWhenExitOnCompleteEnabled(t *testing.T) {
+	m := newModel(context.Background(), Config{
+		RunID:          "run_1",
+		Source:         &fakeMissionSource{},
+		ExitOnComplete: true,
+	})
+
+	next, cmd := m.Update(snapshotLoadedMsg{
+		snapshot: runnerapi.RunSnapshot{
+			Run: store.Run{
+				RunID: "run_1",
+				State: domain.RunStateCompleted,
+			},
+			Instances: []runnerapi.InstanceSnapshot{{
+				Instance: store.Instance{
+					InstanceID: "inst_1",
+					State:      domain.InstanceStateSucceeded,
+				},
+			}},
+		},
+	})
+
+	resolved, ok := next.(*model)
+	if !ok {
+		t.Fatalf("unexpected model type %T", next)
+	}
+	if !resolved.terminal {
+		t.Fatalf("expected model to record terminal run state")
+	}
+	if cmd == nil {
+		t.Fatalf("expected quit command")
+	}
+	msg := cmd()
+	if _, ok := msg.(tea.QuitMsg); !ok {
+		t.Fatalf("expected quit message, got %T", msg)
+	}
+}
+
+func TestTerminalSnapshotDoesNotQuitByDefault(t *testing.T) {
+	m := newModel(context.Background(), Config{
+		RunID:  "run_1",
+		Source: &fakeMissionSource{},
+	})
+
+	next, cmd := m.Update(snapshotLoadedMsg{
+		snapshot: runnerapi.RunSnapshot{
+			Run: store.Run{
+				RunID: "run_1",
+				State: domain.RunStateCompleted,
+			},
+			Instances: []runnerapi.InstanceSnapshot{{
+				Instance: store.Instance{
+					InstanceID: "inst_1",
+					State:      domain.InstanceStateSucceeded,
+				},
+			}},
+		},
+	})
+
+	resolved, ok := next.(*model)
+	if !ok {
+		t.Fatalf("unexpected model type %T", next)
+	}
+	if !resolved.terminal {
+		t.Fatalf("expected model to record terminal run state")
+	}
+	if cmd != nil {
+		t.Fatalf("did not expect quit command by default")
+	}
+}
+
 func TestLogsLoadMovesViewportToBottom(t *testing.T) {
 	inst := runnerapi.InstanceSnapshot{
 		Instance: store.Instance{

@@ -32,6 +32,7 @@ type Config struct {
 	Source           Source
 	PollInterval     time.Duration
 	TextPreviewLimit int64
+	ExitOnComplete   bool
 }
 
 // Outcome captures how the mission-control TUI session ended.

@@ -1688,6 +1688,55 @@ func TestRunUsesNonInteractiveMonitorWhenFlagPresent(t *testing.T) {
 	}
 }
 
+func TestRunPassesExitOnCompleteToMissionControl(t *testing.T) {
+	origCompile := compileBundle
+	origNewExecutor := newLocalExecutor
+	origNewService := newLocalRunnerService
+	origLaunchMissionControl := launchMissionControl
+	defer func() {
+		compileBundle = origCompile
+		newLocalExecutor = origNewExecutor
+		newLocalRunnerService = origNewService
+		launchMissionControl = origLaunchMissionControl
+	}()
+
+	compileBundle = func(_ compiler.CompileInput) (runbundle.Bundle, error) {
+		return runbundle.Bundle{
+			ResolvedSnapshot: runbundle.ResolvedSnapshot{
+				Execution: runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1},
+			},
+		}, nil
+	}
+	newLocalExecutor = func(_ localexecutor.Config) (engine.Executor, error) {
+		return fakeExecutor{}, nil
+	}
+	newLocalRunnerService = func(_ localrunner.Config) (runnerapi.Service, error) {
+		return fakeRunnerService{}, nil
+	}
+	launchMissionControl = func(_ context.Context, cfg missioncontrol.Config) (missioncontrol.Outcome, error) {
+		if !cfg.ExitOnComplete {
+			t.Fatalf("expected ExitOnComplete to be true")
+		}
+		return missioncontrol.Outcome{
+			FinalRun: store.Run{RunID: cfg.RunID, State: domain.RunStateCompleted},
+		}, nil
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	a := New(&stdout, &stderr)
+	err := a.runRun(context.Background(), []string{
+		"--suite", "suite",
+		"--agent-config", "agent-config",
+		"--eval", "eval",
+		"--agent-server-binary", "agent-server",
+		"--exit-on-complete",
+	})
+	if err != nil {
+		t.Fatalf("runRun returned error: %v", err)
+	}
+}
+
 func validRemoteSuiteRunBundle(t *testing.T) runbundle.Bundle {
 	t.Helper()
 	return runbundle.Bundle{
