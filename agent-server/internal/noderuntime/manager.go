@@ -391,17 +391,21 @@ func (m *Manager) ensureViaAPK(ctx context.Context, spec Spec) (Info, error) {
 	if err != nil {
 		return Info{}, fmt.Errorf("install managed node via apk failed: %s", strings.TrimSpace(string(output)))
 	}
-	nodePath, err := m.lookPath("node")
+	sanitizedPath, err := sanitizedAPKPath(os.Getenv("PATH"))
 	if err != nil {
-		return Info{}, fmt.Errorf("resolve node: %w", err)
+		return Info{}, fmt.Errorf("resolve apk toolchain PATH: %w", err)
 	}
-	npmPath, err := m.lookPath("npm")
+	nodePath, err := lookPathIn(sanitizedPath, "node")
 	if err != nil {
-		return Info{}, fmt.Errorf("resolve npm: %w", err)
+		return Info{}, fmt.Errorf("resolve node in apk toolchain PATH %q: %w", sanitizedPath, err)
 	}
-	npxPath, err := m.lookPath("npx")
+	npmPath, err := lookPathIn(sanitizedPath, "npm")
 	if err != nil {
-		return Info{}, fmt.Errorf("resolve npx: %w", err)
+		return Info{}, fmt.Errorf("resolve npm in apk toolchain PATH %q: %w", sanitizedPath, err)
+	}
+	npxPath, err := lookPathIn(sanitizedPath, "npx")
+	if err != nil {
+		return Info{}, fmt.Errorf("resolve npx in apk toolchain PATH %q: %w", sanitizedPath, err)
 	}
 	if err := m.linkManagedBinaries(filepath.Dir(nodePath)); err != nil {
 		return Info{}, err
@@ -776,6 +780,56 @@ func parseNodeMajor(version string) (string, error) {
 		}
 	}
 	return major, nil
+}
+
+func sanitizedAPKPath(pathValue string) (string, error) {
+	parts := strings.Split(pathValue, string(os.PathListSeparator))
+	filtered := make([]string, 0, len(parts))
+	seen := map[string]struct{}{}
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		cleaned := filepath.Clean(trimmed)
+		if cleaned == "/usr/local/bin" || cleaned == "/usr/local/sbin" {
+			continue
+		}
+		if _, ok := seen[cleaned]; ok {
+			continue
+		}
+		seen[cleaned] = struct{}{}
+		filtered = append(filtered, cleaned)
+	}
+	if len(filtered) == 0 {
+		return "", fmt.Errorf("sanitized PATH is empty")
+	}
+	return strings.Join(filtered, string(os.PathListSeparator)), nil
+}
+
+func lookPathIn(pathValue, file string) (string, error) {
+	if strings.TrimSpace(file) == "" {
+		return "", fmt.Errorf("binary name is required")
+	}
+	for _, part := range strings.Split(pathValue, string(os.PathListSeparator)) {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		candidate := filepath.Join(trimmed, file)
+		info, err := os.Stat(candidate)
+		if err != nil {
+			continue
+		}
+		if info.IsDir() {
+			continue
+		}
+		if info.Mode()&0o111 == 0 {
+			continue
+		}
+		return candidate, nil
+	}
+	return "", fmt.Errorf("binary %q not found", file)
 }
 
 func compareNodeMajors(left, right string) int {

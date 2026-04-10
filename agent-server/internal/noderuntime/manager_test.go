@@ -199,11 +199,17 @@ func TestEnsureInstallsLatestNodeViaAPKAndChecksMinimum(t *testing.T) {
 	binDir := t.TempDir()
 	systemBinDir := filepath.Join(t.TempDir(), "system-bin")
 	if err := os.MkdirAll(systemBinDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(systemBinDir) error = %v", err)
+		t.Fatalf("MkdirAll(%s) error = %v", systemBinDir, err)
 	}
 	nodePath := filepath.Join(systemBinDir, "node")
 	npmPath := filepath.Join(systemBinDir, "npm")
 	npxPath := filepath.Join(systemBinDir, "npx")
+	for _, path := range []string{nodePath, npmPath, npxPath} {
+		if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", path, err)
+		}
+	}
+	t.Setenv("PATH", strings.Join([]string{"/usr/local/bin", "/usr/local/sbin", systemBinDir, "/usr/bin"}, string(os.PathListSeparator)))
 
 	manager, err := New(Config{
 		BinDir:   binDir,
@@ -218,21 +224,81 @@ func TestEnsureInstallsLatestNodeViaAPKAndChecksMinimum(t *testing.T) {
 		switch file {
 		case "apk":
 			return "/sbin/apk", nil
-		case "node":
-			if _, err := os.Stat(nodePath); err != nil {
-				return "", err
+		default:
+			return "", fmt.Errorf("unexpected tool lookup: %s", file)
+		}
+	}
+
+	installCount := 0
+	manager.runner = &fakeCommandRunner{runFn: func(_ context.Context, name string, args []string, _ []string, _ string) ([]byte, error) {
+		if name == "/sbin/apk" {
+			installCount++
+			for _, path := range []string{nodePath, npmPath, npxPath} {
+				if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
+					return nil, err
+				}
 			}
-			return nodePath, nil
-		case "npm":
-			if _, err := os.Stat(npmPath); err != nil {
-				return "", err
-			}
-			return npmPath, nil
-		case "npx":
-			if _, err := os.Stat(npxPath); err != nil {
-				return "", err
-			}
-			return npxPath, nil
+			return []byte("OK"), nil
+		}
+		switch {
+		case name == filepath.Join(manager.ManagedBinDir(), "node") && len(args) == 1 && args[0] == "--version":
+			return []byte("v24.1.0\n"), nil
+		case name == filepath.Join(manager.ManagedBinDir(), "npm") && len(args) == 1 && args[0] == "--version":
+			return []byte("10.1.0\n"), nil
+		case name == filepath.Join(manager.ManagedBinDir(), "npx") && len(args) == 1 && args[0] == "--version":
+			return []byte("10.1.0\n"), nil
+		default:
+			return nil, fmt.Errorf("unexpected command: %s %v", name, args)
+		}
+	}}
+
+	info, err := manager.Ensure(context.Background(), Spec{Minimum: "18", Preferred: "24"})
+	if err != nil {
+		t.Fatalf("Ensure() error = %v", err)
+	}
+	if installCount != 1 {
+		t.Fatalf("apk install attempts = %d, want 1", installCount)
+	}
+	if info.Version != "24" || info.InstallMethod != installMethodAPK {
+		t.Fatalf("Ensure() info = %+v", info)
+	}
+	for _, name := range managedBinaries {
+		linkPath := filepath.Join(manager.ManagedBinDir(), name)
+		resolved, err := os.Readlink(linkPath)
+		if err != nil {
+			t.Fatalf("Readlink(%s) error = %v", linkPath, err)
+		}
+		if !strings.Contains(resolved, systemBinDir) {
+			t.Fatalf("managed %s symlink target = %q, want system bin", name, resolved)
+		}
+	}
+}
+
+func TestEnsureAcceptsAPKInstalledNodeAboveMinimum(t *testing.T) {
+	stateDir := t.TempDir()
+	binDir := t.TempDir()
+	systemBinDir := filepath.Join(t.TempDir(), "system-bin")
+	if err := os.MkdirAll(systemBinDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(systemBinDir) error = %v", err)
+	}
+	nodePath := filepath.Join(systemBinDir, "node")
+	npmPath := filepath.Join(systemBinDir, "npm")
+	npxPath := filepath.Join(systemBinDir, "npx")
+	t.Setenv("PATH", strings.Join([]string{"/usr/local/bin", systemBinDir, "/usr/bin"}, string(os.PathListSeparator)))
+
+	manager, err := New(Config{
+		BinDir:   binDir,
+		StateDir: stateDir,
+		NVMDir:   filepath.Join(stateDir, "toolchain", "node-runtime"),
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	manager.detectAlpine = func() bool { return true }
+	manager.lookPath = func(file string) (string, error) {
+		switch file {
+		case "apk":
+			return "/sbin/apk", nil
 		default:
 			return "", fmt.Errorf("unexpected tool lookup: %s", file)
 		}
@@ -273,80 +339,6 @@ func TestEnsureInstallsLatestNodeViaAPKAndChecksMinimum(t *testing.T) {
 	}
 }
 
-func TestEnsureAcceptsAPKInstalledNodeAboveMinimum(t *testing.T) {
-	stateDir := t.TempDir()
-	binDir := t.TempDir()
-	systemBinDir := filepath.Join(t.TempDir(), "system-bin")
-	if err := os.MkdirAll(systemBinDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(systemBinDir) error = %v", err)
-	}
-	nodePath := filepath.Join(systemBinDir, "node")
-	npmPath := filepath.Join(systemBinDir, "npm")
-	npxPath := filepath.Join(systemBinDir, "npx")
-
-	manager, err := New(Config{
-		BinDir:   binDir,
-		StateDir: stateDir,
-		NVMDir:   filepath.Join(stateDir, "toolchain", "node-runtime"),
-	})
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	manager.detectAlpine = func() bool { return true }
-	manager.lookPath = func(file string) (string, error) {
-		switch file {
-		case "apk":
-			return "/sbin/apk", nil
-		case "node":
-			if _, err := os.Stat(nodePath); err != nil {
-				return "", err
-			}
-			return nodePath, nil
-		case "npm":
-			if _, err := os.Stat(npmPath); err != nil {
-				return "", err
-			}
-			return npmPath, nil
-		case "npx":
-			if _, err := os.Stat(npxPath); err != nil {
-				return "", err
-			}
-			return npxPath, nil
-		default:
-			return "", fmt.Errorf("unexpected tool lookup: %s", file)
-		}
-	}
-
-	manager.runner = &fakeCommandRunner{runFn: func(_ context.Context, name string, args []string, _ []string, _ string) ([]byte, error) {
-		if name == "/sbin/apk" {
-			for _, path := range []string{nodePath, npmPath, npxPath} {
-				if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
-					return nil, err
-				}
-			}
-			return []byte("OK"), nil
-		}
-		switch {
-		case name == filepath.Join(manager.ManagedBinDir(), "node") && len(args) == 1 && args[0] == "--version":
-			return []byte("v20.15.1\n"), nil
-		case name == filepath.Join(manager.ManagedBinDir(), "npm") && len(args) == 1 && args[0] == "--version":
-			return []byte("10.9.1\n"), nil
-		case name == filepath.Join(manager.ManagedBinDir(), "npx") && len(args) == 1 && args[0] == "--version":
-			return []byte("10.9.1\n"), nil
-		default:
-			return nil, fmt.Errorf("unexpected command: %s %v", name, args)
-		}
-	}}
-
-	info, err := manager.Ensure(context.Background(), Spec{Minimum: "18", Preferred: "24"})
-	if err != nil {
-		t.Fatalf("Ensure() error = %v", err)
-	}
-	if info.Version != "20" || info.InstallMethod != installMethodAPK {
-		t.Fatalf("Ensure() info = %+v", info)
-	}
-}
-
 func TestEnsureFailsWhenAPKInstalledNodeIsBelowMinimum(t *testing.T) {
 	stateDir := t.TempDir()
 	binDir := t.TempDir()
@@ -357,6 +349,7 @@ func TestEnsureFailsWhenAPKInstalledNodeIsBelowMinimum(t *testing.T) {
 	nodePath := filepath.Join(systemBinDir, "node")
 	npmPath := filepath.Join(systemBinDir, "npm")
 	npxPath := filepath.Join(systemBinDir, "npx")
+	t.Setenv("PATH", strings.Join([]string{"/usr/local/bin", systemBinDir, "/usr/bin"}, string(os.PathListSeparator)))
 
 	manager, err := New(Config{
 		BinDir:   binDir,
@@ -371,21 +364,6 @@ func TestEnsureFailsWhenAPKInstalledNodeIsBelowMinimum(t *testing.T) {
 		switch file {
 		case "apk":
 			return "/sbin/apk", nil
-		case "node":
-			if _, err := os.Stat(nodePath); err != nil {
-				return "", err
-			}
-			return nodePath, nil
-		case "npm":
-			if _, err := os.Stat(npmPath); err != nil {
-				return "", err
-			}
-			return npmPath, nil
-		case "npx":
-			if _, err := os.Stat(npxPath); err != nil {
-				return "", err
-			}
-			return npxPath, nil
 		default:
 			return "", fmt.Errorf("unexpected tool lookup: %s", file)
 		}
@@ -414,6 +392,50 @@ func TestEnsureFailsWhenAPKInstalledNodeIsBelowMinimum(t *testing.T) {
 
 	_, err = manager.Ensure(context.Background(), Spec{Minimum: "18", Preferred: "24"})
 	if err == nil || !strings.Contains(err.Error(), `below minimum version "18"`) {
+		t.Fatalf("Ensure() error = %v", err)
+	}
+}
+
+func TestEnsureFailsWhenSanitizedAPKPathMissingBinary(t *testing.T) {
+	stateDir := t.TempDir()
+	binDir := t.TempDir()
+	systemBinDir := filepath.Join(t.TempDir(), "system-bin")
+	if err := os.MkdirAll(systemBinDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(systemBinDir) error = %v", err)
+	}
+	nodePath := filepath.Join(systemBinDir, "node")
+	npmPath := filepath.Join(systemBinDir, "npm")
+	t.Setenv("PATH", strings.Join([]string{"/usr/local/bin", systemBinDir, "/usr/bin"}, string(os.PathListSeparator)))
+
+	manager, err := New(Config{
+		BinDir:   binDir,
+		StateDir: stateDir,
+		NVMDir:   filepath.Join(stateDir, "toolchain", "node-runtime"),
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	manager.detectAlpine = func() bool { return true }
+	manager.lookPath = func(file string) (string, error) {
+		if file == "apk" {
+			return "/sbin/apk", nil
+		}
+		return "", fmt.Errorf("unexpected tool lookup: %s", file)
+	}
+	manager.runner = &fakeCommandRunner{runFn: func(_ context.Context, name string, args []string, _ []string, _ string) ([]byte, error) {
+		if name != "/sbin/apk" {
+			return nil, fmt.Errorf("unexpected command: %s %v", name, args)
+		}
+		for _, path := range []string{nodePath, npmPath} {
+			if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
+				return nil, err
+			}
+		}
+		return []byte("OK"), nil
+	}}
+
+	_, err = manager.Ensure(context.Background(), Spec{Minimum: "18", Preferred: "24"})
+	if err == nil || !strings.Contains(err.Error(), `resolve npx in apk toolchain PATH`) {
 		t.Fatalf("Ensure() error = %v", err)
 	}
 }
