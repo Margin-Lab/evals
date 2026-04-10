@@ -86,6 +86,7 @@ Eval run command:
     --resume-from <path>          Resume from source run directory; pass updated suite/agent-config/eval to resume with new inputs
     --resume-mode <mode>          Resume behavior: resume|retry-failed (default resume; resume reruns infra_failed only)
     --non-interactive             Skip Mission Control TUI and print plain progress logs
+    --exit-on-complete            Exit immediately when Mission Control reaches a terminal state
     --agent-server-binary <path>  exact agent-server binary path on host (default embedded in margin)
     --docker-binary <path>        Docker CLI binary (default docker)
     --auth-file-path <path>       Override local OAuth credential file path for the selected agent

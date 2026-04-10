@@ -77,6 +77,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	dockerBinary := fs.String("docker-binary", "docker", "docker CLI binary path")
 	authFilePath := fs.String("auth-file-path", "", "override local OAuth credential file path for the selected agent")
 	nonInteractive := fs.Bool("non-interactive", false, "skip Mission Control TUI and print plain progress logs")
+	exitOnComplete := fs.Bool("exit-on-complete", false, "exit immediately when an interactive run reaches a terminal state")
 	pruneBuiltImage := fs.Int("prune-built-image", 0, "enable lazy-built cleanup and globally prune all unused Docker images from the selected daemon every N completed executed instances (0 disables)")
 	dryRun := fs.Bool("dry-run", false, "skip agent execution but still run case tests on the pristine workspace")
 
@@ -286,6 +287,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 			RunID:            run.RunID,
 			Source:           localSource,
 			TextPreviewLimit: missioncontrol.DefaultTextPreviewLimit,
+			ExitOnComplete:   *exitOnComplete,
 		})
 		if err != nil {
 			return fmt.Errorf("run mission control: %w", err)

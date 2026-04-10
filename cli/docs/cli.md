@@ -51,6 +51,8 @@ margin check
 
 `margin check` verifies that the `docker` binary is on `PATH`, that the Docker daemon responds, and that a `hello-world` container can be started successfully.
 
+By default, interactive `margin run` keeps Mission Control open after the run completes so you can inspect the final state and logs. Use `--exit-on-complete` to exit immediately once the run reaches a terminal state.
+
 Installer-managed starter assets are installed at:
 
 - `~/.margin/configs`
