@@ -107,7 +107,7 @@ func TestRunPrintsProgressFailuresAndSummary(t *testing.T) {
 		{
 			Run: store.Run{
 				RunID:     "run_test_1",
-				State:     domain.RunStateFailed,
+				State:     domain.RunStateCompleted,
 				CreatedAt: start,
 				StartedAt: &start,
 				EndedAt:   &end,
@@ -160,7 +160,7 @@ func TestRunPrintsProgressFailuresAndSummary(t *testing.T) {
 		"[run] started run_id=run_test_1 total=2 run_dir=/tmp/run_test_1",
 		"progress 0/2 | running 1 | pending 1 | pass 0 | test_fail 0 | infra_fail 0",
 		"fail #002 (no-case-id) type=test_failed test_exit=1",
-		"[1m15s] finished state=failed elapsed=1m15s",
+		"[1m15s] finished state=completed elapsed=1m15s",
 		"[1m15s] summary total=2 pass=1 test_fail=1 infra_fail=0 canceled=0",
 		"[1m15s] failures #002 (no-case-id)",
 	} {

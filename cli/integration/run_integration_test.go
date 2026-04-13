@@ -175,11 +175,11 @@ func TestCLIRunWithFakeAgentServerFailure(t *testing.T) {
 			"--run-timeout", "2m",
 		}, modelAgentEnvArgs()...)...,
 	)
-	if result.ExitCode == 0 {
-		t.Fatalf("margin exit code = %d, want nonzero\nstdout:\n%s\nstderr:\n%s", result.ExitCode, result.Stdout, result.Stderr)
+	if result.ExitCode != 0 {
+		t.Fatalf("margin exit code = %d, want 0\nstdout:\n%s\nstderr:\n%s", result.ExitCode, result.Stdout, result.Stderr)
 	}
-	if !strings.Contains(result.Stderr, "error:") {
-		t.Fatalf("stderr missing error prefix:\n%s", result.Stderr)
+	if strings.Contains(result.Stderr, "error:") {
+		t.Fatalf("stderr unexpectedly contained error prefix:\n%s", result.Stderr)
 	}
 	for _, needle := range []string{"run_id:", "state:", "run_dir:"} {
 		if !strings.Contains(result.Stdout, needle) {
@@ -188,8 +188,8 @@ func TestCLIRunWithFakeAgentServerFailure(t *testing.T) {
 	}
 
 	summary := parseCLIRunSummary(t, result.Stdout)
-	if summary.State == "completed" {
-		t.Fatalf("unexpected completed state in failure case")
+	if summary.State != "completed" {
+		t.Fatalf("unexpected non-completed state in test failure case: %+v", summary)
 	}
 	run := loadPersistedRun(t, runDir, summary)
 	if run.Results.Status.TestFailed.Count != 1 {

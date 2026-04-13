@@ -285,6 +285,8 @@ func runStateBadge(state string) string {
 	switch state {
 	case "running":
 		return badgeRunning.Render(state)
+	case "completed_with_test_failures":
+		return badgeCanceled.Render("completed+test_fail")
 	case "completed":
 		return badgeCompleted.Render(state)
 	case "failed":
@@ -294,4 +296,11 @@ func runStateBadge(state string) string {
 	default:
 		return badgeDefault.Render(state)
 	}
+}
+
+func runStateBadgeLabel(state domain.RunState, counts domain.RunCounts) string {
+	if state == domain.RunStateCompleted && counts.TestFailed > 0 {
+		return "completed_with_test_failures"
+	}
+	return string(state)
 }
