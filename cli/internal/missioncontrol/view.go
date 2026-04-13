@@ -53,7 +53,7 @@ func (m *model) renderHeader(width int) string {
 	counts := run.Counts
 
 	title := headerTitleStyle.Render("Run ") + headerRunIDStyle.Render(run.RunID)
-	badge := runStateBadge(string(run.State))
+	badge := runStateBadge(runStateBadgeLabel(run.State, counts))
 
 	var countParts []string
 	if counts.Pending > 0 {
