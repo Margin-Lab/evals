@@ -54,7 +54,7 @@ func NextRunState(current RunState, counts RunCounts, cancelRequested bool) RunS
 	if counts.Canceled > 0 {
 		return RunStateCanceled
 	}
-	if counts.Failed() > 0 {
+	if counts.InfraFailed > 0 {
 		return RunStateFailed
 	}
 	return RunStateCompleted

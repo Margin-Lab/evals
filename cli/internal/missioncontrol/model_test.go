@@ -275,6 +275,9 @@ func TestRenderHeaderIncludesPerformanceStats(t *testing.T) {
 	}
 
 	out := plainText(m.renderHeader(160))
+	if !strings.Contains(out, "completed+test_fail") {
+		t.Fatalf("expected warning badge for completed run with test failures, got:\n%s", out)
+	}
 	if !strings.Contains(out, "pass:8") {
 		t.Fatalf("expected pass count in header, got:\n%s", out)
 	}

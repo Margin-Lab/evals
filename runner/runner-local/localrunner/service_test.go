@@ -339,8 +339,8 @@ func TestServiceResumeModeCarriesFailedAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("wait source run: %v", err)
 	}
-	if sourceFinal.State != domain.RunStateFailed {
-		t.Fatalf("expected failed source run, got %s", sourceFinal.State)
+	if sourceFinal.State != domain.RunStateCompleted {
+		t.Fatalf("expected completed source run, got %s", sourceFinal.State)
 	}
 
 	secondSvc, err := NewService(Config{
@@ -366,8 +366,8 @@ func TestServiceResumeModeCarriesFailedAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("wait resumed run: %v", err)
 	}
-	if resumedFinal.State != domain.RunStateFailed {
-		t.Fatalf("expected failed resumed run, got %s", resumedFinal.State)
+	if resumedFinal.State != domain.RunStateCompleted {
+		t.Fatalf("expected completed resumed run, got %s", resumedFinal.State)
 	}
 	if resumedFinal.Counts.TestFailed != 1 {
 		t.Fatalf("expected resumed run to carry 1 test_failed case, got %+v", resumedFinal.Counts)
@@ -400,8 +400,8 @@ func TestServiceRetryFailedModeRerunsFailedAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("wait source run: %v", err)
 	}
-	if sourceFinal.State != domain.RunStateFailed {
-		t.Fatalf("expected failed source run, got %s", sourceFinal.State)
+	if sourceFinal.State != domain.RunStateCompleted {
+		t.Fatalf("expected completed source run, got %s", sourceFinal.State)
 	}
 
 	executions := 0
