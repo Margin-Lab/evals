@@ -67,7 +67,10 @@ func TestNextRunStateTransitions(t *testing.T) {
 	if got := NextRunState(RunStateCanceling, RunCounts{}, true); got != RunStateCanceled {
 		t.Fatalf("expected canceled, got %s", got)
 	}
+	if got := NextRunState(RunStateRunning, RunCounts{TestFailed: 1}, false); got != RunStateCompleted {
+		t.Fatalf("expected completed for test_failed-only run, got %s", got)
+	}
 	if got := NextRunState(RunStateRunning, RunCounts{TestFailed: 1, Canceled: 1}, false); got != RunStateCanceled {
-		t.Fatalf("expected canceled precedence over failed, got %s", got)
+		t.Fatalf("expected canceled precedence over completed, got %s", got)
 	}
 }
