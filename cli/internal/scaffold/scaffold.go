@@ -145,7 +145,9 @@ func InitAgentConfig(agentConfigPath, name, definitionRef string) error {
 	if resolvedDefinitionRef == "" {
 		return fmt.Errorf("agent config definition reference is required")
 	}
-	if filepath.IsAbs(resolvedDefinitionRef) {
+	if installedName, ok := installedDefinitionName(resolvedDefinitionRef); ok {
+		resolvedDefinitionRef = installedName
+	} else if filepath.IsAbs(resolvedDefinitionRef) {
 		relPath, err := filepath.Rel(configDir, resolvedDefinitionRef)
 		if err != nil {
 			return fmt.Errorf("compute relative definition path: %w", err)
@@ -329,6 +331,34 @@ func absPathRequired(path string, label string) (string, error) {
 		return "", fmt.Errorf("resolve %s path: %w", label, err)
 	}
 	return abs, nil
+}
+
+func installedDefinitionName(path string) (string, bool) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" || !filepath.IsAbs(trimmed) {
+		return "", false
+	}
+	marginHome, err := marginHomeDir()
+	if err != nil {
+		return "", false
+	}
+	definitionsRoot := filepath.Join(marginHome, "configs", "agent-definitions")
+	rel, err := filepath.Rel(definitionsRoot, trimmed)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	if strings.ContainsRune(rel, filepath.Separator) {
+		return "", false
+	}
+	return filepath.ToSlash(rel), true
+}
+
+func marginHomeDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve user home: %w", err)
+	}
+	return filepath.Join(home, ".margin"), nil
 }
 
 func writeFileNew(path string, body []byte, perm os.FileMode) error {

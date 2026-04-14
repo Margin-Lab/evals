@@ -118,6 +118,30 @@ func TestInitAgentConfig(t *testing.T) {
 	}
 }
 
+func TestInitAgentConfigUsesInstalledDefinitionName(t *testing.T) {
+	root := t.TempDir()
+	homeDir := filepath.Join(root, "home")
+	t.Setenv("HOME", homeDir)
+
+	definitionPath := filepath.Join(homeDir, ".margin", "configs", "agent-definitions", "codex")
+	configPath := filepath.Join(root, "configs", "agents", "codex-default")
+
+	if err := InitAgentDefinition(definitionPath, "codex"); err != nil {
+		t.Fatalf("InitAgentDefinition() error = %v", err)
+	}
+	if err := InitAgentConfig(configPath, "codex-default", definitionPath); err != nil {
+		t.Fatalf("InitAgentConfig() error = %v", err)
+	}
+
+	body, err := os.ReadFile(filepath.Join(configPath, "config.toml"))
+	if err != nil {
+		t.Fatalf("ReadFile(config.toml): %v", err)
+	}
+	if !strings.Contains(string(body), `definition = "codex"`) {
+		t.Fatalf("config.toml missing installed definition short reference")
+	}
+}
+
 func TestInitEvalConfig(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

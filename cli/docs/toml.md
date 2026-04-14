@@ -9,6 +9,12 @@ Local authoring is now split into:
 
 `config.toml` points at one definition and supplies either direct `[input]` values or shared `[unified]` values.
 
+For `definition`, you can use:
+
+- a relative path such as `../../agent-definitions/codex`
+- an absolute path
+- a bare installed definition name such as `codex`, which resolves to `~/.margin/configs/agent-definitions/codex`
+
 Optional shared skills live at top level and use the same syntax for both modes:
 
 ```toml
@@ -32,7 +38,7 @@ Direct example:
 ```toml
 kind = "agent_config"
 name = "codex-default"
-definition = "../../agent-definitions/codex"
+definition = "codex"
 mode = "direct"
 
 [[skills]]
@@ -46,7 +52,7 @@ codex_version = "latest"
 startup_args = []
 run_args = []
 config_toml = """
-model = "gpt-5-codex"
+model = "gpt-5.4"
 approval_policy = "never"
 """
 ```
@@ -56,14 +62,14 @@ Unified example:
 ```toml
 kind = "agent_config"
 name = "codex-unified"
-definition = "../../agent-definitions/codex"
+definition = "codex"
 mode = "unified"
 
 [agents_md]
 path = "./AGENTS.md"
 
 [unified]
-model = "gpt-5-codex"
+model = "gpt-5.4"
 reasoning_level = "medium"
 ```
 

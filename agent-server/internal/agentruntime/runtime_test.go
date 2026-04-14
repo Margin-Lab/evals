@@ -466,13 +466,13 @@ func TestRepoOwnedUnifiedConfigsTranslateToDirectSnapshots(t *testing.T) {
 			agentName: "codex",
 			assertions: func(t *testing.T, snapshot agentdef.ConfigSnapshot) {
 				t.Helper()
-				if snapshot.Unified == nil || snapshot.Unified.Model != "gpt-5" {
+				if snapshot.Unified == nil || snapshot.Unified.Model != "gpt-5.4" {
 					t.Fatalf("unexpected unified payload: %#v", snapshot.Unified)
 				}
 				if got := snapshot.Input["codex_version"]; got != "latest" {
 					t.Fatalf("codex_version = %#v", got)
 				}
-				if got := snapshot.Input["config_toml"]; !strings.Contains(fmt.Sprint(got), `model = "gpt-5"`) {
+				if got := snapshot.Input["config_toml"]; !strings.Contains(fmt.Sprint(got), `model = "gpt-5.4"`) {
 					t.Fatalf("config_toml = %v", got)
 				}
 			},
@@ -503,7 +503,7 @@ func TestRepoOwnedUnifiedConfigsTranslateToDirectSnapshots(t *testing.T) {
 					t.Fatalf("opencode_version = %#v", got)
 				}
 				configJSONC := fmt.Sprint(snapshot.Input["config_jsonc"])
-				if !strings.Contains(configJSONC, `"model": "openai/gpt-5"`) {
+				if !strings.Contains(configJSONC, `"model": "openai/gpt-5.4"`) {
 					t.Fatalf("config_jsonc = %v", configJSONC)
 				}
 				if !strings.Contains(configJSONC, `"reasoningEffort": "medium"`) {
@@ -538,7 +538,7 @@ func TestRepoOwnedUnifiedConfigsTranslateToDirectSnapshots(t *testing.T) {
 			agentName: "pi",
 			assertions: func(t *testing.T, snapshot agentdef.ConfigSnapshot) {
 				t.Helper()
-				if snapshot.Unified == nil || snapshot.Unified.Model != "openai/gpt-5" {
+				if snapshot.Unified == nil || snapshot.Unified.Model != "openai/gpt-5.4" {
 					t.Fatalf("unexpected unified payload: %#v", snapshot.Unified)
 				}
 				if got := snapshot.Input["pi_version"]; got != "latest" {
@@ -547,7 +547,7 @@ func TestRepoOwnedUnifiedConfigsTranslateToDirectSnapshots(t *testing.T) {
 				if got := snapshot.Input["provider"]; got != "openai" {
 					t.Fatalf("provider = %#v", got)
 				}
-				if got := snapshot.Input["model"]; got != "gpt-5" {
+				if got := snapshot.Input["model"]; got != "gpt-5.4" {
 					t.Fatalf("model = %#v", got)
 				}
 				if got := snapshot.Input["thinking"]; got != "medium" {
@@ -1498,7 +1498,7 @@ func TestRepoOwnedPiPrepareRunUsesJSONModeAndSessionDir(t *testing.T) {
 		t.Fatalf("args = %#v", execSpec.Args)
 	}
 	command := execSpec.Args[1]
-	for _, token := range []string{"--mode json", "--session-dir", "--provider openai", "--model gpt-5", "--thinking medium", "pi-events.jsonl", "pi.stderr.log"} {
+	for _, token := range []string{"--mode json", "--session-dir", "--provider openai", "--model gpt-5.4", "--thinking medium", "pi-events.jsonl", "pi.stderr.log"} {
 		if !strings.Contains(command, token) {
 			t.Fatalf("command %q missing %q", command, token)
 		}
@@ -1520,7 +1520,7 @@ func TestRepoOwnedCodexCollectTrajectoryProducesATIF(t *testing.T) {
 	sessionFile := filepath.Join(runCtx.RunHome, ".codex", "sessions", "2026", "03", "10", "session", "codex.jsonl")
 	writeJSONLLines(t, sessionFile, []string{
 		`{"type":"session_meta","payload":{"id":"codex-session","cli_version":"0.42.0","cwd":"/workspace"}}`,
-		`{"type":"turn_context","payload":{"model":"gpt-5-codex"}}`,
+		`{"type":"turn_context","payload":{"model":"gpt-5.4"}}`,
 		`{"type":"response_item","timestamp":"2026-03-10T12:00:00Z","payload":{"type":"message","role":"user","content":[{"text":"Fix the bug"}]}}`,
 		`{"type":"response_item","timestamp":"2026-03-10T12:00:01Z","payload":{"type":"reasoning","summary":["Investigating the repository"]}}`,
 		`{"type":"response_item","timestamp":"2026-03-10T12:00:02Z","payload":{"type":"message","role":"assistant","content":[{"text":"I will inspect the files."}]}}`,
@@ -1713,7 +1713,7 @@ func TestRepoOwnedPiCollectTrajectoryProducesATIF(t *testing.T) {
 	imageData := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0b8AAAAASUVORK5CYII="
 	writeJSONLLines(t, filepath.Join(runCtx.ArtifactsDir, "pi-events.jsonl"), []string{
 		`{"type":"session","id":"pi-session","cwd":"/workspace"}`,
-		`{"type":"agent_end","messages":[{"role":"user","content":"fix the bug","timestamp":1741608000000},{"role":"assistant","model":"openai/gpt-5","timestamp":1741608001000,"usage":{"input":12,"output":6,"cacheRead":2,"cacheWrite":1,"cost":{"total":0.42}},"content":[{"type":"thinking","thinking":"Plan the fix"},{"type":"text","text":"Inspecting the repository"},{"type":"toolCall","id":"toolu_1","name":"bash","arguments":{"command":"ls"}}]},{"role":"toolResult","toolCallId":"toolu_1","content":[{"type":"text","text":"file1\nfile2"},{"type":"image","mimeType":"image/png","data":"` + imageData + `"}]},{"role":"assistant","model":"openai/gpt-5","timestamp":1741608002000,"usage":{"input":14,"output":3,"cacheRead":5,"cacheWrite":0,"cost":{"total":0.11}},"content":[{"type":"text","text":"Done"}]}]}`,
+		`{"type":"agent_end","messages":[{"role":"user","content":"fix the bug","timestamp":1741608000000},{"role":"assistant","model":"openai/gpt-5.4","timestamp":1741608001000,"usage":{"input":12,"output":6,"cacheRead":2,"cacheWrite":1,"cost":{"total":0.42}},"content":[{"type":"thinking","thinking":"Plan the fix"},{"type":"text","text":"Inspecting the repository"},{"type":"toolCall","id":"toolu_1","name":"bash","arguments":{"command":"ls"}}]},{"role":"toolResult","toolCallId":"toolu_1","content":[{"type":"text","text":"file1\nfile2"},{"type":"image","mimeType":"image/png","data":"` + imageData + `"}]},{"role":"assistant","model":"openai/gpt-5.4","timestamp":1741608002000,"usage":{"input":14,"output":3,"cacheRead":5,"cacheWrite":0,"cost":{"total":0.11}},"content":[{"type":"text","text":"Done"}]}]}`,
 	})
 
 	raw, err := runtime.CollectTrajectory(context.Background(), agent, runCtx)
