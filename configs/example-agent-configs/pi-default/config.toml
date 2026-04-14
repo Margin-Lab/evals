@@ -8,5 +8,5 @@ pi_version = "latest"
 startup_args = []
 run_args = []
 provider = "openai"
-model = "gpt-5"
+model = "gpt-5.4"
 thinking = "medium"

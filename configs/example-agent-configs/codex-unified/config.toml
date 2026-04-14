@@ -4,5 +4,5 @@ definition = "../../agent-definitions/codex"
 mode = "unified"
 
 [unified]
-model = "gpt-5"
+model = "gpt-5.4"
 reasoning_level = "medium"

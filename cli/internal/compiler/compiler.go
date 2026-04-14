@@ -299,11 +299,7 @@ func compileAgent(agentPath string) (runbundle.Agent, error) {
 	if defRef == "" {
 		return runbundle.Agent{}, fmt.Errorf("%s definition is required", configTomlPath)
 	}
-	definitionPath := defRef
-	if !filepath.IsAbs(definitionPath) {
-		definitionPath = filepath.Join(agentPath, filepath.FromSlash(defRef))
-	}
-	definitionPath, err = requireDir(definitionPath, "agent definition")
+	definitionPath, err := resolveAgentDefinitionPath(agentPath, defRef)
 	if err != nil {
 		return runbundle.Agent{}, err
 	}
@@ -554,6 +550,40 @@ func compileLocalAgentsMD(configDir string, file *agentConfigAgentsMDFile) (*age
 	return &agentdef.AgentsMDSpec{Content: string(body)}, nil
 }
 
+func resolveAgentDefinitionPath(configDir, definitionRef string) (string, error) {
+	trimmed := strings.TrimSpace(definitionRef)
+	if trimmed == "" {
+		return "", fmt.Errorf("agent definition path is required")
+	}
+	if filepath.IsAbs(trimmed) || strings.ContainsRune(trimmed, filepath.Separator) || strings.Contains(trimmed, "/") {
+		resolved := trimmed
+		if !filepath.IsAbs(resolved) {
+			resolved = filepath.Join(configDir, filepath.FromSlash(trimmed))
+		}
+		return requireDir(resolved, "agent definition")
+	}
+
+	localCandidate := filepath.Join(configDir, trimmed)
+	if info, err := os.Stat(localCandidate); err == nil {
+		if !info.IsDir() {
+			return "", fmt.Errorf("agent definition path %s must be a directory", localCandidate)
+		}
+		return filepath.Abs(localCandidate)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		abs, absErr := filepath.Abs(localCandidate)
+		if absErr != nil {
+			return "", fmt.Errorf("resolve agent definition path %q: %w", localCandidate, absErr)
+		}
+		return "", fmt.Errorf("stat agent definition path %s: %w", abs, err)
+	}
+
+	marginHome, err := marginHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return requireDir(filepath.Join(marginHome, "configs", "agent-definitions", trimmed), "agent definition")
+}
+
 func decodeTOMLFile(path string, out any) (map[string]any, error) {
 	body, err := os.ReadFile(path)
 	if err != nil {
@@ -618,6 +648,14 @@ func requireFile(path string, label string) (string, error) {
 		return "", fmt.Errorf("%s path %s must be a file", label, abs)
 	}
 	return abs, nil
+}
+
+func marginHomeDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve user home: %w", err)
+	}
+	return filepath.Join(home, ".margin"), nil
 }
 
 func cloneAnyMap(src map[string]any) map[string]any {

@@ -76,7 +76,7 @@ func TestValidatePutAgentConfigRequest(t *testing.T) {
 			Name: "fixture-unified",
 			Mode: agentdef.ConfigModeUnified,
 			Unified: &agentdef.UnifiedSpec{
-				Model:          "gpt-5",
+				Model:          "gpt-5.4",
 				ReasoningLevel: "medium",
 			},
 		},

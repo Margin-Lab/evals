@@ -4,5 +4,5 @@ definition = "../../agent-definitions/opencode"
 mode = "unified"
 
 [unified]
-model = "openai/gpt-5"
+model = "openai/gpt-5.4"
 reasoning_level = "medium"

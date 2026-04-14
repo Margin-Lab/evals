@@ -2,11 +2,13 @@
 
 Create an agent config to choose which agent, model, and agent-specific setup Margin should use during an eval.
 
+In `config.toml`, `definition` can be a relative path, an absolute path, or a bare installed definition name like `codex`. Bare names resolve from `~/.margin/configs/agent-definitions/`.
+
 Start by scaffolding a config from an existing definition:
 
 ```bash
 margin init agent-config \
-  --agent-config ./configs/my-agent-configs/codex-gpt5 \
+  --agent-config ./configs/my-agent-configs/codex-gpt54 \
   --definition ./configs/agent-definitions/codex
 ```
 
@@ -20,9 +22,9 @@ Here is a fully-featured unified config:
 
 ```toml
 kind = "agent_config"
-name = "codex-gpt5-unified"
+name = "codex-gpt54-unified"
 description = "Codex with shared instructions, one skill, and one MCP server"
-definition = "../../agent-definitions/codex"
+definition = "codex"
 mode = "unified"
 
 [[skills]]
@@ -32,7 +34,7 @@ path = "./skills/repo-search"
 path = "./AGENTS.md"
 
 [unified]
-model = "gpt-5"
+model = "gpt-5.4"
 reasoning_level = "medium"
 
 [[unified.mcp.servers]]
@@ -53,7 +55,7 @@ LOG_LEVEL = "warn"
 - `kind` must be `"agent_config"`.
 - `name` is the label shown in runs and output bundles.
 - `description` is optional, but useful when you have several similar configs.
-- `definition` points to the agent definition this config uses.
+- `definition` points to the agent definition this config uses. It can be a relative path, an absolute path, or a bare installed definition name such as `codex`.
 - `mode = "unified"` tells Margin to use the shared config format.
 
 ### `[[skills]]`
@@ -92,7 +94,7 @@ The required unified fields are:
 
 ```toml
 [unified]
-model = "gpt-5"
+model = "gpt-5.4"
 reasoning_level = "medium"
 ```
 
@@ -148,7 +150,7 @@ The usual edits are simple:
 For example, to switch the example above from Codex to Claude Code:
 
 ```toml
-definition = "../../agent-definitions/claude-code"
+definition = "claude-code"
 
 [unified]
 model = "sonnet"
@@ -168,7 +170,7 @@ Here is a Codex direct config example:
 ```toml
 kind = "agent_config"
 name = "codex-direct"
-definition = "../../agent-definitions/codex"
+definition = "codex"
 mode = "direct"
 
 [[skills]]
@@ -182,7 +184,7 @@ codex_version = "latest"
 startup_args = []
 run_args = []
 config_toml = """
-model = "gpt-5.1-codex"
+model = "gpt-5.4"
 model_reasoning_effort = "high"
 approval_policy = "never"
 sandbox_mode = "workspace-write"
@@ -209,7 +211,7 @@ Some run-specific settings belong on the `margin run` command rather than in `co
 ```bash
 margin run \
   --suite ./suites/my-suite \
-  --agent-config ./configs/my-agent-configs/codex-gpt5 \
+  --agent-config ./configs/my-agent-configs/codex-gpt54 \
   --eval ./my-eval.toml \
   --agent-env MY_VAR=my-value \
   --agent-bind /host/path=/container/path
