@@ -31,7 +31,7 @@ The Pi definition schema expects:
 
 The default profile launches Pi in `--mode json`, sets `PI_CODING_AGENT_DIR`, and uses a run-local `--session-dir`.
 
-The unified profile requires a provider-qualified `model` such as `openai/gpt-5`, splits it into `provider` and `model`, and maps shared `reasoning_level` directly to Pi `thinking`.
+The unified profile requires a provider-qualified `model` such as `openai/gpt-5.4`, splits it into `provider` and `model`, and maps shared `reasoning_level` directly to Pi `thinking`.
 
 Unknown providers fall through to the wildcard no-auth entry. Use `--agent-env` for any manual runtime variables they need.
 

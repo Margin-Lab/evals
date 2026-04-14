@@ -15,7 +15,7 @@ func TestValidateAndNormalizeUnifiedSpecNormalizesAndSortsServers(t *testing.T) 
 
 	timeout := 2500
 	spec, err := ValidateAndNormalizeUnifiedSpec(UnifiedSpec{
-		Model:          "gpt-5",
+		Model:          "gpt-5.4",
 		ReasoningLevel: "MEDIUM",
 		MCP: &MCPConfig{
 			Servers: []MCPServer{
@@ -111,7 +111,7 @@ func TestValidateAndNormalizeConfigSpecUnifiedUsesManifestCapabilities(t *testin
 		Config: DefinitionConfigSpec{
 			Unified: &UnifiedManifestSpec{
 				TranslateHook:          HookRef{Path: "hooks/translate.sh"},
-				AllowedModels:          []string{"gpt-5", "gpt-5-mini"},
+				AllowedModels:          []string{"gpt-5.4", "gpt-5.4-mini"},
 				AllowedReasoningLevels: []string{"low", "medium", "high"},
 			},
 		},
@@ -125,7 +125,7 @@ func TestValidateAndNormalizeConfigSpecUnifiedUsesManifestCapabilities(t *testin
 		Name: "fixture-unified",
 		Mode: ConfigModeUnified,
 		Unified: &UnifiedSpec{
-			Model:          "gpt-5",
+			Model:          "gpt-5.4",
 			ReasoningLevel: "HIGH",
 		},
 	})
@@ -163,7 +163,7 @@ func TestValidateAndNormalizeConfigResourceSpecRequiresMatchingModePayload(t *te
 		},
 		Mode: ConfigModeUnified,
 		Unified: &UnifiedSpec{
-			Model:          "gpt-5",
+			Model:          "gpt-5.4",
 			ReasoningLevel: "medium",
 		},
 	})
@@ -183,7 +183,7 @@ func TestValidateAndNormalizeConfigResourceSpecRequiresMatchingModePayload(t *te
 		Mode:  ConfigModeDirect,
 		Input: map[string]any{"command": "echo hello"},
 		Unified: &UnifiedSpec{
-			Model:          "gpt-5",
+			Model:          "gpt-5.4",
 			ReasoningLevel: "medium",
 		},
 	})
@@ -531,7 +531,7 @@ func TestResolveRequiredEnvForProviderAwareConfig(t *testing.T) {
 		Name: "fixture-unified",
 		Mode: ConfigModeUnified,
 		Unified: &UnifiedSpec{
-			Model:          "openai/gpt-5",
+			Model:          "openai/gpt-5.4",
 			ReasoningLevel: "medium",
 		},
 	})

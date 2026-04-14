@@ -115,7 +115,7 @@ Unified mode request:
     "description": "optional",
     "mode": "unified",
     "unified": {
-      "model": "gpt-5-codex",
+      "model": "gpt-5.4",
       "reasoning_level": "medium"
     }
   }
