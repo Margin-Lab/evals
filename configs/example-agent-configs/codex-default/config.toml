@@ -8,6 +8,6 @@ codex_version = "latest"
 startup_args = []
 run_args = []
 config_toml = """
-model = "gpt-5-codex"
+model = "gpt-5.4"
 approval_policy = "never"
 """

@@ -170,6 +170,82 @@ instance_timeout_seconds = 300
 	}
 }
 
+func TestCompileResolvesBareInstalledDefinitionName(t *testing.T) {
+	root := t.TempDir()
+	homeDir := filepath.Join(root, "home")
+	t.Setenv("HOME", homeDir)
+
+	suitePath := filepath.Join(root, "suite")
+	createSuiteWithCases(t, suitePath, []string{"repo-build"})
+
+	definitionPath := filepath.Join(homeDir, ".margin", "configs", "agent-definitions", "codex")
+	createAgentDefinitionAtPath(t, definitionPath, "codex")
+
+	configPath := filepath.Join(root, "configs", "agents", "codex-default")
+	writeFile(t, filepath.Join(configPath, "config.toml"), `kind = "agent_config"
+name = "codex-default"
+definition = "codex"
+mode = "direct"
+
+[input]
+command = ["bash", "-lc", "echo hello"]
+`)
+
+	evalPath := filepath.Join(root, "eval.toml")
+	writeFile(t, evalPath, `kind = "eval_config"
+name = "smoke"
+max_concurrency = 1
+fail_fast = false
+instance_timeout_seconds = 300
+`)
+
+	bundle, err := Compile(CompileInput{SuitePath: suitePath, AgentConfigPath: configPath, EvalPath: evalPath})
+	if err != nil {
+		t.Fatalf("Compile() error = %v", err)
+	}
+	if got := bundle.ResolvedSnapshot.Agent.Definition.Manifest.Name; got != "codex" {
+		t.Fatalf("definition name = %q, want %q", got, "codex")
+	}
+}
+
+func TestCompileBareDefinitionNamePrefersLocalDirectory(t *testing.T) {
+	root := t.TempDir()
+	homeDir := filepath.Join(root, "home")
+	t.Setenv("HOME", homeDir)
+
+	suitePath := filepath.Join(root, "suite")
+	createSuiteWithCases(t, suitePath, []string{"repo-build"})
+
+	createAgentDefinitionAtPath(t, filepath.Join(homeDir, ".margin", "configs", "agent-definitions", "codex"), "installed-codex")
+
+	configPath := filepath.Join(root, "configs", "agents", "codex-default")
+	createAgentDefinitionAtPath(t, filepath.Join(configPath, "codex"), "local-codex")
+	writeFile(t, filepath.Join(configPath, "config.toml"), `kind = "agent_config"
+name = "codex-default"
+definition = "codex"
+mode = "direct"
+
+[input]
+command = ["bash", "-lc", "echo hello"]
+`)
+
+	evalPath := filepath.Join(root, "eval.toml")
+	writeFile(t, evalPath, `kind = "eval_config"
+name = "smoke"
+max_concurrency = 1
+fail_fast = false
+instance_timeout_seconds = 300
+`)
+
+	bundle, err := Compile(CompileInput{SuitePath: suitePath, AgentConfigPath: configPath, EvalPath: evalPath})
+	if err != nil {
+		t.Fatalf("Compile() error = %v", err)
+	}
+	if got := bundle.ResolvedSnapshot.Agent.Definition.Manifest.Name; got != "local-codex" {
+		t.Fatalf("definition name = %q, want %q", got, "local-codex")
+	}
+}
+
 func TestCompileRejectsInvalidConfigInput(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -543,6 +619,43 @@ func createSuiteWithCases(t *testing.T, suitePath string, cases []string) {
 		writeFile(t, filepath.Join(suitePath, "cases", name, "prompt.md"), "run case "+name+"\n")
 		writeFile(t, filepath.Join(suitePath, "cases", name, "tests", "test.sh"), "#!/usr/bin/env bash\ntrue\n")
 	}
+}
+
+func createAgentDefinitionAtPath(t *testing.T, definitionPath, definitionName string) {
+	t.Helper()
+	writeFile(t, filepath.Join(definitionPath, "definition.toml"), `kind = "agent_definition"
+name = "`+definitionName+`"
+
+[auth]
+required_env = []
+
+[config]
+schema = "schema.json"
+
+[run]
+prepare = "hooks/run-prepare.sh"
+`)
+	writeFile(t, filepath.Join(definitionPath, "schema.json"), `{
+  "type": "object",
+  "required": ["command"],
+  "additionalProperties": false,
+  "properties": {
+    "command": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "cwd": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
+`)
+	writeFile(t, filepath.Join(definitionPath, "hooks", "run-prepare.sh"), "#!/usr/bin/env bash\nset -euo pipefail\nprintf '{}\\n'\n")
 }
 
 func createSuiteCase(t *testing.T, suitePath, caseName, caseToml string) {
