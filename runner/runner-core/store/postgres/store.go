@@ -502,6 +502,7 @@ SELECT
   ri.test_command,
   ri.test_cwd,
   ri.test_timeout_seconds,
+  jsonb_extract_path(r.run_bundle_json, 'resolved_snapshot', 'cases', ri.ordinal::text, 'oracle_assets') AS oracle_assets,
   jsonb_extract_path(r.run_bundle_json, 'resolved_snapshot', 'cases', ri.ordinal::text, 'test_assets') AS test_assets,
   ri.state::text,
   ri.created_at,
@@ -549,6 +550,7 @@ SELECT
   ri.test_command,
   ri.test_cwd,
   ri.test_timeout_seconds,
+  jsonb_extract_path(r.run_bundle_json, 'resolved_snapshot', 'cases', ri.ordinal::text, 'oracle_assets') AS oracle_assets,
   jsonb_extract_path(r.run_bundle_json, 'resolved_snapshot', 'cases', ri.ordinal::text, 'test_assets') AS test_assets,
   ri.state::text,
   ri.created_at,
@@ -578,6 +580,7 @@ func scanInstance(row interface{ Scan(...any) error }) (store.Instance, error) {
 	var testCommand []string
 	var testCwd string
 	var testTimeoutSeconds int
+	var oracleAssetsRaw []byte
 	var testAssetsRaw []byte
 	var stateText string
 	var createdAt time.Time
@@ -594,6 +597,7 @@ func scanInstance(row interface{ Scan(...any) error }) (store.Instance, error) {
 		&testCommand,
 		&testCwd,
 		&testTimeoutSeconds,
+		&oracleAssetsRaw,
 		&testAssetsRaw,
 		&stateText,
 		&createdAt,
@@ -603,6 +607,10 @@ func scanInstance(row interface{ Scan(...any) error }) (store.Instance, error) {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return store.Instance{}, store.ErrNotFound
 		}
+		return store.Instance{}, fmt.Errorf("scan instance: %w", err)
+	}
+	oracleAssets, err := decodeCaseOracleAssets(oracleAssetsRaw)
+	if err != nil {
 		return store.Instance{}, fmt.Errorf("scan instance: %w", err)
 	}
 	testAssets, err := decodeCaseTestAssets(testAssetsRaw)
@@ -616,6 +624,7 @@ func scanInstance(row interface{ Scan(...any) error }) (store.Instance, error) {
 		Case: runbundle.Case{
 			CaseID:            caseID,
 			Image:             image,
+			OracleAssets:      oracleAssets,
 			InitialPrompt:     initialPrompt,
 			AgentCwd:          agentCwd,
 			TestCommand:       testCommand,
@@ -638,6 +647,17 @@ func decodeCaseTestAssets(raw []byte) (runbundle.TestAssets, error) {
 		return runbundle.TestAssets{}, fmt.Errorf("decode case test_assets: %w", err)
 	}
 	return out, nil
+}
+
+func decodeCaseOracleAssets(raw []byte) (*runbundle.OracleAssets, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var out runbundle.OracleAssets
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("decode case oracle_assets: %w", err)
+	}
+	return &out, nil
 }
 
 func (s *Store) ListInstanceAttempts(ctx context.Context, instanceID string) ([]store.Attempt, error) {
@@ -808,6 +828,9 @@ SELECT
   input_tokens,
   output_tokens,
   tool_calls,
+  oracle_exit_code,
+  oracle_stdout_ref,
+  oracle_stderr_ref,
   test_exit_code,
   test_stdout_ref,
   test_stderr_ref,
@@ -817,6 +840,8 @@ SELECT
   provisioned_at,
   agent_started_at,
   agent_ended_at,
+  oracle_started_at,
+  oracle_ended_at,
   test_started_at,
   test_ended_at,
   created_at
@@ -847,6 +872,9 @@ SELECT
   r.input_tokens,
   r.output_tokens,
   r.tool_calls,
+  r.oracle_exit_code,
+  r.oracle_stdout_ref,
+  r.oracle_stderr_ref,
   r.test_exit_code,
   r.test_stdout_ref,
   r.test_stderr_ref,
@@ -856,6 +884,8 @@ SELECT
   r.provisioned_at,
   r.agent_started_at,
   r.agent_ended_at,
+  r.oracle_started_at,
+  r.oracle_ended_at,
   r.test_started_at,
   r.test_ended_at,
   r.created_at
@@ -893,6 +923,9 @@ func scanStoredInstanceResult(scanner rowScanner) (store.StoredInstanceResult, e
 	var inputTokens *int64
 	var outputTokens *int64
 	var toolCalls *int64
+	var oracleExitCode *int
+	var oracleStdoutRef *string
+	var oracleStderrRef *string
 	var testExitCode *int
 	var testStdoutRef *string
 	var testStderrRef *string
@@ -902,6 +935,8 @@ func scanStoredInstanceResult(scanner rowScanner) (store.StoredInstanceResult, e
 	var provisionedAt *time.Time
 	var agentStartedAt *time.Time
 	var agentEndedAt *time.Time
+	var oracleStartedAt *time.Time
+	var oracleEndedAt *time.Time
 	var testStartedAt *time.Time
 	var testEndedAt *time.Time
 
@@ -916,6 +951,9 @@ func scanStoredInstanceResult(scanner rowScanner) (store.StoredInstanceResult, e
 		&inputTokens,
 		&outputTokens,
 		&toolCalls,
+		&oracleExitCode,
+		&oracleStdoutRef,
+		&oracleStderrRef,
 		&testExitCode,
 		&testStdoutRef,
 		&testStderrRef,
@@ -925,6 +963,8 @@ func scanStoredInstanceResult(scanner rowScanner) (store.StoredInstanceResult, e
 		&provisionedAt,
 		&agentStartedAt,
 		&agentEndedAt,
+		&oracleStartedAt,
+		&oracleEndedAt,
 		&testStartedAt,
 		&testEndedAt,
 		&result.CreatedAt,
@@ -941,6 +981,9 @@ func scanStoredInstanceResult(scanner rowScanner) (store.StoredInstanceResult, e
 		OutputTokens: outputTokens,
 		ToolCalls:    toolCalls,
 	})
+	result.OracleExitCode = oracleExitCode
+	result.OracleStdoutRef = derefString(oracleStdoutRef)
+	result.OracleStderrRef = derefString(oracleStderrRef)
 	result.TestExitCode = testExitCode
 	result.TestStdoutRef = derefString(testStdoutRef)
 	result.TestStderrRef = derefString(testStderrRef)
@@ -949,6 +992,8 @@ func scanStoredInstanceResult(scanner rowScanner) (store.StoredInstanceResult, e
 	result.ProvisionedAt = provisionedAt
 	result.AgentStartedAt = agentStartedAt
 	result.AgentEndedAt = agentEndedAt
+	result.OracleStartedAt = oracleStartedAt
+	result.OracleEndedAt = oracleEndedAt
 	result.TestStartedAt = testStartedAt
 	result.TestEndedAt = testEndedAt
 	if len(errorDetailsRaw) > 0 {
@@ -1107,7 +1152,7 @@ WITH running_counts AS (
   SELECT
     run_id,
     count(*) FILTER (WHERE state IN (
-      'provisioning','image_building','agent_server_installing','booting','agent_installing','agent_configuring','agent_running','agent_collecting','testing','collecting_artifacts'
+      'provisioning','image_building','agent_server_installing','booting','agent_installing','agent_configuring','agent_running','agent_collecting','oracle_applying','testing','collecting_artifacts'
     )) AS running_count
   FROM run_instances
   GROUP BY run_id
@@ -1134,6 +1179,7 @@ SELECT
   ri.test_command,
   ri.test_cwd,
   ri.test_timeout_seconds,
+  jsonb_extract_path(r.run_bundle_json, 'resolved_snapshot', 'cases', ri.ordinal::text, 'oracle_assets') AS oracle_assets,
   jsonb_extract_path(r.run_bundle_json, 'resolved_snapshot', 'cases', ri.ordinal::text, 'test_assets') AS test_assets,
   ri.state::text,
   ri.created_at,
@@ -1171,6 +1217,7 @@ LIMIT 1
 	var testCommand []string
 	var testCwd string
 	var testTimeoutSeconds int
+	var oracleAssetsRaw []byte
 	var testAssetsRaw []byte
 	var instanceState string
 	var instanceCreatedAt time.Time
@@ -1198,6 +1245,7 @@ LIMIT 1
 		&testCommand,
 		&testCwd,
 		&testTimeoutSeconds,
+		&oracleAssetsRaw,
 		&testAssetsRaw,
 		&instanceState,
 		&instanceCreatedAt,
@@ -1330,6 +1378,10 @@ VALUES ($1, 'worker', 'queued', 'running', NULL, $2)
 	if err := tx.Commit(ctx); err != nil {
 		return store.ClaimedWork{}, false, fmt.Errorf("commit claim tx: %w", err)
 	}
+	oracleAssets, err := decodeCaseOracleAssets(oracleAssetsRaw)
+	if err != nil {
+		return store.ClaimedWork{}, false, err
+	}
 	testAssets, err := decodeCaseTestAssets(testAssetsRaw)
 	if err != nil {
 		return store.ClaimedWork{}, false, err
@@ -1346,6 +1398,7 @@ VALUES ($1, 'worker', 'queued', 'running', NULL, $2)
 			Case: runbundle.Case{
 				CaseID:            caseID,
 				Image:             image,
+				OracleAssets:      oracleAssets,
 				InitialPrompt:     initialPrompt,
 				AgentCwd:          agentCwd,
 				TestCommand:       testCommand,
@@ -1681,6 +1734,9 @@ INSERT INTO instance_results (
   input_tokens,
   output_tokens,
   tool_calls,
+  oracle_exit_code,
+  oracle_stdout_ref,
+  oracle_stderr_ref,
   test_exit_code,
   test_stdout_ref,
   test_stderr_ref,
@@ -1690,6 +1746,8 @@ INSERT INTO instance_results (
   provisioned_at,
   agent_started_at,
   agent_ended_at,
+  oracle_started_at,
+  oracle_ended_at,
   test_started_at,
   test_ended_at,
   created_at
@@ -1709,13 +1767,18 @@ INSERT INTO instance_results (
   $13,
   $14,
   $15,
-  $16::jsonb,
+  $16,
   $17,
   $18,
-  $19,
+  $19::jsonb,
   $20,
   $21,
-  $22
+  $22,
+  $23,
+  $24,
+  $25,
+  $26,
+  $27
 )
 ON CONFLICT (instance_id) DO UPDATE SET
   attempt_id = EXCLUDED.attempt_id,
@@ -1727,6 +1790,9 @@ ON CONFLICT (instance_id) DO UPDATE SET
   input_tokens = EXCLUDED.input_tokens,
   output_tokens = EXCLUDED.output_tokens,
   tool_calls = EXCLUDED.tool_calls,
+  oracle_exit_code = EXCLUDED.oracle_exit_code,
+  oracle_stdout_ref = EXCLUDED.oracle_stdout_ref,
+  oracle_stderr_ref = EXCLUDED.oracle_stderr_ref,
   test_exit_code = EXCLUDED.test_exit_code,
   test_stdout_ref = EXCLUDED.test_stdout_ref,
   test_stderr_ref = EXCLUDED.test_stderr_ref,
@@ -1736,6 +1802,8 @@ ON CONFLICT (instance_id) DO UPDATE SET
   provisioned_at = EXCLUDED.provisioned_at,
   agent_started_at = EXCLUDED.agent_started_at,
   agent_ended_at = EXCLUDED.agent_ended_at,
+  oracle_started_at = EXCLUDED.oracle_started_at,
+  oracle_ended_at = EXCLUDED.oracle_ended_at,
   test_started_at = EXCLUDED.test_started_at,
   test_ended_at = EXCLUDED.test_ended_at,
   created_at = EXCLUDED.created_at
@@ -1750,6 +1818,9 @@ ON CONFLICT (instance_id) DO UPDATE SET
 		inputTokens,
 		outputTokens,
 		toolCalls,
+		in.Result.OracleExitCode,
+		nullableString(in.Result.OracleStdoutRef),
+		nullableString(in.Result.OracleStderrRef),
 		in.Result.TestExitCode,
 		nullableString(in.Result.TestStdoutRef),
 		nullableString(in.Result.TestStderrRef),
@@ -1759,6 +1830,8 @@ ON CONFLICT (instance_id) DO UPDATE SET
 		in.Result.ProvisionedAt,
 		in.Result.AgentStartedAt,
 		in.Result.AgentEndedAt,
+		in.Result.OracleStartedAt,
+		in.Result.OracleEndedAt,
 		in.Result.TestStartedAt,
 		in.Result.TestEndedAt,
 		at,
@@ -2152,6 +2225,9 @@ INSERT INTO instance_results (
   input_tokens,
   output_tokens,
   tool_calls,
+  oracle_exit_code,
+  oracle_stdout_ref,
+  oracle_stderr_ref,
   test_exit_code,
   test_stdout_ref,
   test_stderr_ref,
@@ -2161,6 +2237,8 @@ INSERT INTO instance_results (
   provisioned_at,
   agent_started_at,
   agent_ended_at,
+  oracle_started_at,
+  oracle_ended_at,
   test_started_at,
   test_ended_at,
   created_at
@@ -2180,13 +2258,18 @@ INSERT INTO instance_results (
   $13,
   $14,
   $15,
-  $16::jsonb,
+  $16,
   $17,
   $18,
-  $19,
+  $19::jsonb,
   $20,
   $21,
-  $22
+  $22,
+  $23,
+  $24,
+  $25,
+  $26,
+  $27
 )
 ON CONFLICT (instance_id) DO UPDATE SET
   attempt_id = EXCLUDED.attempt_id,
@@ -2198,6 +2281,9 @@ ON CONFLICT (instance_id) DO UPDATE SET
   input_tokens = EXCLUDED.input_tokens,
   output_tokens = EXCLUDED.output_tokens,
   tool_calls = EXCLUDED.tool_calls,
+  oracle_exit_code = EXCLUDED.oracle_exit_code,
+  oracle_stdout_ref = EXCLUDED.oracle_stdout_ref,
+  oracle_stderr_ref = EXCLUDED.oracle_stderr_ref,
   test_exit_code = EXCLUDED.test_exit_code,
   test_stdout_ref = EXCLUDED.test_stdout_ref,
   test_stderr_ref = EXCLUDED.test_stderr_ref,
@@ -2207,6 +2293,8 @@ ON CONFLICT (instance_id) DO UPDATE SET
   provisioned_at = EXCLUDED.provisioned_at,
   agent_started_at = EXCLUDED.agent_started_at,
   agent_ended_at = EXCLUDED.agent_ended_at,
+  oracle_started_at = EXCLUDED.oracle_started_at,
+  oracle_ended_at = EXCLUDED.oracle_ended_at,
   test_started_at = EXCLUDED.test_started_at,
   test_ended_at = EXCLUDED.test_ended_at,
   created_at = EXCLUDED.created_at
@@ -2221,6 +2309,9 @@ ON CONFLICT (instance_id) DO UPDATE SET
 		inputTokens,
 		outputTokens,
 		toolCalls,
+		in.Result.OracleExitCode,
+		nullableString(in.Result.OracleStdoutRef),
+		nullableString(in.Result.OracleStderrRef),
 		in.Result.TestExitCode,
 		nullableString(in.Result.TestStdoutRef),
 		nullableString(in.Result.TestStderrRef),
@@ -2230,6 +2321,8 @@ ON CONFLICT (instance_id) DO UPDATE SET
 		in.Result.ProvisionedAt,
 		in.Result.AgentStartedAt,
 		in.Result.AgentEndedAt,
+		in.Result.OracleStartedAt,
+		in.Result.OracleEndedAt,
 		in.Result.TestStartedAt,
 		in.Result.TestEndedAt,
 		at,
@@ -2668,7 +2761,7 @@ func (s *Store) loadRunCountsTx(ctx context.Context, q rowQueryer, runID string)
 SELECT
   count(*) FILTER (WHERE state = 'pending') AS pending_count,
   count(*) FILTER (WHERE state IN (
-    'provisioning','image_building','agent_server_installing','booting','agent_installing','agent_configuring','agent_running','agent_collecting','testing','collecting_artifacts'
+    'provisioning','image_building','agent_server_installing','booting','agent_installing','agent_configuring','agent_running','agent_collecting','oracle_applying','testing','collecting_artifacts'
   )) AS running_count,
   count(*) FILTER (WHERE state = 'succeeded') AS succeeded_count,
   count(*) FILTER (WHERE state = 'test_failed') AS test_failed_count,

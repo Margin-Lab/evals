@@ -30,7 +30,8 @@ my-suite/
         test.sh            # Verification script (exit 0 = pass)
       env/                 # Optional: Dockerfile if no pre-built image
         Dockerfile
-      oracle/              # Optional: reference files for test.sh
+      oracle/              # Optional: oracle solution assets
+        solve.sh           # Required when oracle/ exists; used by --oracle-run
 ```
 
 ## 1. Scaffold the suite
@@ -115,6 +116,13 @@ margin run \
   --eval ./my-eval.toml \
   --dry-run
 
+# Apply the oracle solution, then run tests
+margin run \
+  --suite ./suites/my-suite \
+  --agent-config ~/.margin/configs/example-agent-configs/claude-code-default \
+  --eval ./my-eval.toml \
+  --oracle-run
+
 # Run for real
 margin run \
   --suite ./suites/my-suite \
@@ -122,6 +130,10 @@ margin run \
   --eval ./my-eval.toml
 ```
 
+`--dry-run` skips agent execution and runs tests against the pristine workspace.
+
+`--oracle-run` skips agent execution, runs `oracle/solve.sh`, and then runs the normal case tests. Every selected case must define `oracle/solve.sh`.
+
 ## Next steps
 
-- [Advanced Eval Configuration](./02-advanced.md) — environments, oracle files, metadata
+- [Advanced Eval Configuration](./02-advanced.md) — environments, oracle solutions, metadata

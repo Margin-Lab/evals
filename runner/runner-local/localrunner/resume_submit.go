@@ -150,6 +150,8 @@ func (s *Service) copyCarriedArtifacts(runID, runDir, resumeFromDir, instanceID 
 	}
 
 	result.Trajectory = rewriteRef(result.Trajectory, storeKeyMap, uriMap)
+	result.OracleStdoutRef = rewriteRef(result.OracleStdoutRef, storeKeyMap, uriMap)
+	result.OracleStderrRef = rewriteRef(result.OracleStderrRef, storeKeyMap, uriMap)
 	result.TestStdoutRef = rewriteRef(result.TestStdoutRef, storeKeyMap, uriMap)
 	result.TestStderrRef = rewriteRef(result.TestStderrRef, storeKeyMap, uriMap)
 	return copied, result, nil
@@ -171,22 +173,27 @@ func rewriteRef(ref string, byStoreKey, byURI map[string]string) string {
 
 func storedToInstanceResult(in store.StoredInstanceResult) store.InstanceResult {
 	return store.InstanceResult{
-		FinalState:     in.FinalState,
-		AgentRunID:     in.AgentRunID,
-		AgentExitCode:  in.AgentExitCode,
-		Trajectory:     in.TrajectoryRef,
-		Usage:          usage.Clone(in.Usage),
-		TestExitCode:   in.TestExitCode,
-		TestStdoutRef:  in.TestStdoutRef,
-		TestStderrRef:  in.TestStderrRef,
-		ErrorCode:      in.ErrorCode,
-		ErrorMessage:   in.ErrorMessage,
-		ErrorDetails:   in.ErrorDetails,
-		ProvisionedAt:  in.ProvisionedAt,
-		AgentStartedAt: in.AgentStartedAt,
-		AgentEndedAt:   in.AgentEndedAt,
-		TestStartedAt:  in.TestStartedAt,
-		TestEndedAt:    in.TestEndedAt,
+		FinalState:      in.FinalState,
+		AgentRunID:      in.AgentRunID,
+		AgentExitCode:   in.AgentExitCode,
+		Trajectory:      in.TrajectoryRef,
+		Usage:           usage.Clone(in.Usage),
+		OracleExitCode:  in.OracleExitCode,
+		OracleStdoutRef: in.OracleStdoutRef,
+		OracleStderrRef: in.OracleStderrRef,
+		TestExitCode:    in.TestExitCode,
+		TestStdoutRef:   in.TestStdoutRef,
+		TestStderrRef:   in.TestStderrRef,
+		ErrorCode:       in.ErrorCode,
+		ErrorMessage:    in.ErrorMessage,
+		ErrorDetails:    in.ErrorDetails,
+		ProvisionedAt:   in.ProvisionedAt,
+		AgentStartedAt:  in.AgentStartedAt,
+		AgentEndedAt:    in.AgentEndedAt,
+		OracleStartedAt: in.OracleStartedAt,
+		OracleEndedAt:   in.OracleEndedAt,
+		TestStartedAt:   in.TestStartedAt,
+		TestEndedAt:     in.TestEndedAt,
 	}
 }
 

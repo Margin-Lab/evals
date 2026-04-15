@@ -175,28 +175,38 @@ func TestScanStoredInstanceResultIncludesUsage(t *testing.T) {
 		*dest[8].(**int64) = &outputTokens
 		toolCalls := int64(2)
 		*dest[9].(**int64) = &toolCalls
+		oracleExitCode := 9
+		*dest[10].(**int) = &oracleExitCode
+		oracleStdoutRef := "oracle-stdout.txt"
+		*dest[11].(**string) = &oracleStdoutRef
+		oracleStderrRef := "oracle-stderr.txt"
+		*dest[12].(**string) = &oracleStderrRef
 		testExitCode := 3
-		*dest[10].(**int) = &testExitCode
+		*dest[13].(**int) = &testExitCode
 		testStdoutRef := "stdout.txt"
-		*dest[11].(**string) = &testStdoutRef
+		*dest[14].(**string) = &testStdoutRef
 		testStderrRef := "stderr.txt"
-		*dest[12].(**string) = &testStderrRef
+		*dest[15].(**string) = &testStderrRef
 		errorCode := "EXECUTOR_ERROR"
-		*dest[13].(**string) = &errorCode
+		*dest[16].(**string) = &errorCode
 		errorMessage := "failed"
-		*dest[14].(**string) = &errorMessage
-		*dest[15].(*[]byte) = errorDetails
+		*dest[17].(**string) = &errorMessage
+		*dest[18].(*[]byte) = errorDetails
 		provisionedAt := now.Add(1 * time.Second)
-		*dest[16].(**time.Time) = &provisionedAt
+		*dest[19].(**time.Time) = &provisionedAt
 		agentStartedAt := now.Add(2 * time.Second)
-		*dest[17].(**time.Time) = &agentStartedAt
+		*dest[20].(**time.Time) = &agentStartedAt
 		agentEndedAt := now.Add(3 * time.Second)
-		*dest[18].(**time.Time) = &agentEndedAt
-		testStartedAt := now.Add(4 * time.Second)
-		*dest[19].(**time.Time) = &testStartedAt
-		testEndedAt := now.Add(5 * time.Second)
-		*dest[20].(**time.Time) = &testEndedAt
-		*dest[21].(*time.Time) = now
+		*dest[21].(**time.Time) = &agentEndedAt
+		oracleStartedAt := now.Add(4 * time.Second)
+		*dest[22].(**time.Time) = &oracleStartedAt
+		oracleEndedAt := now.Add(5 * time.Second)
+		*dest[23].(**time.Time) = &oracleEndedAt
+		testStartedAt := now.Add(6 * time.Second)
+		*dest[24].(**time.Time) = &testStartedAt
+		testEndedAt := now.Add(7 * time.Second)
+		*dest[25].(**time.Time) = &testEndedAt
+		*dest[26].(*time.Time) = now
 		return nil
 	})
 
@@ -213,6 +223,12 @@ func TestScanStoredInstanceResultIncludesUsage(t *testing.T) {
 	}
 	if result.ErrorDetails["kind"] != "boom" {
 		t.Fatalf("unexpected error details: %+v", result.ErrorDetails)
+	}
+	if result.OracleExitCode == nil || *result.OracleExitCode != 9 {
+		t.Fatalf("unexpected oracle exit code: %+v", result.OracleExitCode)
+	}
+	if result.OracleStdoutRef != "oracle-stdout.txt" || result.OracleStderrRef != "oracle-stderr.txt" {
+		t.Fatalf("unexpected oracle refs: stdout=%q stderr=%q", result.OracleStdoutRef, result.OracleStderrRef)
 	}
 }
 

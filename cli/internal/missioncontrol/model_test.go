@@ -156,6 +156,66 @@ func TestResolveCombinedTestOutputAllowsSingleSide(t *testing.T) {
 	}
 }
 
+func TestResolveCombinedOracleOutputByRole(t *testing.T) {
+	inst := &runnerapi.InstanceSnapshot{
+		Instance: store.Instance{InstanceID: "inst_1", State: domain.InstanceStateSucceeded},
+		Artifacts: []store.Artifact{
+			{
+				ArtifactID: "art_oracle_stdout",
+				Role:       store.ArtifactRoleOracleStdout,
+				StoreKey:   "instances/inst_1/oracle/oracle_stdout.txt",
+			},
+			{
+				ArtifactID: "art_oracle_stderr",
+				Role:       store.ArtifactRoleOracleStderr,
+				StoreKey:   "instances/inst_1/oracle/oracle_stderr.txt",
+			},
+		},
+	}
+	targets, _, _ := resolveLogTargets(inst, mustLogStreamByID(t, logStreamOracleOutput))
+	if len(targets) != 2 {
+		t.Fatalf("expected 2 combined targets, got %d", len(targets))
+	}
+	if targets[0].Artifact.ArtifactID != "art_oracle_stdout" {
+		t.Fatalf("unexpected stdout artifact id: %s", targets[0].Artifact.ArtifactID)
+	}
+	if targets[1].Artifact.ArtifactID != "art_oracle_stderr" {
+		t.Fatalf("unexpected stderr artifact id: %s", targets[1].Artifact.ArtifactID)
+	}
+}
+
+func TestResolveCombinedOracleOutputFallsBackToResultRefs(t *testing.T) {
+	inst := &runnerapi.InstanceSnapshot{
+		Instance: store.Instance{InstanceID: "inst_1", State: domain.InstanceStateSucceeded},
+		Result: &store.StoredInstanceResult{
+			OracleStdoutRef: "instances/inst_1/oracle/oracle_stdout.txt",
+			OracleStderrRef: "instances/inst_1/oracle/oracle_stderr.txt",
+		},
+		Artifacts: []store.Artifact{
+			{
+				ArtifactID: "art_oracle_stdout",
+				Role:       "other",
+				StoreKey:   "instances/inst_1/oracle/oracle_stdout.txt",
+			},
+			{
+				ArtifactID: "art_oracle_stderr",
+				Role:       "other",
+				StoreKey:   "instances/inst_1/oracle/oracle_stderr.txt",
+			},
+		},
+	}
+	targets, _, _ := resolveLogTargets(inst, mustLogStreamByID(t, logStreamOracleOutput))
+	if len(targets) != 2 {
+		t.Fatalf("expected 2 combined targets via refs, got %d", len(targets))
+	}
+	if targets[0].Artifact.ArtifactID != "art_oracle_stdout" {
+		t.Fatalf("unexpected stdout artifact id: %s", targets[0].Artifact.ArtifactID)
+	}
+	if targets[1].Artifact.ArtifactID != "art_oracle_stderr" {
+		t.Fatalf("unexpected stderr artifact id: %s", targets[1].Artifact.ArtifactID)
+	}
+}
+
 func TestResolveLogTargetsFindsExecutorRole(t *testing.T) {
 	inst := &runnerapi.InstanceSnapshot{
 		Instance: store.Instance{InstanceID: "inst_1", State: domain.InstanceStateAgentRunning},

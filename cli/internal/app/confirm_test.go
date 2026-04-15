@@ -3,6 +3,8 @@ package app
 import (
 	"strings"
 	"testing"
+
+	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
 )
 
 func TestRunConfirmationViewForAPIKey(t *testing.T) {
@@ -64,8 +66,8 @@ func TestRunConfirmationViewForOAuthAndPrune(t *testing.T) {
 
 func TestRunConfirmationViewForDryRunAPIKey(t *testing.T) {
 	m := newRunConfirmationModel(runConfirmationSpec{
-		AgentName: "codex",
-		DryRun:    true,
+		AgentName:     "codex",
+		ExecutionMode: runbundle.ExecutionModeDryRun,
 		Auth: []runConfirmationAuthItem{{
 			Method:      "API key",
 			Requirement: "OPENAI_API_KEY",
@@ -91,6 +93,38 @@ func TestRunConfirmationViewForDryRunAPIKey(t *testing.T) {
 		"codex",
 		"Please ensure sufficient API credits",
 		"will use tokens.",
+	} {
+		if strings.Contains(out, unwanted) {
+			t.Fatalf("expected view to omit %q, got:\n%s", unwanted, out)
+		}
+	}
+}
+
+func TestRunConfirmationViewForOracleRun(t *testing.T) {
+	m := newRunConfirmationModel(runConfirmationSpec{
+		AgentName:     "codex",
+		ExecutionMode: runbundle.ExecutionModeOracleRun,
+		Auth: []runConfirmationAuthItem{{
+			Method:      "API key",
+			Requirement: "OPENAI_API_KEY",
+		}},
+	})
+	m.width = 120
+	m.height = 30
+
+	out := m.View()
+	for _, want := range []string{
+		"Authentication",
+		"Oracle-run mode active:",
+		"agent authentication is not used in this run.",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected view to contain %q, got:\n%s", want, out)
+		}
+	}
+	for _, unwanted := range []string{
+		"OPENAI_API_KEY",
+		"Will use API key",
 	} {
 		if strings.Contains(out, unwanted) {
 			t.Fatalf("expected view to omit %q, got:\n%s", unwanted, out)

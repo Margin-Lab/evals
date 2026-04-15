@@ -29,6 +29,7 @@ const (
 type logStream string
 
 const (
+	logStreamOracleOutput logStream = "oracle_output"
 	logStreamTestOutput   logStream = "test_output"
 	logStreamDockerBuild  logStream = "docker_build"
 	logStreamAgentBoot    logStream = "agent_bootstrap"
@@ -82,6 +83,11 @@ var logStreams = []logStreamSpec{
 		Label:  "Agent PTY",
 		Roles:  []string{store.ArtifactRoleAgentPTY},
 		Render: logRenderJSONL,
+	},
+	{
+		ID:     logStreamOracleOutput,
+		Label:  "Oracle Output",
+		Render: logRenderRaw,
 	},
 	{
 		ID:     logStreamTestOutput,
@@ -609,7 +615,7 @@ func loadStateLogsCmd(ctx context.Context, src Source, key string, requests []st
 				sections = append(sections, loaded)
 				continue
 			}
-			if request.Stream.ID == logStreamTestOutput {
+			if request.Stream.ID == logStreamTestOutput || request.Stream.ID == logStreamOracleOutput {
 				content, status, err := loadCombinedLogContent(readCtx, src, request.Targets, maxBytes)
 				loaded.Content = content
 				loaded.Status = status
@@ -642,6 +648,9 @@ func resolveLogTargets(inst *runnerapi.InstanceSnapshot, stream logStreamSpec) (
 	if stream.ID == logStreamTestOutput {
 		return resolveTestOutputLogArtifacts(inst, stream)
 	}
+	if stream.ID == logStreamOracleOutput {
+		return resolveOracleOutputLogArtifacts(inst, stream)
+	}
 	placeholder := strings.ToLower(stream.Label) + " is not available yet"
 	artifact, artifactKey := findLogArtifact(inst, stream.Roles, "")
 	if artifact != nil {
@@ -665,6 +674,42 @@ func resolveTestOutputLogArtifacts(inst *runnerapi.InstanceSnapshot, stream logS
 	}
 	stdoutArtifact, stdoutKey := findLogArtifact(inst, []string{store.ArtifactRoleTestStdout}, stdoutRef)
 	stderrArtifact, stderrKey := findLogArtifact(inst, []string{store.ArtifactRoleTestStderr}, stderrRef)
+
+	targets := make([]logArtifactTarget, 0, 2)
+	if stdoutArtifact != nil {
+		targets = append(targets, logArtifactTarget{
+			Section:  "stdout",
+			Artifact: *stdoutArtifact,
+		})
+	}
+	if stderrArtifact != nil {
+		targets = append(targets, logArtifactTarget{
+			Section:  "stderr",
+			Artifact: *stderrArtifact,
+		})
+	}
+
+	key := logLoadKey(inst.Instance.InstanceID, string(stream.ID), stdoutKey, stderrKey)
+	if len(targets) > 0 {
+		return targets, key, ""
+	}
+
+	placeholder := strings.ToLower(stream.Label) + " is not available yet"
+	if inst.Instance.State.IsTerminal() {
+		placeholder = strings.ToLower(stream.Label) + " was not captured"
+	}
+	return nil, key, placeholder
+}
+
+func resolveOracleOutputLogArtifacts(inst *runnerapi.InstanceSnapshot, stream logStreamSpec) ([]logArtifactTarget, string, string) {
+	stdoutRef := ""
+	stderrRef := ""
+	if inst.Result != nil {
+		stdoutRef = strings.TrimSpace(inst.Result.OracleStdoutRef)
+		stderrRef = strings.TrimSpace(inst.Result.OracleStderrRef)
+	}
+	stdoutArtifact, stdoutKey := findLogArtifact(inst, []string{store.ArtifactRoleOracleStdout}, stdoutRef)
+	stderrArtifact, stderrKey := findLogArtifact(inst, []string{store.ArtifactRoleOracleStderr}, stderrRef)
 
 	targets := make([]logArtifactTarget, 0, 2)
 	if stdoutArtifact != nil {
@@ -723,7 +768,7 @@ func loadLogCmd(ctx context.Context, src Source, key string, stream logStreamSpe
 	return func() tea.Msg {
 		readCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		if stream.ID == logStreamTestOutput {
+		if stream.ID == logStreamTestOutput || stream.ID == logStreamOracleOutput {
 			content, status, err := loadCombinedLogContent(readCtx, src, targets, maxBytes)
 			return logLoadedMsg{key: key, stream: stream, content: content, err: err, status: status}
 		}
@@ -737,7 +782,7 @@ func loadLogCmd(ctx context.Context, src Source, key string, stream logStreamSpe
 
 func loadCombinedLogContent(ctx context.Context, src Source, targets []logArtifactTarget, maxBytes int64) (ArtifactText, string, error) {
 	if len(targets) == 0 {
-		return ArtifactText{}, "", fmt.Errorf("no test output artifacts resolved")
+		return ArtifactText{}, "", fmt.Errorf("no combined output artifacts resolved")
 	}
 
 	sections := make([]string, 0, len(targets))

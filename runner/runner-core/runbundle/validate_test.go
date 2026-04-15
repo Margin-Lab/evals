@@ -27,6 +27,23 @@ func TestValidateRejectsMissingExecutionMode(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsOracleRunWithoutOracleAssets(t *testing.T) {
+	b := validBundle()
+	b.ResolvedSnapshot.Execution.Mode = ExecutionModeOracleRun
+	b.ResolvedSnapshot.Cases[0].OracleAssets = nil
+	if err := Validate(b); err == nil || !strings.Contains(err.Error(), "oracle_assets are required in oracle_run mode") {
+		t.Fatalf("expected oracle assets validation error, got %v", err)
+	}
+}
+
+func TestValidateRejectsOracleAssetsWithoutSolveScript(t *testing.T) {
+	b := validBundle()
+	b.ResolvedSnapshot.Cases[0].OracleAssets = ptrToOracleAssets(OracleAssets(minimalTestAssets()))
+	if err := Validate(b); err == nil || !strings.Contains(err.Error(), "solve.sh") {
+		t.Fatalf("expected oracle solve.sh validation error, got %v", err)
+	}
+}
+
 func TestValidateRejectsCatalogRefModeWithoutRefs(t *testing.T) {
 	b := validBundle()
 	b.Source.Kind = SourceKindCatalogRefs
@@ -151,4 +168,8 @@ func TestValidateRejectsInvalidSuiteGitSubdir(t *testing.T) {
 	if err := Validate(b); err == nil || !strings.Contains(err.Error(), "subdir") {
 		t.Fatalf("expected subdir validation error, got %v", err)
 	}
+}
+
+func ptrToOracleAssets(v OracleAssets) *OracleAssets {
+	return &v
 }

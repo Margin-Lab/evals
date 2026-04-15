@@ -43,13 +43,19 @@ const (
 	defaultAgentAuthFilesDir      = defaultAgentServerRoot + "/config/auth-files"
 	agentServerBinaryPath         = "/tmp/marginlab/bin/agent-server"
 	agentServerRuntimeLogPath     = "/tmp/marginlab/state/agent-server.log"
+	defaultOracleAssetsDirName    = "oracle"
+	defaultTestAssetsDirName      = "tests"
 	maxReadyResponseBodyRead      = 4096
 	maxReadySummaryLength         = 512
 	maxTestAssetsArchiveByte      = 64 << 20
 	imageCleanupTimeout           = 15 * time.Second
+	containerCommandTimedOut      = 124
 	testExitCodePass              = 0
 	testExitCodeFail              = 1
 	testExitCodeInfra             = 2
+	oracleEnvAgentCwd             = "MARGIN_AGENT_CWD"
+	oracleEnvTestCwd              = "MARGIN_TEST_CWD"
+	oracleEnvOracleDir            = "MARGIN_ORACLE_DIR"
 )
 
 type Config struct {
@@ -271,18 +277,23 @@ func (e *Executor) ExecuteInstance(
 	if err != nil {
 		return fail(store.InstanceResult{}, nil, err)
 	}
-	requiredAgentEnv, err := agentdef.ResolveRequiredEnvForConfigSpec(run.Bundle.ResolvedSnapshot.Agent.Definition, run.Bundle.ResolvedSnapshot.Agent.Config)
-	if err != nil {
-		return fail(store.InstanceResult{}, nil, fmt.Errorf("resolve required agent auth: %w", err))
-	}
-	resolvedAuthFiles, err := resolveLocalAuthCredentials(
-		e.env,
-		requiredAgentEnv,
-		run.Bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.LocalCredentials,
-		e.authFileOverridePath,
-	)
-	if err != nil {
-		return fail(store.InstanceResult{}, nil, err)
+	executionMode := normalizeExecutionMode(run.Bundle.ResolvedSnapshot.Execution.Mode)
+	requiredAgentEnv := []string(nil)
+	resolvedAuthFiles := []resolvedLocalAuthCredential(nil)
+	if executionMode != runbundle.ExecutionModeOracleRun {
+		requiredAgentEnv, err = agentdef.ResolveRequiredEnvForConfigSpec(run.Bundle.ResolvedSnapshot.Agent.Definition, run.Bundle.ResolvedSnapshot.Agent.Config)
+		if err != nil {
+			return fail(store.InstanceResult{}, nil, fmt.Errorf("resolve required agent auth: %w", err))
+		}
+		resolvedAuthFiles, err = resolveLocalAuthCredentials(
+			e.env,
+			requiredAgentEnv,
+			run.Bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.LocalCredentials,
+			e.authFileOverridePath,
+		)
+		if err != nil {
+			return fail(store.InstanceResult{}, nil, err)
+		}
 	}
 	imageResolveDetails := map[string]string{
 		"case_id":             caseSpec.CaseID,
@@ -345,178 +356,223 @@ func (e *Executor) ExecuteInstance(
 		return fail(store.InstanceResult{}, nil, err)
 	}
 
-	authStageDir, stagedAuthFiles, err := stageLocalAuthFiles(resolvedAuthFiles)
-	if err != nil {
-		return fail(store.InstanceResult{}, nil, err)
+	authStageDir := ""
+	stagedAuthFiles := []stagedLocalAuthFile(nil)
+	if executionMode != runbundle.ExecutionModeOracleRun {
+		authStageDir, stagedAuthFiles, err = stageLocalAuthFiles(resolvedAuthFiles)
+		if err != nil {
+			return fail(store.InstanceResult{}, nil, err)
+		}
 	}
 	if strings.TrimSpace(authStageDir) != "" {
 		defer os.RemoveAll(authStageDir)
 	}
 
-	containerID, baseURL, err := e.startContainer(ctx, caseSpec.Image, requiredAgentEnv, bootWriter, logs)
+	containerID, baseURL, err := e.startContainer(ctx, caseSpec.Image, requiredAgentEnv, bootWriter, logs, executionMode != runbundle.ExecutionModeOracleRun)
 	if err != nil {
-		return fail(store.InstanceResult{}, nil, err)
-	}
-	selectedAgentServerBinary, err := e.resolveAgentServerBinaryForContainer(ctx, containerID)
-	if err != nil {
-		e.removeContainer(context.Background(), containerID)
 		return fail(store.InstanceResult{}, nil, err)
 	}
 	stopPTYCapture := func() {}
-	defer func() {
-		stopPTYCapture()
-		if captureErr := e.captureAgentServerPTYLog(context.Background(), containerID, logs); captureErr != nil {
-			_ = logs.Step(
-				store.ArtifactRoleAgentControl,
-				"agent_server.pty_log.capture.final",
-				"warning",
-				"Failed to capture final agent PTY transcript before container teardown.",
-				map[string]string{
-					"container_id": containerID,
-					"error":        captureErr.Error(),
-				},
-			)
-		}
-		if captureErr := e.captureAgentServerRuntimeLog(context.Background(), containerID, logs); captureErr != nil {
-			_ = logs.Step(
-				store.ArtifactRoleAgentControl,
-				"agent_server.runtime_log.capture.final",
-				"warning",
-				"Failed to capture final agent-server runtime log before container teardown.",
-				map[string]string{
-					"container_id":     containerID,
-					"runtime_log_path": agentServerRuntimeLogPath,
-					"error":            captureErr.Error(),
-				},
-			)
-		}
-		e.removeContainer(context.Background(), containerID)
-	}()
 	stopRuntimeCapture := func() {}
 	defer func() {
 		stopRuntimeCapture()
-	}()
-	if len(stagedAuthFiles) > 0 {
-		copyDetails := map[string]string{
-			"container_id": containerID,
-			"file_count":   fmt.Sprintf("%d", len(stagedAuthFiles)),
+		stopPTYCapture()
+		if executionMode != runbundle.ExecutionModeOracleRun {
+			if captureErr := e.captureAgentServerPTYLog(context.Background(), containerID, logs); captureErr != nil {
+				_ = logs.Step(
+					store.ArtifactRoleAgentControl,
+					"agent_server.pty_log.capture.final",
+					"warning",
+					"Failed to capture final agent PTY transcript before container teardown.",
+					map[string]string{
+						"container_id": containerID,
+						"error":        captureErr.Error(),
+					},
+				)
+			}
+			if captureErr := e.captureAgentServerRuntimeLog(context.Background(), containerID, logs); captureErr != nil {
+				_ = logs.Step(
+					store.ArtifactRoleAgentControl,
+					"agent_server.runtime_log.capture.final",
+					"warning",
+					"Failed to capture final agent-server runtime log before container teardown.",
+					map[string]string{
+						"container_id":     containerID,
+						"runtime_log_path": agentServerRuntimeLogPath,
+						"error":            captureErr.Error(),
+					},
+				)
+			}
 		}
-		_ = logs.Step(
-			store.ArtifactRoleAgentControl,
-			"agent_server.auth_files.copy",
-			"start",
-			"Copying staged auth files into the container filesystem before run launch.",
-			cloneStringMap(copyDetails),
-		)
-		if err := e.copyAuthFilesToContainer(ctx, containerID, stagedAuthFiles); err != nil {
-			failedDetails := cloneStringMap(copyDetails)
-			failedDetails["error"] = err.Error()
+		e.removeContainer(context.Background(), containerID)
+	}()
+	if executionMode != runbundle.ExecutionModeOracleRun {
+		selectedAgentServerBinary, err := e.resolveAgentServerBinaryForContainer(ctx, containerID)
+		if err != nil {
+			return fail(store.InstanceResult{}, nil, err)
+		}
+		if len(stagedAuthFiles) > 0 {
+			copyDetails := map[string]string{
+				"container_id": containerID,
+				"file_count":   fmt.Sprintf("%d", len(stagedAuthFiles)),
+			}
 			_ = logs.Step(
 				store.ArtifactRoleAgentControl,
 				"agent_server.auth_files.copy",
-				"failed",
-				"Failed to copy staged auth files into the container filesystem.",
-				failedDetails,
+				"start",
+				"Copying staged auth files into the container filesystem before run launch.",
+				cloneStringMap(copyDetails),
 			)
+			if err := e.copyAuthFilesToContainer(ctx, containerID, stagedAuthFiles); err != nil {
+				failedDetails := cloneStringMap(copyDetails)
+				failedDetails["error"] = err.Error()
+				_ = logs.Step(
+					store.ArtifactRoleAgentControl,
+					"agent_server.auth_files.copy",
+					"failed",
+					"Failed to copy staged auth files into the container filesystem.",
+					failedDetails,
+				)
+				return fail(store.InstanceResult{}, nil, err)
+			}
+			_ = logs.Step(
+				store.ArtifactRoleAgentControl,
+				"agent_server.auth_files.copy",
+				"completed",
+				"Staged auth files were copied into the container filesystem.",
+				copyDetails,
+			)
+		}
+
+		if err := updateState(domain.InstanceStateAgentServerInstalling); err != nil {
 			return fail(store.InstanceResult{}, nil, err)
 		}
-		_ = logs.Step(
-			store.ArtifactRoleAgentControl,
-			"agent_server.auth_files.copy",
-			"completed",
-			"Staged auth files were copied into the container filesystem.",
-			copyDetails,
-		)
-	}
-
-	if err := updateState(domain.InstanceStateAgentServerInstalling); err != nil {
-		return fail(store.InstanceResult{}, nil, err)
-	}
-	if err := e.installAndStartAgentServer(ctx, containerID, selectedAgentServerBinary, bootWriter, logs); err != nil {
-		return fail(store.InstanceResult{}, nil, err)
-	}
-	runtimeCaptureCtx, cancelRuntimeCapture := context.WithCancel(context.Background())
-	runtimeCaptureDone := make(chan struct{})
-	go func() {
-		defer close(runtimeCaptureDone)
-		e.captureAgentServerRuntimeLogPeriodically(runtimeCaptureCtx, containerID, logs, defaultRuntimeCaptureInterval)
-	}()
-	stopRuntimeCapture = func() {
-		cancelRuntimeCapture()
-		<-runtimeCaptureDone
-	}
-
-	if err := updateState(domain.InstanceStateBooting); err != nil {
-		return fail(store.InstanceResult{}, nil, err)
-	}
-	readyEndpoint, err := buildReadyEndpoint(baseURL + e.readyPath)
-	if err != nil {
-		return fail(store.InstanceResult{}, nil, fmt.Errorf("build readiness endpoint: %w", err))
-	}
-	if err := e.waitForReady(ctx, readyEndpoint); err != nil {
-		return fail(store.InstanceResult{}, nil, err)
-	}
-	if captureErr := e.captureAgentServerRuntimeLog(ctx, containerID, logs); captureErr != nil {
-		_ = logs.Step(
-			store.ArtifactRoleAgentControl,
-			"agent_server.runtime_log.capture.ready",
-			"warning",
-			"Failed to capture agent-server runtime log immediately after readiness succeeded.",
-			map[string]string{
-				"container_id":       containerID,
-				"runtime_log_path":   agentServerRuntimeLogPath,
-				"readiness_endpoint": readyEndpoint,
-				"error":              captureErr.Error(),
-			},
-		)
-	}
-	ptyCaptureCtx, cancelPTYCapture := context.WithCancel(context.Background())
-	ptyCaptureDone := make(chan struct{})
-	go func() {
-		defer close(ptyCaptureDone)
-		e.captureAgentServerPTYLogPeriodically(ptyCaptureCtx, containerID, logs, defaultPTYCaptureInterval)
-	}()
-	stopPTYCapture = func() {
-		cancelPTYCapture()
-		<-ptyCaptureDone
-	}
-	provisionedAt := time.Now().UTC()
-	if err := e.ensureCaseWorkingDir(ctx, containerID, caseSpec); err != nil {
-		return fail(store.InstanceResult{}, nil, err)
-	}
-
-	agentExec, err := agentexecutor.New(agentexecutor.Config{
-		BaseURL:      baseURL,
-		HTTPClient:   e.httpClient,
-		ArtifactRoot: runfs.InstanceDir(runDir, inst.InstanceID),
-		AuthFiles:    toAgentExecutorAuthFiles(stagedAuthFiles),
-		PollInterval: e.agentPollInterval,
-		OnStep: func(ev agentexecutor.StepEvent) {
-			_ = logs.Step(store.ArtifactRoleAgentControl, ev.Step, ev.Status, ev.Message, ev.Details)
-		},
-	})
-	if err != nil {
-		return fail(store.InstanceResult{}, nil, err)
-	}
-
-	updateStateWithRuntimeCapture := wrapUpdateStateWithRuntimeCapture(updateState, stopRuntimeCapture)
-	result, artifacts, err = agentExec.ExecuteInstance(ctx, run, inst, updateStateWithRuntimeCapture)
-	stopRuntimeCapture()
-	stopRuntimeCapture = func() {}
-	stopPTYCapture()
-	stopPTYCapture = func() {}
-	if result.ProvisionedAt == nil {
-		result.ProvisionedAt = timePtr(provisionedAt)
-	}
-	e.rebaseStoredArtifacts(inst.InstanceID, artifacts)
-	if strings.TrimSpace(result.Trajectory) != "" {
-		if rel, _, ok := runfs.RelativePathForRole(inst.InstanceID, store.ArtifactRoleTrajectory); ok {
-			result.Trajectory = rel
+		if err := e.installAndStartAgentServer(ctx, containerID, selectedAgentServerBinary, bootWriter, logs); err != nil {
+			return fail(store.InstanceResult{}, nil, err)
 		}
-	}
+		runtimeCaptureCtx, cancelRuntimeCapture := context.WithCancel(context.Background())
+		runtimeCaptureDone := make(chan struct{})
+		go func() {
+			defer close(runtimeCaptureDone)
+			e.captureAgentServerRuntimeLogPeriodically(runtimeCaptureCtx, containerID, logs, defaultRuntimeCaptureInterval)
+		}()
+		stopRuntimeCapture = func() {
+			cancelRuntimeCapture()
+			<-runtimeCaptureDone
+		}
 
-	if err != nil {
-		return fail(result, artifacts, err)
+		if err := updateState(domain.InstanceStateBooting); err != nil {
+			return fail(store.InstanceResult{}, nil, err)
+		}
+		readyEndpoint, err := buildReadyEndpoint(baseURL + e.readyPath)
+		if err != nil {
+			return fail(store.InstanceResult{}, nil, fmt.Errorf("build readiness endpoint: %w", err))
+		}
+		if err := e.waitForReady(ctx, readyEndpoint); err != nil {
+			return fail(store.InstanceResult{}, nil, err)
+		}
+		if captureErr := e.captureAgentServerRuntimeLog(ctx, containerID, logs); captureErr != nil {
+			_ = logs.Step(
+				store.ArtifactRoleAgentControl,
+				"agent_server.runtime_log.capture.ready",
+				"warning",
+				"Failed to capture agent-server runtime log immediately after readiness succeeded.",
+				map[string]string{
+					"container_id":       containerID,
+					"runtime_log_path":   agentServerRuntimeLogPath,
+					"readiness_endpoint": readyEndpoint,
+					"error":              captureErr.Error(),
+				},
+			)
+		}
+		ptyCaptureCtx, cancelPTYCapture := context.WithCancel(context.Background())
+		ptyCaptureDone := make(chan struct{})
+		go func() {
+			defer close(ptyCaptureDone)
+			e.captureAgentServerPTYLogPeriodically(ptyCaptureCtx, containerID, logs, defaultPTYCaptureInterval)
+		}()
+		stopPTYCapture = func() {
+			cancelPTYCapture()
+			<-ptyCaptureDone
+		}
+		provisionedAt := time.Now().UTC()
+		if err := e.ensureCaseWorkingDir(ctx, containerID, caseSpec); err != nil {
+			return fail(store.InstanceResult{}, nil, err)
+		}
+
+		agentExec, err := agentexecutor.New(agentexecutor.Config{
+			BaseURL:      baseURL,
+			HTTPClient:   e.httpClient,
+			ArtifactRoot: runfs.InstanceDir(runDir, inst.InstanceID),
+			AuthFiles:    toAgentExecutorAuthFiles(stagedAuthFiles),
+			PollInterval: e.agentPollInterval,
+			OnStep: func(ev agentexecutor.StepEvent) {
+				_ = logs.Step(store.ArtifactRoleAgentControl, ev.Step, ev.Status, ev.Message, ev.Details)
+			},
+		})
+		if err != nil {
+			return fail(store.InstanceResult{}, nil, err)
+		}
+
+		updateStateWithRuntimeCapture := wrapUpdateStateWithRuntimeCapture(updateState, stopRuntimeCapture)
+		result, artifacts, err = agentExec.ExecuteInstance(ctx, run, inst, updateStateWithRuntimeCapture)
+		stopRuntimeCapture()
+		stopRuntimeCapture = func() {}
+		stopPTYCapture()
+		stopPTYCapture = func() {}
+		if result.ProvisionedAt == nil {
+			result.ProvisionedAt = timePtr(provisionedAt)
+		}
+		e.rebaseStoredArtifacts(inst.InstanceID, artifacts)
+		if strings.TrimSpace(result.Trajectory) != "" {
+			if rel, _, ok := runfs.RelativePathForRole(inst.InstanceID, store.ArtifactRoleTrajectory); ok {
+				result.Trajectory = rel
+			}
+		}
+
+		if err != nil {
+			return fail(result, artifacts, err)
+		}
+	} else {
+		provisionedAt := time.Now().UTC()
+		result = store.InstanceResult{
+			ProvisionedAt: timePtr(provisionedAt),
+		}
+		if err := e.ensureCaseWorkingDir(ctx, containerID, caseSpec); err != nil {
+			return fail(result, nil, err)
+		}
+		if err := updateState(domain.InstanceStateOracleApplying); err != nil {
+			return fail(result, nil, err)
+		}
+		oracleStartedAt := time.Now().UTC()
+		if err := e.stageCaseOracleAssets(ctx, containerID, caseSpec); err != nil {
+			return fail(result, nil, err)
+		}
+		oracleResult, err := e.executeCaseOracle(ctx, runDir, inst.InstanceID, containerID, caseSpec)
+		oracleEndedAt := time.Now().UTC()
+		result.OracleExitCode = intPtr(oracleResult.ExitCode)
+		result.OracleStdoutRef = oracleResult.StdoutRef
+		result.OracleStderrRef = oracleResult.StderrRef
+		result.OracleStartedAt = timePtr(oracleStartedAt)
+		result.OracleEndedAt = timePtr(oracleEndedAt)
+		artifacts = append(artifacts, oracleResult.Artifacts...)
+		if err != nil {
+			return fail(result, artifacts, err)
+		}
+		if oracleResult.ExitCode != 0 {
+			result.FinalState = domain.InstanceStateInfraFailed
+			if oracleResult.ExitCode == containerCommandTimedOut {
+				result.ErrorCode = "ORACLE_TIMEOUT"
+				result.ErrorMessage = "oracle/solve.sh timed out"
+			} else {
+				result.ErrorCode = "ORACLE_APPLY_FAILED"
+				result.ErrorMessage = fmt.Sprintf("oracle/solve.sh exited with status %d", oracleResult.ExitCode)
+			}
+			if err := updateState(domain.InstanceStateCollecting); err != nil {
+				return fail(store.InstanceResult{}, artifacts, err)
+			}
+			return result, artifacts, nil
+		}
 	}
 
 	if err := updateState(domain.InstanceStateTesting); err != nil {
@@ -581,6 +637,28 @@ func classifyTestFinalState(testExitCode int) domain.InstanceState {
 	default:
 		return domain.InstanceStateInfraFailed
 	}
+}
+
+func (e *Executor) executeCaseOracle(ctx context.Context, runDir, instanceID, containerID string, tc runbundle.Case) (commandExecutionResult, error) {
+	return e.executeContainerCommand(ctx, runDir, instanceID, containerID, containerCommandSpec{
+		Cwd:     tc.TestCwd,
+		Command: []string{"bash", "-c", path.Join(defaultOracleAssetsDirName, "solve.sh")},
+		Env: map[string]string{
+			oracleEnvAgentCwd:  strings.TrimSpace(tc.AgentCwd),
+			oracleEnvTestCwd:   strings.TrimSpace(tc.TestCwd),
+			oracleEnvOracleDir: path.Join(strings.TrimSpace(tc.TestCwd), defaultOracleAssetsDirName),
+		},
+		Timeout:    time.Duration(tc.TestTimeoutSecond) * time.Second,
+		StdoutRole: store.ArtifactRoleOracleStdout,
+		StderrRole: store.ArtifactRoleOracleStderr,
+	})
+}
+
+func normalizeExecutionMode(mode runbundle.ExecutionMode) runbundle.ExecutionMode {
+	if strings.TrimSpace(string(mode)) == "" {
+		return runbundle.ExecutionModeFull
+	}
+	return mode
 }
 
 func resolveCaseForExecution(run store.Run, inst store.Instance) (runbundle.Case, error) {
@@ -669,7 +747,7 @@ func (e *Executor) releaseImageBuildRef(ctx context.Context, buildKey string, in
 	_ = e.imageCleaner.Cleanup(cleanupCtx, input, resolvedImage)
 }
 
-func (e *Executor) startContainer(ctx context.Context, caseImage string, requiredAgentEnv []string, bootLog io.Writer, logs *executionLogs) (string, string, error) {
+func (e *Executor) startContainer(ctx context.Context, caseImage string, requiredAgentEnv []string, bootLog io.Writer, logs *executionLogs, publishPort bool) (string, string, error) {
 	cidDir, err := os.MkdirTemp("", "marginlab-container-id-*")
 	if err != nil {
 		return "", "", fmt.Errorf("create docker cidfile dir: %w", err)
@@ -677,9 +755,12 @@ func (e *Executor) startContainer(ctx context.Context, caseImage string, require
 	defer os.RemoveAll(cidDir)
 	cidFilePath := filepath.Join(cidDir, "cid")
 	startDetails := map[string]string{
-		"image":          strings.TrimSpace(caseImage),
-		"container_port": fmt.Sprintf("%d", e.containerPort),
-		"bind_count":     fmt.Sprintf("%d", len(e.binds)),
+		"image":        strings.TrimSpace(caseImage),
+		"bind_count":   fmt.Sprintf("%d", len(e.binds)),
+		"publish_port": fmt.Sprintf("%t", publishPort),
+	}
+	if publishPort {
+		startDetails["container_port"] = fmt.Sprintf("%d", e.containerPort)
 	}
 	if logs != nil {
 		_ = logs.Step(
@@ -695,8 +776,9 @@ func (e *Executor) startContainer(ctx context.Context, caseImage string, require
 		"run",
 		"-d",
 		"--cidfile", cidFilePath,
-		"-p",
-		fmt.Sprintf("127.0.0.1::%d", e.containerPort),
+	}
+	if publishPort {
+		args = append(args, "-p", fmt.Sprintf("127.0.0.1::%d", e.containerPort))
 	}
 
 	env := e.containerEnv(requiredAgentEnv)
@@ -747,36 +829,48 @@ func (e *Executor) startContainer(ctx context.Context, caseImage string, require
 		}
 		return "", "", err
 	}
-	baseURL, err := e.resolveBaseURL(ctx, containerID)
-	if err != nil {
-		e.removeContainer(context.Background(), containerID)
-		if logs != nil {
-			failedDetails := cloneStringMap(startDetails)
-			failedDetails["container_id"] = containerID
-			failedDetails["error"] = err.Error()
-			_ = logs.Step(
-				store.ArtifactRoleAgentBoot,
-				"container.start",
-				"failed",
-				"Container started but the published port mapping could not be resolved.",
-				failedDetails,
-			)
+	baseURL := ""
+	if publishPort {
+		baseURL, err = e.resolveBaseURL(ctx, containerID)
+		if err != nil {
+			e.removeContainer(context.Background(), containerID)
+			if logs != nil {
+				failedDetails := cloneStringMap(startDetails)
+				failedDetails["container_id"] = containerID
+				failedDetails["error"] = err.Error()
+				_ = logs.Step(
+					store.ArtifactRoleAgentBoot,
+					"container.start",
+					"failed",
+					"Container started but the published port mapping could not be resolved.",
+					failedDetails,
+				)
+			}
+			return "", "", err
 		}
-		return "", "", err
 	}
 	if logs != nil {
 		completedDetails := cloneStringMap(startDetails)
 		completedDetails["container_id"] = containerID
-		completedDetails["base_url"] = baseURL
+		if publishPort {
+			completedDetails["base_url"] = baseURL
+		}
 		_ = logs.Step(
 			store.ArtifactRoleAgentBoot,
 			"container.start",
 			"completed",
-			"Container started from resolved case image and port mapping was resolved.",
+			containerStartCompletedMessage(publishPort),
 			completedDetails,
 		)
 	}
 	return containerID, baseURL, nil
+}
+
+func containerStartCompletedMessage(publishPort bool) string {
+	if publishPort {
+		return "Container started from resolved case image and port mapping was resolved."
+	}
+	return "Container started from resolved case image."
 }
 
 func (e *Executor) installAndStartAgentServer(
@@ -1256,34 +1350,71 @@ func readContainerID(path string) (string, error) {
 	return containerID, nil
 }
 
-func (e *Executor) executeCaseTest(ctx context.Context, runDir, instanceID, containerID string, tc runbundle.Case) (testExecutionResult, error) {
+func (e *Executor) executeCaseTest(ctx context.Context, runDir, instanceID, containerID string, tc runbundle.Case) (commandExecutionResult, error) {
 	timeout := time.Duration(tc.TestTimeoutSecond) * time.Second
-	if timeout <= 0 {
-		return testExecutionResult{}, fmt.Errorf("case test_timeout_seconds must be > 0")
+	return e.executeContainerCommand(ctx, runDir, instanceID, containerID, containerCommandSpec{
+		Cwd:        tc.TestCwd,
+		Command:    append([]string(nil), tc.TestCommand...),
+		Timeout:    timeout,
+		StdoutRole: store.ArtifactRoleTestStdout,
+		StderrRole: store.ArtifactRoleTestStderr,
+	})
+}
+
+func (e *Executor) stageCaseTestAssets(ctx context.Context, containerID string, tc runbundle.Case) error {
+	return e.stageCaseAssets(ctx, containerID, tc, tc.TestAssets, defaultTestAssetsDirName, "case test assets")
+}
+
+func (e *Executor) stageCaseOracleAssets(ctx context.Context, containerID string, tc runbundle.Case) error {
+	if tc.OracleAssets == nil {
+		return fmt.Errorf("case oracle_assets are required")
 	}
-	testCtx, cancel := context.WithTimeout(ctx, timeout)
+	return e.stageCaseAssets(ctx, containerID, tc, *tc.OracleAssets, defaultOracleAssetsDirName, "case oracle assets")
+}
+
+type containerCommandSpec struct {
+	Cwd        string
+	Command    []string
+	Env        map[string]string
+	Timeout    time.Duration
+	StdoutRole string
+	StderrRole string
+}
+
+func (e *Executor) executeContainerCommand(ctx context.Context, runDir, instanceID, containerID string, spec containerCommandSpec) (commandExecutionResult, error) {
+	if spec.Timeout <= 0 {
+		return commandExecutionResult{}, fmt.Errorf("container command timeout must be > 0")
+	}
+	commandCtx, cancel := context.WithTimeout(ctx, spec.Timeout)
 	defer cancel()
 
-	capture, err := newTestOutputCapture(runDir, instanceID)
+	capture, err := newOutputCapture(runDir, instanceID, spec.StdoutRole, spec.StderrRole)
 	if err != nil {
-		return testExecutionResult{}, err
+		return commandExecutionResult{}, err
 	}
 	defer capture.close()
 
-	args := []string{"exec", "-w", tc.TestCwd, containerID}
-	args = append(args, tc.TestCommand...)
+	args := []string{"exec"}
+	for _, key := range sortedKeys(spec.Env) {
+		args = append(args, "-e", key+"="+spec.Env[key])
+	}
+	if trimmedCwd := strings.TrimSpace(spec.Cwd); trimmedCwd != "" {
+		args = append(args, "-w", trimmedCwd)
+	}
+	args = append(args, containerID)
+	args = append(args, spec.Command...)
 
-	cmd := exec.CommandContext(testCtx, e.dockerBinary, args...)
+	cmd := exec.CommandContext(commandCtx, e.dockerBinary, args...)
 	cmd.Stdout = capture.stdoutFile
 	cmd.Stderr = capture.stderrFile
 	err = cmd.Run()
 
-	result := testExecutionResult{}
+	result := commandExecutionResult{}
 	switch {
 	case err == nil:
 		result.ExitCode = 0
-	case errors.Is(testCtx.Err(), context.DeadlineExceeded):
-		result.ExitCode = 124
+	case errors.Is(commandCtx.Err(), context.DeadlineExceeded):
+		result.ExitCode = containerCommandTimedOut
 	default:
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
@@ -1297,14 +1428,14 @@ func (e *Executor) executeCaseTest(ctx context.Context, runDir, instanceID, cont
 	result.StderrRef = stderrRef
 	if finalizeErr != nil {
 		if err != nil {
-			return result, fmt.Errorf("docker %s failed: %w; finalize streamed test output artifacts: %v", strings.Join(args, " "), err, finalizeErr)
+			return result, fmt.Errorf("docker %s failed: %w; finalize streamed output artifacts: %v", strings.Join(args, " "), err, finalizeErr)
 		}
-		return result, fmt.Errorf("finalize streamed test output artifacts: %w", finalizeErr)
+		return result, fmt.Errorf("finalize streamed output artifacts: %w", finalizeErr)
 	}
 	if err == nil {
 		return result, nil
 	}
-	if errors.Is(testCtx.Err(), context.DeadlineExceeded) {
+	if errors.Is(commandCtx.Err(), context.DeadlineExceeded) {
 		return result, nil
 	}
 	var exitErr *exec.ExitError
@@ -1314,33 +1445,33 @@ func (e *Executor) executeCaseTest(ctx context.Context, runDir, instanceID, cont
 	return result, fmt.Errorf("docker %s failed: %w", strings.Join(args, " "), err)
 }
 
-func (e *Executor) stageCaseTestAssets(ctx context.Context, containerID string, tc runbundle.Case) error {
+func (e *Executor) stageCaseAssets(ctx context.Context, containerID string, tc runbundle.Case, desc testassets.Descriptor, destDirName, label string) error {
 	testCwd := strings.TrimSpace(tc.TestCwd)
 	if testCwd == "" {
 		return fmt.Errorf("case test_cwd is required")
 	}
 
-	tempDir, err := os.MkdirTemp("", "marginlab-test-assets-*")
+	tempDir, err := os.MkdirTemp("", "marginlab-case-assets-*")
 	if err != nil {
-		return fmt.Errorf("create temp test assets directory: %w", err)
+		return fmt.Errorf("create temp %s directory: %w", label, err)
 	}
 	defer os.RemoveAll(tempDir)
 
-	if err := testassets.Materialize(tc.TestAssets, tempDir, maxTestAssetsArchiveByte); err != nil {
-		return fmt.Errorf("materialize case test assets: %w", err)
+	if err := testassets.Materialize(desc, tempDir, maxTestAssetsArchiveByte); err != nil {
+		return fmt.Errorf("materialize %s: %w", label, err)
 	}
 
-	testsDir := path.Join(testCwd, "tests")
+	destDir := path.Join(testCwd, destDirName)
 	if err := e.ensureCaseWorkingDir(ctx, containerID, tc); err != nil {
 		return err
 	}
-	if _, err := e.runDocker(ctx, "exec", containerID, "rm", "-rf", testsDir); err != nil {
+	if _, err := e.runDocker(ctx, "exec", containerID, "rm", "-rf", destDir); err != nil {
 		return err
 	}
-	if _, err := e.runDocker(ctx, "exec", containerID, "mkdir", "-p", testsDir); err != nil {
+	if _, err := e.runDocker(ctx, "exec", containerID, "mkdir", "-p", destDir); err != nil {
 		return err
 	}
-	if _, err := e.runDocker(ctx, "cp", tempDir+"/.", containerID+":"+testsDir); err != nil {
+	if _, err := e.runDocker(ctx, "cp", tempDir+"/.", containerID+":"+destDir); err != nil {
 		return err
 	}
 	return nil

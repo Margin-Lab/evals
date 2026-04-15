@@ -92,6 +92,7 @@ Eval run command:
     --auth-file-path <path>       Override local OAuth credential file path for the selected agent
     --prune-built-image <count>   Enable lazy-built cleanup and globally prune all unused Docker images from the selected daemon every N completed executed instances
     --dry-run                     Skip agent execution but still run case tests on the pristine workspace
+    --oracle-run                  Skip agent execution, apply oracle/solve.sh, then run case tests
     --agent-env KEY=VALUE         agent-server container env var; repeatable
     --agent-bind HOST=CONTAINER   agent-server bind mount; repeatable
     --run-timeout <duration>      Wait timeout for run completion (default none)
