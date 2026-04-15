@@ -99,6 +99,15 @@ var baseVisibleSimplifiedStates = []simplifiedState{
 	simplifiedStateTestingAgent,
 }
 
+var oracleVisibleSimplifiedStates = []simplifiedState{
+	simplifiedStatePending,
+	simplifiedStateBuildingImage,
+	simplifiedStateProvisioningAgent,
+	simplifiedStateRunningAgent,
+	simplifiedStateApplyingOracle,
+	simplifiedStateTestingAgent,
+}
+
 func simplifiedStateForInstanceState(state domain.InstanceState) simplifiedState {
 	switch state {
 	case domain.InstanceStatePending:
@@ -163,11 +172,13 @@ func simplifiedStateIsTerminal(state simplifiedState) bool {
 }
 
 func visibleSimplifiedStates(current simplifiedState, executionMode runbundle.ExecutionMode) []simplifiedStateSpec {
-	visibleIDs := make([]simplifiedState, 0, len(baseVisibleSimplifiedStates)+2)
-	visibleIDs = append(visibleIDs, baseVisibleSimplifiedStates...)
+	orderedStates := baseVisibleSimplifiedStates
 	if executionMode == runbundle.ExecutionModeOracleRun {
-		visibleIDs = append(visibleIDs, simplifiedStateApplyingOracle)
+		orderedStates = oracleVisibleSimplifiedStates
 	}
+
+	visibleIDs := make([]simplifiedState, 0, len(orderedStates)+1)
+	visibleIDs = append(visibleIDs, orderedStates...)
 
 	visible := make([]simplifiedStateSpec, 0, len(visibleIDs)+1)
 	for _, id := range visibleIDs {
