@@ -279,6 +279,47 @@ func TestVisibleSimplifiedStatesShowOracleForOracleRuns(t *testing.T) {
 	}
 }
 
+func TestVisibleSimplifiedStatesPlaceOracleBeforeTesting(t *testing.T) {
+	m := newModel(context.Background(), Config{
+		RunID:  "run_1",
+		Source: &fakeMissionSource{},
+	})
+	m.applySnapshot(runnerapi.RunSnapshot{
+		Run: store.Run{
+			RunID: "run_1",
+			Bundle: runbundle.Bundle{
+				ResolvedSnapshot: runbundle.ResolvedSnapshot{
+					Execution: runbundle.Execution{Mode: runbundle.ExecutionModeOracleRun},
+				},
+			},
+		},
+		Instances: []runnerapi.InstanceSnapshot{{
+			Instance: store.Instance{
+				InstanceID: "inst_1",
+				State:      domain.InstanceStateTesting,
+			},
+		}},
+	})
+
+	visible := m.visibleSimplifiedStateSpecs()
+	oracleIndex := -1
+	testingIndex := -1
+	for i, spec := range visible {
+		switch spec.ID {
+		case simplifiedStateApplyingOracle:
+			oracleIndex = i
+		case simplifiedStateTestingAgent:
+			testingIndex = i
+		}
+	}
+	if oracleIndex == -1 || testingIndex == -1 {
+		t.Fatalf("expected both oracle and testing states to be visible, got %#v", visible)
+	}
+	if oracleIndex >= testingIndex {
+		t.Fatalf("expected oracle state before testing state, got oracle=%d testing=%d", oracleIndex, testingIndex)
+	}
+}
+
 func TestResolveLogTargetsFindsExecutorRole(t *testing.T) {
 	inst := &runnerapi.InstanceSnapshot{
 		Instance: store.Instance{InstanceID: "inst_1", State: domain.InstanceStateAgentRunning},
