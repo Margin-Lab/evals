@@ -145,6 +145,8 @@ For JS hooks, declare `[toolchains.node]` in the definition. `agent-server` prov
 
 ## 4. Create an agent config
 
+If you started from `margin init agent-config`, edit the generated `config.toml` so `definition` points from the config directory back to the definition directory.
+
 ```toml
 kind = "agent_config"
 name = "my-agent-default"
