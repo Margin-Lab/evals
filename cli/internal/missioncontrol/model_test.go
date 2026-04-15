@@ -216,6 +216,69 @@ func TestResolveCombinedOracleOutputFallsBackToResultRefs(t *testing.T) {
 	}
 }
 
+func TestVisibleSimplifiedStatesHideOracleForNonOracleRuns(t *testing.T) {
+	m := newModel(context.Background(), Config{
+		RunID:  "run_1",
+		Source: &fakeMissionSource{},
+	})
+	m.applySnapshot(runnerapi.RunSnapshot{
+		Run: store.Run{
+			RunID: "run_1",
+			Bundle: runbundle.Bundle{
+				ResolvedSnapshot: runbundle.ResolvedSnapshot{
+					Execution: runbundle.Execution{Mode: runbundle.ExecutionModeFull},
+				},
+			},
+		},
+		Instances: []runnerapi.InstanceSnapshot{{
+			Instance: store.Instance{
+				InstanceID: "inst_1",
+				State:      domain.InstanceStateTesting,
+			},
+		}},
+	})
+
+	for _, spec := range m.visibleSimplifiedStateSpecs() {
+		if spec.ID == simplifiedStateApplyingOracle {
+			t.Fatalf("did not expect oracle state to be visible for non-oracle run")
+		}
+	}
+}
+
+func TestVisibleSimplifiedStatesShowOracleForOracleRuns(t *testing.T) {
+	m := newModel(context.Background(), Config{
+		RunID:  "run_1",
+		Source: &fakeMissionSource{},
+	})
+	m.applySnapshot(runnerapi.RunSnapshot{
+		Run: store.Run{
+			RunID: "run_1",
+			Bundle: runbundle.Bundle{
+				ResolvedSnapshot: runbundle.ResolvedSnapshot{
+					Execution: runbundle.Execution{Mode: runbundle.ExecutionModeOracleRun},
+				},
+			},
+		},
+		Instances: []runnerapi.InstanceSnapshot{{
+			Instance: store.Instance{
+				InstanceID: "inst_1",
+				State:      domain.InstanceStateTesting,
+			},
+		}},
+	})
+
+	foundOracle := false
+	for _, spec := range m.visibleSimplifiedStateSpecs() {
+		if spec.ID == simplifiedStateApplyingOracle {
+			foundOracle = true
+			break
+		}
+	}
+	if !foundOracle {
+		t.Fatalf("expected oracle state to be visible for oracle_run")
+	}
+}
+
 func TestResolveLogTargetsFindsExecutorRole(t *testing.T) {
 	inst := &runnerapi.InstanceSnapshot{
 		Instance: store.Instance{InstanceID: "inst_1", State: domain.InstanceStateAgentRunning},

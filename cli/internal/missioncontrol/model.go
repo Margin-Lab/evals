@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/marginlab/margin-eval/runner/runner-core/domain"
+	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
 	"github.com/marginlab/margin-eval/runner/runner-core/runnerapi"
 	"github.com/marginlab/margin-eval/runner/runner-core/store"
 )
@@ -458,8 +459,12 @@ func (m *model) currentSimplifiedState() simplifiedState {
 	return simplifiedStateForInstanceState(m.selectedInstanceState())
 }
 
+func (m *model) executionMode() runbundle.ExecutionMode {
+	return m.snapshot.Run.Bundle.ResolvedSnapshot.Execution.Mode
+}
+
 func (m *model) visibleSimplifiedStateSpecs() []simplifiedStateSpec {
-	return visibleSimplifiedStates(m.currentSimplifiedState())
+	return visibleSimplifiedStates(m.currentSimplifiedState(), m.executionMode())
 }
 
 func (m *model) selectedSimplifiedStateSpec() simplifiedStateSpec {
