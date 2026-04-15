@@ -82,15 +82,21 @@ It has two panes: instance list (left) and detail/logs (right).
 
 ## Resuming a Run
 
-The default resume policy retries tests that failed for infrastructure reasons or were never started, and skips tests that already produced a result:
+The default resume policy retries tests that failed for infrastructure reasons or were never started, and skips tests that already produced a result.
+
+If the source run was started with `--dry-run`, pass `--dry-run` again when resuming so the execution mode matches:
+
+```bash
+margin run --resume-from ./runs/run_20260409_153022_1f3a9c2d --dry-run
+```
+
+For a normal non-dry run, omit `--dry-run`:
 
 ```bash
 margin run --resume-from ./runs/run_20260409_153022_1f3a9c2d
 ```
 
-Resume uses the saved bundle from `<run-dir>/internal/bundle.json`, so you don't need to re-specify suite, agent config, or eval config.
-
-If you want to retry the run with updated inputs, pass a fresh suite, agent config, and eval config together with `--resume-from`. Margin will warn before starting when the updated inputs differ from the saved run, then it will reuse prior results according to the current resume policy and run the remaining cases with the new inputs.
+If you want to retry the run with updated inputs, pass a fresh suite, agent config, and eval config together with `--resume-from`. Margin warns before starting when the updated inputs differ from the saved run, then it reuses prior results according to the current resume policy and runs the remaining cases with the new inputs.
 
 ## Next steps
 
