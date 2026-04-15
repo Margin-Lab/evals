@@ -14,6 +14,7 @@ const (
 	dirImage     = "image"
 	dirBootstrap = "bootstrap"
 	dirRun       = "run"
+	dirOracle    = "oracle"
 	dirTest      = "test"
 	dirExtra     = "extra"
 )
@@ -131,6 +132,10 @@ func viewForRole(role string) (string, string, bool) {
 		return dirRun, "agent_server_runtime_log", true
 	case store.ArtifactRoleAgentPTY:
 		return dirRun, "agent_server_pty_log", true
+	case store.ArtifactRoleOracleStdout:
+		return dirOracle, "oracle_stdout", true
+	case store.ArtifactRoleOracleStderr:
+		return dirOracle, "oracle_stderr", true
 	case store.ArtifactRoleTestStdout:
 		return dirTest, "test_stdout", true
 	case store.ArtifactRoleTestStderr:

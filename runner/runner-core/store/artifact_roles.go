@@ -3,6 +3,8 @@ package store
 import "strings"
 
 const (
+	ArtifactRoleOracleStdout = "oracle_stdout"
+	ArtifactRoleOracleStderr = "oracle_stderr"
 	ArtifactRoleTestStdout   = "test_stdout"
 	ArtifactRoleTestStderr   = "test_stderr"
 	ArtifactRoleTrajectory   = "trajectory"
@@ -16,6 +18,10 @@ const (
 // DefaultArtifactFilename returns the canonical file name for known artifact roles.
 func DefaultArtifactFilename(role string) (string, bool) {
 	switch strings.TrimSpace(role) {
+	case ArtifactRoleOracleStdout:
+		return "oracle_stdout.txt", true
+	case ArtifactRoleOracleStderr:
+		return "oracle_stderr.txt", true
 	case ArtifactRoleTestStdout:
 		return "test_stdout.txt", true
 	case ArtifactRoleTestStderr:

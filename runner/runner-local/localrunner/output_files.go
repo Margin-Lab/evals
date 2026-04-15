@@ -20,31 +20,35 @@ import (
 )
 
 type instanceResultFile struct {
-	InstanceID     string                  `json:"instance_id"`
-	Ordinal        int                     `json:"ordinal"`
-	CaseID         string                  `json:"case_id"`
-	FinalState     domain.InstanceState    `json:"final_state"`
-	ProviderRef    string                  `json:"provider_ref,omitempty"`
-	AgentRunID     string                  `json:"agent_run_id,omitempty"`
-	AgentExitCode  *int                    `json:"agent_exit_code,omitempty"`
-	Usage          *usage.Metrics          `json:"usage,omitempty"`
-	TestExitCode   *int                    `json:"test_exit_code,omitempty"`
-	ErrorCode      string                  `json:"error_code,omitempty"`
-	ErrorMessage   string                  `json:"error_message,omitempty"`
-	ErrorDetails   map[string]any          `json:"error_details,omitempty"`
-	ProvisionedAt  *timeValue              `json:"provisioned_at,omitempty"`
-	AgentStartedAt *timeValue              `json:"agent_started_at,omitempty"`
-	AgentEndedAt   *timeValue              `json:"agent_ended_at,omitempty"`
-	TestStartedAt  *timeValue              `json:"test_started_at,omitempty"`
-	TestEndedAt    *timeValue              `json:"test_ended_at,omitempty"`
-	Trajectory     string                  `json:"trajectory,omitempty"`
-	Files          instanceResultStageInfo `json:"files"`
+	InstanceID      string                  `json:"instance_id"`
+	Ordinal         int                     `json:"ordinal"`
+	CaseID          string                  `json:"case_id"`
+	FinalState      domain.InstanceState    `json:"final_state"`
+	ProviderRef     string                  `json:"provider_ref,omitempty"`
+	AgentRunID      string                  `json:"agent_run_id,omitempty"`
+	AgentExitCode   *int                    `json:"agent_exit_code,omitempty"`
+	Usage           *usage.Metrics          `json:"usage,omitempty"`
+	OracleExitCode  *int                    `json:"oracle_exit_code,omitempty"`
+	TestExitCode    *int                    `json:"test_exit_code,omitempty"`
+	ErrorCode       string                  `json:"error_code,omitempty"`
+	ErrorMessage    string                  `json:"error_message,omitempty"`
+	ErrorDetails    map[string]any          `json:"error_details,omitempty"`
+	ProvisionedAt   *timeValue              `json:"provisioned_at,omitempty"`
+	AgentStartedAt  *timeValue              `json:"agent_started_at,omitempty"`
+	AgentEndedAt    *timeValue              `json:"agent_ended_at,omitempty"`
+	OracleStartedAt *timeValue              `json:"oracle_started_at,omitempty"`
+	OracleEndedAt   *timeValue              `json:"oracle_ended_at,omitempty"`
+	TestStartedAt   *timeValue              `json:"test_started_at,omitempty"`
+	TestEndedAt     *timeValue              `json:"test_ended_at,omitempty"`
+	Trajectory      string                  `json:"trajectory,omitempty"`
+	Files           instanceResultStageInfo `json:"files"`
 }
 
 type instanceResultStageInfo struct {
 	Image     map[string]string `json:"image,omitempty"`
 	Bootstrap map[string]string `json:"bootstrap,omitempty"`
 	Run       map[string]string `json:"run,omitempty"`
+	Oracle    map[string]string `json:"oracle,omitempty"`
 	Test      map[string]string `json:"test,omitempty"`
 }
 
@@ -75,24 +79,27 @@ func writeInstanceResults(runDir string, instances []store.Instance, resultsByIn
 
 func buildInstanceResultFile(inst store.Instance, result store.StoredInstanceResult, artifacts []store.Artifact) instanceResultFile {
 	out := instanceResultFile{
-		InstanceID:    inst.InstanceID,
-		Ordinal:       inst.Ordinal,
-		CaseID:        strings.TrimSpace(inst.Case.CaseID),
-		FinalState:    result.FinalState,
-		ProviderRef:   result.ProviderRef,
-		AgentRunID:    result.AgentRunID,
-		AgentExitCode: result.AgentExitCode,
-		Usage:         result.Usage,
-		TestExitCode:  result.TestExitCode,
-		ErrorCode:     result.ErrorCode,
-		ErrorMessage:  result.ErrorMessage,
-		ErrorDetails:  cloneAnyMap(result.ErrorDetails),
-		Trajectory:    strings.TrimSpace(result.TrajectoryRef),
-		Files:         instanceResultStageInfo{},
+		InstanceID:     inst.InstanceID,
+		Ordinal:        inst.Ordinal,
+		CaseID:         strings.TrimSpace(inst.Case.CaseID),
+		FinalState:     result.FinalState,
+		ProviderRef:    result.ProviderRef,
+		AgentRunID:     result.AgentRunID,
+		AgentExitCode:  result.AgentExitCode,
+		Usage:          result.Usage,
+		OracleExitCode: result.OracleExitCode,
+		TestExitCode:   result.TestExitCode,
+		ErrorCode:      result.ErrorCode,
+		ErrorMessage:   result.ErrorMessage,
+		ErrorDetails:   cloneAnyMap(result.ErrorDetails),
+		Trajectory:     strings.TrimSpace(result.TrajectoryRef),
+		Files:          instanceResultStageInfo{},
 	}
 	out.ProvisionedAt = marshalTime(result.ProvisionedAt)
 	out.AgentStartedAt = marshalTime(result.AgentStartedAt)
 	out.AgentEndedAt = marshalTime(result.AgentEndedAt)
+	out.OracleStartedAt = marshalTime(result.OracleStartedAt)
+	out.OracleEndedAt = marshalTime(result.OracleEndedAt)
 	out.TestStartedAt = marshalTime(result.TestStartedAt)
 	out.TestEndedAt = marshalTime(result.TestEndedAt)
 
@@ -121,6 +128,11 @@ func buildInstanceResultFile(inst store.Instance, result store.StoredInstanceRes
 				out.Files.Run = map[string]string{}
 			}
 			out.Files.Run[view.Key] = storeKey
+		case "oracle":
+			if out.Files.Oracle == nil {
+				out.Files.Oracle = map[string]string{}
+			}
+			out.Files.Oracle[view.Key] = storeKey
 		case "test":
 			if out.Files.Test == nil {
 				out.Files.Test = map[string]string{}

@@ -74,8 +74,9 @@ type ResolvedSnapshot struct {
 type ExecutionMode string
 
 const (
-	ExecutionModeFull   ExecutionMode = "full"
-	ExecutionModeDryRun ExecutionMode = "dry_run"
+	ExecutionModeFull      ExecutionMode = "full"
+	ExecutionModeDryRun    ExecutionMode = "dry_run"
+	ExecutionModeOracleRun ExecutionMode = "oracle_run"
 )
 
 type Execution struct {
@@ -105,6 +106,7 @@ type Case struct {
 	CaseID            string          `json:"case_id"`
 	Image             string          `json:"image"`
 	ImageBuild        *CaseImageBuild `json:"image_build,omitempty"`
+	OracleAssets      *OracleAssets   `json:"oracle_assets,omitempty"`
 	InitialPrompt     string          `json:"initial_prompt"`
 	AgentCwd          string          `json:"agent_cwd"`
 	TestCommand       []string        `json:"test_command"`
@@ -124,3 +126,4 @@ type Integrity struct {
 
 type TestAssets = testassets.Descriptor
 type BuildContext = testassets.Descriptor
+type OracleAssets = testassets.Descriptor

@@ -330,6 +330,64 @@ exit 1
 	}
 }
 
+func TestExecuteCaseOracleStreamsOutputToArtifacts(t *testing.T) {
+	runDir := t.TempDir()
+	dockerBin := writeFakeDockerBinary(t, `#!/bin/sh
+set -eu
+if [ "$1" != "exec" ]; then
+  echo "unexpected docker invocation: $*" >&2
+  exit 1
+fi
+printf 'oracle stdout line\n'
+printf 'oracle stderr line\n' >&2
+exit 0
+`)
+	exec := &Executor{
+		dockerBinary: dockerBin,
+		runDirs: map[string]string{
+			"run_1": runDir,
+		},
+	}
+
+	result, err := exec.executeCaseOracle(context.Background(), runDir, "inst_1", "container-123", runbundle.Case{
+		AgentCwd:          "/workspace/repo",
+		TestCwd:           "/workspace",
+		TestTimeoutSecond: 30,
+	})
+	if err != nil {
+		t.Fatalf("executeCaseOracle() error = %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Fatalf("exit code = %d, want 0", result.ExitCode)
+	}
+	if result.StdoutRef != "instances/inst_1/oracle/oracle_stdout.txt" {
+		t.Fatalf("stdout ref = %q", result.StdoutRef)
+	}
+	if result.StderrRef != "instances/inst_1/oracle/oracle_stderr.txt" {
+		t.Fatalf("stderr ref = %q", result.StderrRef)
+	}
+	if len(result.Artifacts) != 2 {
+		t.Fatalf("artifact count = %d, want 2", len(result.Artifacts))
+	}
+
+	stdoutPath := filepath.Join(runDir, filepath.FromSlash(result.StdoutRef))
+	stderrPath := filepath.Join(runDir, filepath.FromSlash(result.StderrRef))
+	stdoutBody, err := os.ReadFile(stdoutPath)
+	if err != nil {
+		t.Fatalf("read stdout artifact: %v", err)
+	}
+	stderrBody, err := os.ReadFile(stderrPath)
+	if err != nil {
+		t.Fatalf("read stderr artifact: %v", err)
+	}
+	if string(stdoutBody) != "oracle stdout line\n" {
+		t.Fatalf("stdout artifact = %q", string(stdoutBody))
+	}
+	if string(stderrBody) != "oracle stderr line\n" {
+		t.Fatalf("stderr artifact = %q", string(stderrBody))
+	}
+}
+
 func TestStartContainerLogsProgressToAgentBoot(t *testing.T) {
 	root := t.TempDir()
 	logPath := filepath.Join(t.TempDir(), "docker.log")
@@ -377,7 +435,7 @@ exit 1
 		t.Fatalf("logs.Writer() error = %v", err)
 	}
 
-	containerID, baseURL, err := exec.startContainer(context.Background(), "ghcr.io/acme/case@sha256:1234", nil, bootWriter, logs)
+	containerID, baseURL, err := exec.startContainer(context.Background(), "ghcr.io/acme/case@sha256:1234", nil, bootWriter, logs, true)
 	if err != nil {
 		t.Fatalf("startContainer() error = %v", err)
 	}
@@ -396,6 +454,77 @@ exit 1
 	assertHasStructuredStep(t, records, "container.start", "start", "Starting container from resolved case image.", "image", "ghcr.io/acme/case@sha256:1234")
 	assertHasStructuredOutputMessage(t, records, "pulling cached layers")
 	assertHasStructuredStep(t, records, "container.start", "completed", "Container started from resolved case image and port mapping was resolved.", "base_url", "http://127.0.0.1:32771")
+}
+
+func TestStartContainerSkipsPortPublishWhenDisabled(t *testing.T) {
+	root := t.TempDir()
+	logPath := filepath.Join(t.TempDir(), "docker.log")
+	dockerBin := writeFakeDockerBinary(t, fmt.Sprintf(`#!/bin/sh
+set -eu
+printf '%%s\n' "$*" >> %q
+case "$1" in
+  run)
+    cidfile=""
+    prev=""
+    for arg in "$@"; do
+      if [ "$prev" = "--cidfile" ]; then
+        cidfile="$arg"
+        break
+      fi
+      prev="$arg"
+    done
+    [ -n "$cidfile" ]
+    printf 'container-456\n' > "$cidfile"
+    printf 'container-456\n'
+    exit 0
+    ;;
+  port)
+    echo "unexpected port lookup" >&2
+    exit 1
+    ;;
+esac
+echo "unexpected docker invocation: $*" >&2
+exit 1
+`, logPath))
+	exec := &Executor{
+		dockerBinary:  dockerBin,
+		containerPort: 8080,
+	}
+	logs, err := newExecutionLogs(root, "inst_1")
+	if err != nil {
+		t.Fatalf("newExecutionLogs() error = %v", err)
+	}
+	defer logs.Close()
+	bootWriter, err := logs.Writer(store.ArtifactRoleAgentBoot)
+	if err != nil {
+		t.Fatalf("logs.Writer() error = %v", err)
+	}
+
+	containerID, baseURL, err := exec.startContainer(context.Background(), "ghcr.io/acme/case@sha256:1234", nil, bootWriter, logs, false)
+	if err != nil {
+		t.Fatalf("startContainer() error = %v", err)
+	}
+	if containerID != "container-456" {
+		t.Fatalf("containerID = %q, want %q", containerID, "container-456")
+	}
+	if baseURL != "" {
+		t.Fatalf("baseURL = %q, want empty", baseURL)
+	}
+
+	logBytes, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read docker log: %v", err)
+	}
+	if strings.Contains(string(logBytes), "\nport ") {
+		t.Fatalf("expected no docker port invocation, got log:\n%s", string(logBytes))
+	}
+
+	bootPath, _, _, ok := runfs.AbsoluteArtifactPath(root, "inst_1", store.ArtifactRoleAgentBoot)
+	if !ok {
+		t.Fatalf("expected boot artifact path")
+	}
+	records := mustReadStructuredRecords(t, bootPath)
+	assertHasStructuredStep(t, records, "container.start", "completed", "Container started from resolved case image.", "container_id", "container-456")
 }
 
 func TestCaptureAgentServerRuntimeLogPeriodicallyUpdatesArtifact(t *testing.T) {

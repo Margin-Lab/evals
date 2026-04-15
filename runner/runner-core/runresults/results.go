@@ -204,8 +204,8 @@ func instanceRuntimeMS(inst store.Instance, result store.StoredInstanceResult, h
 	start := inst.CreatedAt
 	end := inst.UpdatedAt
 	if hasResult {
-		start = firstTime(start, result.ProvisionedAt, result.AgentStartedAt, result.TestStartedAt)
-		end = lastTime(end, result.TestEndedAt, result.AgentEndedAt)
+		start = firstTime(start, result.ProvisionedAt, result.AgentStartedAt, result.OracleStartedAt, result.TestStartedAt)
+		end = lastTime(end, result.TestEndedAt, result.OracleEndedAt, result.AgentEndedAt)
 	}
 	return durationMS(start, end)
 }

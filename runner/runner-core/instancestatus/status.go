@@ -13,6 +13,7 @@ const (
 	InfraFailureReasonExecutorError     = "executor_error"
 	InfraFailureReasonInstanceTimeout   = "instance_timeout"
 	InfraFailureReasonInvalidFinalState = "invalid_final_state"
+	InfraFailureReasonOracleFailed      = "oracle_failed"
 	InfraFailureReasonUnknownFailure    = "unknown_failure"
 )
 
@@ -69,6 +70,8 @@ func InfraFailureReason(result store.StoredInstanceResult) *string {
 		return strPtr(InfraFailureReasonInstanceTimeout)
 	case "INVALID_FINAL_STATE":
 		return strPtr(InfraFailureReasonInvalidFinalState)
+	case "ORACLE_APPLY_FAILED", "ORACLE_TIMEOUT":
+		return strPtr(InfraFailureReasonOracleFailed)
 	}
 	if result.AgentExitCode != nil && *result.AgentExitCode != 0 {
 		return strPtr(InfraFailureReasonAgentFailed)

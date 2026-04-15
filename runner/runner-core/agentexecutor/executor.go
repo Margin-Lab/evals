@@ -94,6 +94,9 @@ func (e *Executor) ExecuteInstance(ctx context.Context, run store.Run, inst stor
 	if updateState == nil {
 		return store.InstanceResult{}, nil, fmt.Errorf("update_state callback is required")
 	}
+	if run.Bundle.ResolvedSnapshot.Execution.Mode == runbundle.ExecutionModeOracleRun {
+		return store.InstanceResult{}, nil, fmt.Errorf("agentexecutor does not support oracle_run mode")
+	}
 
 	agent := run.Bundle.ResolvedSnapshot.Agent
 	if _, err := agentdef.ValidateAndNormalizeConfigSpec(agent.Definition, agent.Config); err != nil {
