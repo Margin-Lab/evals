@@ -47,7 +47,7 @@ const (
 	defaultTestAssetsDirName      = "tests"
 	maxReadyResponseBodyRead      = 4096
 	maxReadySummaryLength         = 512
-	maxTestAssetsArchiveByte      = 64 << 20
+	maxTestAssetsArchiveByte      = testassets.DefaultMaxArchiveBytes
 	imageCleanupTimeout           = 15 * time.Second
 	containerCommandTimedOut      = 124
 	testExitCodePass              = 0
