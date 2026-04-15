@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	DefaultMaxArchiveBytes  int64 = 64 << 20
+	DefaultMaxArchiveBytes  int64 = 128 << 20
 	defaultMaxExtractedSize int64 = 512 << 20
 )
 
