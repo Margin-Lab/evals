@@ -12,6 +12,8 @@ margin init agent-config \
   --definition ./configs/agent-definitions/codex
 ```
 
+After scaffolding, verify that `definition` points to the definition from the config directory (for example `../../agent-definitions/codex`), or switch it to the bare installed name `codex` once the definition lives under `~/.margin/configs/agent-definitions/`.
+
 ## Recommended: unified config
 
 Use `mode = "unified"` by default.
@@ -60,7 +62,7 @@ LOG_LEVEL = "warn"
 
 ### `[[skills]]`
 
-Skills are optional reusable instruction bundles. Each `path` must point to a directory that contains a `SKILL.md` file.
+Skills are optional reusable instruction bundles. Each `path` must point to a directory that contains a `SKILL.md` file with valid skill frontmatter (for example `name` and `description`).
 
 You can add multiple skills:
 
