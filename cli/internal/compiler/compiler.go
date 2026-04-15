@@ -21,7 +21,17 @@ const (
 	defaultPTYRows          = 40
 	suitePreamblePromptFile = "preamble-prompt.md"
 	casePromptFile          = "prompt.md"
+	caseOracleDir           = "oracle"
+	caseOracleSolveScript   = "solve.sh"
 )
+
+type oracleRequirementError struct {
+	caseID string
+}
+
+func (e *oracleRequirementError) Error() string {
+	return fmt.Sprintf("case %q is missing oracle/%s", e.caseID, caseOracleSolveScript)
+}
 
 func Compile(in CompileInput) (runbundle.Bundle, error) {
 	suitePath, err := requireDir(in.SuitePath, "suite")
@@ -39,7 +49,9 @@ func Compile(in CompileInput) (runbundle.Bundle, error) {
 
 	progress := in.Progress
 
-	suiteDoc, cases, err := compileSuite(suitePath, progress)
+	executionMode := normalizeExecutionMode(in.ExecutionMode)
+
+	suiteDoc, cases, err := compileSuite(suitePath, executionMode, progress)
 	if err != nil {
 		return runbundle.Bundle{}, err
 	}
@@ -81,7 +93,7 @@ func Compile(in CompileInput) (runbundle.Bundle, error) {
 		ResolvedSnapshot: runbundle.ResolvedSnapshot{
 			Name: bundleName,
 			Execution: runbundle.Execution{
-				Mode:                  runbundle.ExecutionModeFull,
+				Mode:                  executionMode,
 				MaxConcurrency:        evalDoc.MaxConcurrency,
 				FailFast:              evalDoc.FailFast,
 				RetryCount:            valueOrZero(evalDoc.RetryCount),
@@ -107,7 +119,14 @@ func Compile(in CompileInput) (runbundle.Bundle, error) {
 	return bundle, nil
 }
 
-func compileSuite(suitePath string, progress CompileProgressFunc) (suiteFile, []runbundle.Case, error) {
+func normalizeExecutionMode(mode runbundle.ExecutionMode) runbundle.ExecutionMode {
+	if strings.TrimSpace(string(mode)) == "" {
+		return runbundle.ExecutionModeFull
+	}
+	return mode
+}
+
+func compileSuite(suitePath string, executionMode runbundle.ExecutionMode, progress CompileProgressFunc) (suiteFile, []runbundle.Case, error) {
 	suiteTomlPath := filepath.Join(suitePath, "suite.toml")
 	var suite suiteFile
 	raw, err := decodeTOMLFile(suiteTomlPath, &suite)
@@ -134,6 +153,7 @@ func compileSuite(suitePath string, progress CompileProgressFunc) (suiteFile, []
 	}
 
 	cases := make([]runbundle.Case, 0, len(suite.Cases))
+	missingOracles := make([]string, 0)
 	if progress != nil {
 		progress(CompileProgress{
 			Stage:      CompileStageCasesDiscovered,
@@ -156,8 +176,13 @@ func compileSuite(suitePath string, progress CompileProgressFunc) (suiteFile, []
 				Message:     "compiling case",
 			})
 		}
-		compiled, err := compileCase(filepath.Join(casesRoot, trimmed), trimmed, suitePreamble)
+		compiled, err := compileCase(filepath.Join(casesRoot, trimmed), trimmed, suitePreamble, executionMode)
 		if err != nil {
+			var missingOracleErr *oracleRequirementError
+			if errors.As(err, &missingOracleErr) {
+				missingOracles = append(missingOracles, missingOracleErr.caseID)
+				continue
+			}
 			return suiteFile{}, nil, err
 		}
 		cases = append(cases, compiled)
@@ -172,10 +197,17 @@ func compileSuite(suitePath string, progress CompileProgressFunc) (suiteFile, []
 			})
 		}
 	}
+	if len(missingOracles) > 0 {
+		return suite, nil, fmt.Errorf(
+			"oracle_run requires every case to include oracle/%s; missing for cases: %s",
+			caseOracleSolveScript,
+			strings.Join(missingOracles, ", "),
+		)
+	}
 	return suite, cases, nil
 }
 
-func compileCase(caseDir, expectedName, suitePreamble string) (runbundle.Case, error) {
+func compileCase(caseDir, expectedName, suitePreamble string, executionMode runbundle.ExecutionMode) (runbundle.Case, error) {
 	if _, err := requireDir(caseDir, "case"); err != nil {
 		return runbundle.Case{}, err
 	}
@@ -194,6 +226,10 @@ func compileCase(caseDir, expectedName, suitePreamble string) (runbundle.Case, e
 	}
 	if strings.TrimSpace(c.Name) != expectedName {
 		return runbundle.Case{}, fmt.Errorf("%s name %q must match directory name %q", caseTomlPath, c.Name, expectedName)
+	}
+	oracleAssets, err := compileCaseOracleAssets(caseDir, expectedName, executionMode)
+	if err != nil {
+		return runbundle.Case{}, err
 	}
 
 	prompt, err := readRequiredPromptFile(filepath.Join(caseDir, casePromptFile))
@@ -236,6 +272,7 @@ func compileCase(caseDir, expectedName, suitePreamble string) (runbundle.Case, e
 		CaseID:            strings.TrimSpace(c.Name),
 		Image:             strings.TrimSpace(resolvedImage),
 		ImageBuild:        imageBuild,
+		OracleAssets:      oracleAssets,
 		InitialPrompt:     initialPrompt,
 		AgentCwd:          strings.TrimSpace(c.AgentCwd),
 		TestCommand:       []string{"bash", "-c", "tests/test.sh"},
@@ -243,6 +280,41 @@ func compileCase(caseDir, expectedName, suitePreamble string) (runbundle.Case, e
 		TestTimeoutSecond: c.TestTimeoutSeconds,
 		TestAssets:        packedAssets,
 	}, nil
+}
+
+func compileCaseOracleAssets(caseDir, caseID string, executionMode runbundle.ExecutionMode) (*runbundle.OracleAssets, error) {
+	oracleDir := filepath.Join(caseDir, caseOracleDir)
+	info, err := os.Stat(oracleDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			if executionMode == runbundle.ExecutionModeOracleRun {
+				return nil, &oracleRequirementError{caseID: caseID}
+			}
+			return nil, nil
+		}
+		return nil, fmt.Errorf("stat case oracle dir %s: %w", oracleDir, err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("case oracle path %s must be a directory", oracleDir)
+	}
+	solveScriptPath := filepath.Join(oracleDir, caseOracleSolveScript)
+	if _, err := requireFile(solveScriptPath, "case oracle solve script"); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			err = fmt.Errorf("case %q defines oracle/ but is missing oracle/%s", caseID, caseOracleSolveScript)
+		}
+		if executionMode == runbundle.ExecutionModeOracleRun {
+			return nil, &oracleRequirementError{caseID: caseID}
+		}
+		return nil, err
+	}
+	if executionMode != runbundle.ExecutionModeOracleRun {
+		return nil, nil
+	}
+	packedAssets, err := testassets.PackDir(oracleDir)
+	if err != nil {
+		return nil, fmt.Errorf("package %s: %w", oracleDir, err)
+	}
+	return &packedAssets, nil
 }
 
 func readRequiredPromptFile(path string) (string, error) {

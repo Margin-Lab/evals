@@ -9,15 +9,17 @@ import (
 	"github.com/marginlab/margin-eval/runner/runner-local/runfs"
 )
 
-type testExecutionResult struct {
+type commandExecutionResult struct {
 	ExitCode  int
 	Artifacts []store.Artifact
 	StdoutRef string
 	StderrRef string
 }
 
-type testOutputCapture struct {
+type outputCapture struct {
 	instanceID string
+	stdoutRole string
+	stderrRole string
 
 	stdoutPath     string
 	stdoutStoreKey string
@@ -28,18 +30,20 @@ type testOutputCapture struct {
 	stderrFile     *os.File
 }
 
-func newTestOutputCapture(runDir, instanceID string) (*testOutputCapture, error) {
-	stdoutPath, stdoutStoreKey, stdoutFile, err := openTestOutputFile(runDir, instanceID, store.ArtifactRoleTestStdout)
+func newOutputCapture(runDir, instanceID, stdoutRole, stderrRole string) (*outputCapture, error) {
+	stdoutPath, stdoutStoreKey, stdoutFile, err := openOutputFile(runDir, instanceID, stdoutRole)
 	if err != nil {
 		return nil, err
 	}
-	stderrPath, stderrStoreKey, stderrFile, err := openTestOutputFile(runDir, instanceID, store.ArtifactRoleTestStderr)
+	stderrPath, stderrStoreKey, stderrFile, err := openOutputFile(runDir, instanceID, stderrRole)
 	if err != nil {
 		_ = stdoutFile.Close()
 		return nil, err
 	}
-	return &testOutputCapture{
+	return &outputCapture{
 		instanceID:     instanceID,
+		stdoutRole:     stdoutRole,
+		stderrRole:     stderrRole,
 		stdoutPath:     stdoutPath,
 		stdoutStoreKey: stdoutStoreKey,
 		stdoutFile:     stdoutFile,
@@ -49,7 +53,7 @@ func newTestOutputCapture(runDir, instanceID string) (*testOutputCapture, error)
 	}, nil
 }
 
-func openTestOutputFile(runDir, instanceID, role string) (string, string, *os.File, error) {
+func openOutputFile(runDir, instanceID, role string) (string, string, *os.File, error) {
 	path, storeKey, _, ok := runfs.AbsoluteArtifactPath(runDir, instanceID, role)
 	if !ok {
 		return "", "", nil, fmt.Errorf("resolve %s artifact path", role)
@@ -64,21 +68,21 @@ func openTestOutputFile(runDir, instanceID, role string) (string, string, *os.Fi
 	return path, storeKey, f, nil
 }
 
-func (c *testOutputCapture) close() error {
+func (c *outputCapture) close() error {
 	if c == nil {
 		return nil
 	}
 	var firstErr error
-	if err := closeTestOutputFile(&c.stdoutFile); err != nil && firstErr == nil {
-		firstErr = fmt.Errorf("close test stdout artifact file: %w", err)
+	if err := closeOutputFile(&c.stdoutFile); err != nil && firstErr == nil {
+		firstErr = fmt.Errorf("close %s artifact file: %w", c.stdoutRole, err)
 	}
-	if err := closeTestOutputFile(&c.stderrFile); err != nil && firstErr == nil {
-		firstErr = fmt.Errorf("close test stderr artifact file: %w", err)
+	if err := closeOutputFile(&c.stderrFile); err != nil && firstErr == nil {
+		firstErr = fmt.Errorf("close %s artifact file: %w", c.stderrRole, err)
 	}
 	return firstErr
 }
 
-func closeTestOutputFile(file **os.File) error {
+func closeOutputFile(file **os.File) error {
 	if file == nil || *file == nil {
 		return nil
 	}
@@ -87,22 +91,22 @@ func closeTestOutputFile(file **os.File) error {
 	return err
 }
 
-func (c *testOutputCapture) finalize() ([]store.Artifact, string, string, error) {
+func (c *outputCapture) finalize() ([]store.Artifact, string, string, error) {
 	if err := c.close(); err != nil {
 		return nil, "", "", err
 	}
-	stdoutArtifact, err := buildTestOutputArtifact(c.instanceID, store.ArtifactRoleTestStdout, 0, c.stdoutStoreKey, c.stdoutPath)
+	stdoutArtifact, err := buildOutputArtifact(c.instanceID, c.stdoutRole, 0, c.stdoutStoreKey, c.stdoutPath)
 	if err != nil {
 		return nil, "", "", err
 	}
-	stderrArtifact, err := buildTestOutputArtifact(c.instanceID, store.ArtifactRoleTestStderr, 1, c.stderrStoreKey, c.stderrPath)
+	stderrArtifact, err := buildOutputArtifact(c.instanceID, c.stderrRole, 1, c.stderrStoreKey, c.stderrPath)
 	if err != nil {
 		return nil, "", "", err
 	}
 	return []store.Artifact{stdoutArtifact, stderrArtifact}, c.stdoutStoreKey, c.stderrStoreKey, nil
 }
 
-func buildTestOutputArtifact(instanceID, role string, ordinal int, storeKey, path string) (store.Artifact, error) {
+func buildOutputArtifact(instanceID, role string, ordinal int, storeKey, path string) (store.Artifact, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return store.Artifact{}, fmt.Errorf("stat %s artifact %q: %w", role, path, err)
@@ -114,7 +118,7 @@ func buildTestOutputArtifact(instanceID, role string, ordinal int, storeKey, pat
 	if err != nil {
 		return store.Artifact{}, fmt.Errorf("hash %s artifact %q: %w", role, path, err)
 	}
-	artifactSuffix, err := testOutputArtifactSuffix(role)
+	artifactSuffix, err := outputArtifactSuffix(role)
 	if err != nil {
 		return store.Artifact{}, err
 	}
@@ -130,13 +134,17 @@ func buildTestOutputArtifact(instanceID, role string, ordinal int, storeKey, pat
 	}, nil
 }
 
-func testOutputArtifactSuffix(role string) (string, error) {
+func outputArtifactSuffix(role string) (string, error) {
 	switch role {
+	case store.ArtifactRoleOracleStdout:
+		return "oracle-stdout", nil
+	case store.ArtifactRoleOracleStderr:
+		return "oracle-stderr", nil
 	case store.ArtifactRoleTestStdout:
 		return "test-stdout", nil
 	case store.ArtifactRoleTestStderr:
 		return "test-stderr", nil
 	default:
-		return "", fmt.Errorf("unsupported streamed test artifact role %q", role)
+		return "", fmt.Errorf("unsupported streamed artifact role %q", role)
 	}
 }

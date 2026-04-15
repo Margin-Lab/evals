@@ -6,17 +6,32 @@
 
 **Option B: Dockerfile** — remove `image` from `case.toml` and add `env/Dockerfile`. The runner builds it before each run. Use `--cleanup-built-images` to remove images after the run.
 
-## Using the oracle directory
+## Using oracle solutions
 
-Place reference files (expected outputs, fixtures) in `oracle/`. They're available in the container at test time:
+Use `oracle/` when you want a case-local reference implementation that Margin can apply with `--oracle-run`.
 
 ```
 cases/fix-null-check/
   oracle/
+    solve.sh
     expected-output.json
-  tests/
-    test.sh
 ```
+
+Rules:
+
+- `oracle/solve.sh` is required whenever `oracle/` exists.
+- Any additional files under `oracle/` are staged alongside `solve.sh`.
+- In `--oracle-run`, Margin provisions the container, runs `oracle/solve.sh`, and then runs the normal case `tests/test.sh`.
+- All selected cases must define `oracle/solve.sh` when `--oracle-run` is used.
+
+At runtime, `oracle/solve.sh` executes with:
+
+- working directory: `test_cwd`
+- `MARGIN_AGENT_CWD`: the case `agent_cwd`
+- `MARGIN_TEST_CWD`: the case `test_cwd`
+- `MARGIN_ORACLE_DIR`: the staged oracle directory inside the container
+
+Use this when you want a gold implementation that mutates the repo before grading, not just passive fixture files.
 
 ## Using a suite preamble
 

@@ -36,6 +36,12 @@ func TestValidInstanceTransitionProvisioningCanSkipImageBuild(t *testing.T) {
 	}
 }
 
+func TestValidInstanceTransitionProvisioningCanApplyOracleDirectly(t *testing.T) {
+	if !ValidInstanceTransition(InstanceStateProvisioning, InstanceStateOracleApplying) {
+		t.Fatalf("expected provisioning -> oracle_applying to be valid")
+	}
+}
+
 func TestValidInstanceTransitionBootingRequiresConfigBeforeInstall(t *testing.T) {
 	if ValidInstanceTransition(InstanceStateBooting, InstanceStateAgentInstalling) {
 		t.Fatalf("expected booting -> agent_installing to be invalid after hard cutover")

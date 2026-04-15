@@ -8,9 +8,9 @@ func ValidInstanceTransition(from, to InstanceState) bool {
 	case InstanceStatePending:
 		return to == InstanceStateProvisioning || to == InstanceStateCanceled || to == InstanceStateTestFailed || to == InstanceStateInfraFailed
 	case InstanceStateProvisioning:
-		return to == InstanceStateImageBuilding || to == InstanceStateAgentServerInstalling || to == InstanceStateCanceled || to == InstanceStateTestFailed || to == InstanceStateInfraFailed
+		return to == InstanceStateImageBuilding || to == InstanceStateAgentServerInstalling || to == InstanceStateOracleApplying || to == InstanceStateCanceled || to == InstanceStateTestFailed || to == InstanceStateInfraFailed
 	case InstanceStateImageBuilding:
-		return to == InstanceStateAgentServerInstalling || to == InstanceStateCanceled || to == InstanceStateTestFailed || to == InstanceStateInfraFailed
+		return to == InstanceStateAgentServerInstalling || to == InstanceStateOracleApplying || to == InstanceStateCanceled || to == InstanceStateTestFailed || to == InstanceStateInfraFailed
 	case InstanceStateAgentServerInstalling:
 		return to == InstanceStateBooting || to == InstanceStateCanceled || to == InstanceStateTestFailed || to == InstanceStateInfraFailed
 	case InstanceStateBooting:
@@ -23,6 +23,8 @@ func ValidInstanceTransition(from, to InstanceState) bool {
 		return to == InstanceStateAgentCollecting || to == InstanceStateCanceled || to == InstanceStateTestFailed || to == InstanceStateInfraFailed
 	case InstanceStateAgentCollecting:
 		return to == InstanceStateTesting || to == InstanceStateCanceled || to == InstanceStateTestFailed || to == InstanceStateInfraFailed || to == InstanceStateCollecting
+	case InstanceStateOracleApplying:
+		return to == InstanceStateTesting || to == InstanceStateCollecting || to == InstanceStateCanceled || to == InstanceStateTestFailed || to == InstanceStateInfraFailed
 	case InstanceStateTesting:
 		return to == InstanceStateCollecting || to == InstanceStateCanceled || to == InstanceStateTestFailed || to == InstanceStateInfraFailed
 	case InstanceStateCollecting:

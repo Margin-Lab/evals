@@ -28,7 +28,7 @@ func shouldTailArtifactPreview(artifact store.Artifact) bool {
 	switch strings.TrimSpace(artifact.Role) {
 	case store.ArtifactRoleAgentPTY:
 		return true
-	case store.ArtifactRoleTestStdout, store.ArtifactRoleTestStderr:
+	case store.ArtifactRoleOracleStdout, store.ArtifactRoleOracleStderr, store.ArtifactRoleTestStdout, store.ArtifactRoleTestStderr:
 		return strings.HasPrefix(strings.TrimSpace(artifact.ArtifactID), liveArtifactIDPrefix)
 	default:
 		return false
@@ -164,6 +164,8 @@ func (s *LocalSource) injectLiveArtifacts(snapshot *runnerapi.RunSnapshot) {
 		store.ArtifactRoleAgentControl,
 		store.ArtifactRoleAgentRuntime,
 		store.ArtifactRoleAgentPTY,
+		store.ArtifactRoleOracleStdout,
+		store.ArtifactRoleOracleStderr,
 		store.ArtifactRoleTestStdout,
 		store.ArtifactRoleTestStderr,
 	}

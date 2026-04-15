@@ -10,6 +10,7 @@ import (
 
 	"github.com/marginlab/margin-eval/runner/runner-core/agentdef"
 	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
+	"github.com/marginlab/margin-eval/runner/runner-core/testassets"
 )
 
 func TestCompileAgentDefinitionAndConfigSuccess(t *testing.T) {
@@ -167,6 +168,111 @@ instance_timeout_seconds = 300
 	_, err := Compile(CompileInput{SuitePath: suitePath, AgentConfigPath: configPath, EvalPath: evalPath})
 	if err == nil || !strings.Contains(err.Error(), "definition is required") {
 		t.Fatalf("expected missing definition error, got %v", err)
+	}
+}
+
+func TestCompileUsesRequestedExecutionMode(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	suitePath := filepath.Join(root, "suite")
+	createSuiteWithCases(t, suitePath, []string{"repo-build"})
+	writeFile(t, filepath.Join(suitePath, "cases", "repo-build", "oracle", "solve.sh"), "#!/usr/bin/env bash\ntrue\n")
+
+	_, configPath := createAgentDefinitionConfig(t, root, "shell-agent", `[input]
+command = ["bash", "-lc", "echo hello"]
+`)
+
+	evalPath := filepath.Join(root, "eval.toml")
+	writeFile(t, evalPath, `kind = "eval_config"
+name = "smoke"
+max_concurrency = 1
+fail_fast = false
+instance_timeout_seconds = 300
+`)
+
+	bundle, err := Compile(CompileInput{
+		SuitePath:       suitePath,
+		AgentConfigPath: configPath,
+		EvalPath:        evalPath,
+		ExecutionMode:   runbundle.ExecutionModeOracleRun,
+	})
+	if err != nil {
+		t.Fatalf("Compile() error = %v", err)
+	}
+	if bundle.ResolvedSnapshot.Execution.Mode != runbundle.ExecutionModeOracleRun {
+		t.Fatalf("Execution.Mode = %q, want %q", bundle.ResolvedSnapshot.Execution.Mode, runbundle.ExecutionModeOracleRun)
+	}
+	if bundle.ResolvedSnapshot.Cases[0].OracleAssets == nil {
+		t.Fatalf("expected oracle assets to be compiled in oracle_run mode")
+	}
+	containsSolve, err := testassets.ContainsPath(*bundle.ResolvedSnapshot.Cases[0].OracleAssets, "solve.sh", 1<<20)
+	if err != nil {
+		t.Fatalf("ContainsPath() error = %v", err)
+	}
+	if !containsSolve {
+		t.Fatalf("expected oracle assets to contain solve.sh")
+	}
+}
+
+func TestCompileOracleRunRejectsCasesWithoutOracleSolveScript(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	suitePath := filepath.Join(root, "suite")
+	createSuiteWithCases(t, suitePath, []string{"with-oracle", "missing-oracle"})
+	writeFile(t, filepath.Join(suitePath, "cases", "with-oracle", "oracle", "solve.sh"), "#!/usr/bin/env bash\ntrue\n")
+
+	_, configPath := createAgentDefinitionConfig(t, root, "shell-agent", `[input]
+command = ["bash", "-lc", "echo hello"]
+`)
+
+	evalPath := filepath.Join(root, "eval.toml")
+	writeFile(t, evalPath, `kind = "eval_config"
+name = "smoke"
+max_concurrency = 1
+fail_fast = false
+instance_timeout_seconds = 300
+`)
+
+	_, err := Compile(CompileInput{
+		SuitePath:       suitePath,
+		AgentConfigPath: configPath,
+		EvalPath:        evalPath,
+		ExecutionMode:   runbundle.ExecutionModeOracleRun,
+	})
+	if err == nil || !strings.Contains(err.Error(), "oracle_run requires every case to include oracle/solve.sh") || !strings.Contains(err.Error(), "missing-oracle") {
+		t.Fatalf("expected oracle_run missing oracle error, got %v", err)
+	}
+}
+
+func TestCompileRejectsOracleDirectoryWithoutSolveScript(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	suitePath := filepath.Join(root, "suite")
+	createSuiteWithCases(t, suitePath, []string{"repo-build"})
+	writeFile(t, filepath.Join(suitePath, "cases", "repo-build", "oracle", "notes.txt"), "supporting data\n")
+
+	_, configPath := createAgentDefinitionConfig(t, root, "shell-agent", `[input]
+command = ["bash", "-lc", "echo hello"]
+`)
+
+	evalPath := filepath.Join(root, "eval.toml")
+	writeFile(t, evalPath, `kind = "eval_config"
+name = "smoke"
+max_concurrency = 1
+fail_fast = false
+instance_timeout_seconds = 300
+`)
+
+	_, err := Compile(CompileInput{
+		SuitePath:       suitePath,
+		AgentConfigPath: configPath,
+		EvalPath:        evalPath,
+	})
+	if err == nil || !strings.Contains(err.Error(), `case "repo-build" defines oracle/ but is missing oracle/solve.sh`) {
+		t.Fatalf("expected missing solve.sh validation error, got %v", err)
 	}
 }
 

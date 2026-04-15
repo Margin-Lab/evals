@@ -32,6 +32,7 @@ const (
 	InstanceStateAgentConfiguring      InstanceState = "agent_configuring"
 	InstanceStateAgentRunning          InstanceState = "agent_running"
 	InstanceStateAgentCollecting       InstanceState = "agent_collecting"
+	InstanceStateOracleApplying        InstanceState = "oracle_applying"
 	InstanceStateTesting               InstanceState = "testing"
 	InstanceStateCollecting            InstanceState = "collecting_artifacts"
 	InstanceStateSucceeded             InstanceState = "succeeded"

@@ -128,12 +128,13 @@ func validateResolvedSnapshot(s ResolvedSnapshot) error {
 		return fmt.Errorf("resolved_snapshot.name is required")
 	}
 	switch s.Execution.Mode {
-	case ExecutionModeFull, ExecutionModeDryRun:
+	case ExecutionModeFull, ExecutionModeDryRun, ExecutionModeOracleRun:
 	default:
 		return fmt.Errorf(
-			"resolved_snapshot.execution.mode must be %q or %q",
+			"resolved_snapshot.execution.mode must be one of %q, %q, %q",
 			ExecutionModeFull,
 			ExecutionModeDryRun,
+			ExecutionModeOracleRun,
 		)
 	}
 	if s.Execution.MaxConcurrency <= 0 {
@@ -158,14 +159,14 @@ func validateResolvedSnapshot(s ResolvedSnapshot) error {
 		return fmt.Errorf("resolved_snapshot.cases must be non-empty")
 	}
 	for i, c := range s.Cases {
-		if err := validateCase(c); err != nil {
+		if err := validateCase(c, s.Execution.Mode); err != nil {
 			return fmt.Errorf("case[%d]: %w", i, err)
 		}
 	}
 	return nil
 }
 
-func validateCase(c Case) error {
+func validateCase(c Case, executionMode ExecutionMode) error {
 	if strings.TrimSpace(c.CaseID) == "" {
 		return fmt.Errorf("case_id is required")
 	}
@@ -200,6 +201,14 @@ func validateCase(c Case) error {
 	if err := testassets.ValidateDescriptor(c.TestAssets, testassets.DefaultMaxArchiveBytes); err != nil {
 		return fmt.Errorf("test_assets: %w", err)
 	}
+	if c.OracleAssets != nil {
+		if err := validateCaseOracleAssets(*c.OracleAssets); err != nil {
+			return fmt.Errorf("oracle_assets: %w", err)
+		}
+	}
+	if executionMode == ExecutionModeOracleRun && c.OracleAssets == nil {
+		return fmt.Errorf("oracle_assets are required in oracle_run mode")
+	}
 	return nil
 }
 
@@ -220,6 +229,20 @@ func validateCaseImageBuild(spec CaseImageBuild) error {
 	}
 	if normalized == "." || normalized == ".." || strings.HasPrefix(normalized, "../") {
 		return fmt.Errorf("dockerfile_rel_path must not escape build context")
+	}
+	return nil
+}
+
+func validateCaseOracleAssets(spec OracleAssets) error {
+	if err := testassets.ValidateDescriptor(spec, testassets.DefaultMaxArchiveBytes); err != nil {
+		return err
+	}
+	hasSolveScript, err := testassets.ContainsPath(spec, "solve.sh", testassets.DefaultMaxArchiveBytes)
+	if err != nil {
+		return err
+	}
+	if !hasSolveScript {
+		return fmt.Errorf("oracle assets must include solve.sh")
 	}
 	return nil
 }

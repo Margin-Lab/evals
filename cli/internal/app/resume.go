@@ -70,6 +70,31 @@ func validateRunSourceFlags(resumeFromDir, suitePath, agentConfigPath, evalPath 
 	return err
 }
 
+func validateExecutionModeForRunSource(resumeFromDir, suitePath, agentConfigPath, evalPath string, executionMode runbundle.ExecutionMode) error {
+	sourceMode, err := classifyRunSourceMode(resumeFromDir, suitePath, agentConfigPath, evalPath)
+	if err != nil {
+		return err
+	}
+	if sourceMode == runSourceModeResumeExact && executionMode != runbundle.ExecutionModeFull {
+		return fmt.Errorf(
+			"%s requires --suite, --agent-config, and --eval when used with --resume-from",
+			executionModeFlagName(executionMode),
+		)
+	}
+	return nil
+}
+
+func executionModeFlagName(mode runbundle.ExecutionMode) string {
+	switch mode {
+	case runbundle.ExecutionModeDryRun:
+		return "--dry-run"
+	case runbundle.ExecutionModeOracleRun:
+		return "--oracle-run"
+	default:
+		return "execution mode override"
+	}
+}
+
 func resumeBundlePolicyForMode(mode runSourceMode) runnerapi.ResumeBundlePolicy {
 	switch mode {
 	case runSourceModeResumeOverride:
