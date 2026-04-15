@@ -753,11 +753,13 @@ func TestRunSetsExecutionModeDryRunWhenFlagPresent(t *testing.T) {
 		launchMissionControl = origLaunchMissionControl
 	}()
 
-	compileBundle = func(_ compiler.CompileInput) (runbundle.Bundle, error) {
+	var compileInput compiler.CompileInput
+	compileBundle = func(in compiler.CompileInput) (runbundle.Bundle, error) {
+		compileInput = in
 		return runbundle.Bundle{
 			ResolvedSnapshot: runbundle.ResolvedSnapshot{
 				Name:      "smoke",
-				Execution: runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1},
+				Execution: runbundle.Execution{Mode: in.ExecutionMode, MaxConcurrency: 1},
 			},
 		}, nil
 	}
@@ -787,8 +789,11 @@ func TestRunSetsExecutionModeDryRunWhenFlagPresent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runRun returned error: %v", err)
 	}
+	if compileInput.ExecutionMode != runbundle.ExecutionModeDryRun {
+		t.Fatalf("CompileInput.ExecutionMode = %q, want %q", compileInput.ExecutionMode, runbundle.ExecutionModeDryRun)
+	}
 	if svc.submitInput.Bundle.ResolvedSnapshot.Execution.Mode != runbundle.ExecutionModeDryRun {
-		t.Fatalf("Execution.Mode = %q, want %q", svc.submitInput.Bundle.ResolvedSnapshot.Execution.Mode, runbundle.ExecutionModeDryRun)
+		t.Fatalf("submitted Execution.Mode = %q, want %q", svc.submitInput.Bundle.ResolvedSnapshot.Execution.Mode, runbundle.ExecutionModeDryRun)
 	}
 }
 
@@ -804,11 +809,13 @@ func TestRunSetsExecutionModeFullByDefault(t *testing.T) {
 		launchMissionControl = origLaunchMissionControl
 	}()
 
-	compileBundle = func(_ compiler.CompileInput) (runbundle.Bundle, error) {
+	var compileInput compiler.CompileInput
+	compileBundle = func(in compiler.CompileInput) (runbundle.Bundle, error) {
+		compileInput = in
 		return runbundle.Bundle{
 			ResolvedSnapshot: runbundle.ResolvedSnapshot{
 				Name:      "smoke",
-				Execution: runbundle.Execution{Mode: runbundle.ExecutionModeDryRun, MaxConcurrency: 1},
+				Execution: runbundle.Execution{Mode: in.ExecutionMode, MaxConcurrency: 1},
 			},
 		}, nil
 	}
@@ -837,8 +844,84 @@ func TestRunSetsExecutionModeFullByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runRun returned error: %v", err)
 	}
+	if compileInput.ExecutionMode != runbundle.ExecutionModeFull {
+		t.Fatalf("CompileInput.ExecutionMode = %q, want %q", compileInput.ExecutionMode, runbundle.ExecutionModeFull)
+	}
 	if svc.submitInput.Bundle.ResolvedSnapshot.Execution.Mode != runbundle.ExecutionModeFull {
 		t.Fatalf("Execution.Mode = %q, want %q", svc.submitInput.Bundle.ResolvedSnapshot.Execution.Mode, runbundle.ExecutionModeFull)
+	}
+}
+
+func TestRunSetsExecutionModeOracleRunWhenFlagPresent(t *testing.T) {
+	origCompile := compileBundle
+	origNewExecutor := newLocalExecutor
+	origNewService := newLocalRunnerService
+	origLaunchMissionControl := launchMissionControl
+	defer func() {
+		compileBundle = origCompile
+		newLocalExecutor = origNewExecutor
+		newLocalRunnerService = origNewService
+		launchMissionControl = origLaunchMissionControl
+	}()
+
+	var compileInput compiler.CompileInput
+	compileBundle = func(in compiler.CompileInput) (runbundle.Bundle, error) {
+		compileInput = in
+		return runbundle.Bundle{
+			ResolvedSnapshot: runbundle.ResolvedSnapshot{
+				Name:      "smoke",
+				Execution: runbundle.Execution{Mode: in.ExecutionMode, MaxConcurrency: 1},
+			},
+		}, nil
+	}
+	newLocalExecutor = func(_ localexecutor.Config) (engine.Executor, error) {
+		return fakeExecutor{}, nil
+	}
+	svc := &capturingRunnerService{}
+	newLocalRunnerService = func(_ localrunner.Config) (runnerapi.Service, error) {
+		return svc, nil
+	}
+	launchMissionControl = func(_ context.Context, cfg missioncontrol.Config) (missioncontrol.Outcome, error) {
+		return missioncontrol.Outcome{
+			FinalRun: store.Run{RunID: cfg.RunID, State: domain.RunStateCompleted},
+		}, nil
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	a := New(&stdout, &stderr)
+	err := a.runRun(context.Background(), []string{
+		"--suite", "suite",
+		"--agent-config", "agent-config",
+		"--eval", "eval",
+		"--agent-server-binary", "agent-server",
+		"--oracle-run",
+	})
+	if err != nil {
+		t.Fatalf("runRun returned error: %v", err)
+	}
+	if compileInput.ExecutionMode != runbundle.ExecutionModeOracleRun {
+		t.Fatalf("CompileInput.ExecutionMode = %q, want %q", compileInput.ExecutionMode, runbundle.ExecutionModeOracleRun)
+	}
+	if svc.submitInput.Bundle.ResolvedSnapshot.Execution.Mode != runbundle.ExecutionModeOracleRun {
+		t.Fatalf("submitted Execution.Mode = %q, want %q", svc.submitInput.Bundle.ResolvedSnapshot.Execution.Mode, runbundle.ExecutionModeOracleRun)
+	}
+}
+
+func TestRunRejectsDryRunAndOracleRunTogether(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	a := New(&stdout, &stderr)
+	err := a.runRun(context.Background(), []string{
+		"--suite", "suite",
+		"--agent-config", "agent-config",
+		"--eval", "eval",
+		"--agent-server-binary", "agent-server",
+		"--dry-run",
+		"--oracle-run",
+	})
+	if err == nil || !strings.Contains(err.Error(), "--dry-run and --oracle-run cannot be used together") {
+		t.Fatalf("expected execution mode validation error, got %v", err)
 	}
 }
 
@@ -945,6 +1028,21 @@ func TestRunRejectsPartialUpdatedInputsWhenResumeFromIsSet(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "--resume-from with updated inputs requires --suite, --agent-config, and --eval") {
 		t.Fatalf("expected resume/source flag validation error, got %v", err)
+	}
+}
+
+func TestRunRejectsOracleRunWithExactResume(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	a := New(&stdout, &stderr)
+
+	err := a.runRun(context.Background(), []string{
+		"--resume-from", "/tmp/run_123",
+		"--agent-server-binary", "agent-server",
+		"--oracle-run",
+	})
+	if err == nil || !strings.Contains(err.Error(), "--oracle-run requires --suite, --agent-config, and --eval when used with --resume-from") {
+		t.Fatalf("expected oracle resume validation error, got %v", err)
 	}
 }
 
@@ -1274,6 +1372,37 @@ func TestRunRejectsAuthFileOverrideWithoutSingleManifestLocalFile(t *testing.T) 
 	}
 }
 
+func TestRunRejectsAuthFileOverrideInOracleRun(t *testing.T) {
+	origCompile := compileBundle
+	defer func() {
+		compileBundle = origCompile
+	}()
+
+	compileBundle = func(_ compiler.CompileInput) (runbundle.Bundle, error) {
+		return runbundle.Bundle{
+			ResolvedSnapshot: runbundle.ResolvedSnapshot{
+				Execution: runbundle.Execution{Mode: runbundle.ExecutionModeOracleRun, MaxConcurrency: 1},
+				Agent:     validAgent(),
+			},
+		}, nil
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	a := New(&stdout, &stderr)
+	err := a.runRun(context.Background(), []string{
+		"--suite", "suite",
+		"--agent-config", "agent-config",
+		"--eval", "eval",
+		"--agent-server-binary", "agent-server",
+		"--oracle-run",
+		"--auth-file-path", "auth.json",
+	})
+	if err == nil || !strings.Contains(err.Error(), "--auth-file-path is not supported with --oracle-run") {
+		t.Fatalf("expected oracle auth-file rejection, got %v", err)
+	}
+}
+
 func TestRunShowsPreRunConfirmationWithResolvedAuthAndPruneWarning(t *testing.T) {
 	origCompile := compileBundle
 	origNewExecutor := newLocalExecutor
@@ -1443,7 +1572,7 @@ func TestBuildRunConfirmationSpecUsesOAuthCredentialWording(t *testing.T) {
 		Mode:        localexecutor.AuthPreviewModeOAuth,
 		SourceKind:  "home_file",
 		SourceLabel: "/Users/josebouza/.codex/auth.json",
-	}}, 0, false, nil)
+	}}, 0, runbundle.ExecutionModeFull, nil)
 
 	if len(spec.Auth) != 1 {
 		t.Fatalf("auth spec = %#v", spec.Auth)
@@ -1465,7 +1594,7 @@ func TestBuildRunConfirmationSpecUsesKeychainOAuthWording(t *testing.T) {
 		Mode:        localexecutor.AuthPreviewModeOAuth,
 		SourceKind:  "macos_keychain",
 		SourceLabel: "Claude Code-credentials",
-	}}, 0, false, nil)
+	}}, 0, runbundle.ExecutionModeFull, nil)
 
 	if len(spec.Auth) != 1 {
 		t.Fatalf("auth spec = %#v", spec.Auth)
@@ -1482,9 +1611,9 @@ func TestBuildRunConfirmationSpecMarksDryRun(t *testing.T) {
 	spec := buildRunConfirmationSpec("codex", "run_test_1", "/tmp/output", "", []localexecutor.AuthPreview{{
 		RequiredEnv: "OPENAI_API_KEY",
 		Mode:        localexecutor.AuthPreviewModeAPIKey,
-	}}, 0, true, nil)
+	}}, 0, runbundle.ExecutionModeDryRun, nil)
 
-	if !spec.DryRun {
+	if !spec.DryRun() {
 		t.Fatalf("expected dry run spec")
 	}
 }

@@ -8,6 +8,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
 )
 
 type runConfirmationAuthItem struct {
@@ -24,8 +26,16 @@ type runConfirmationSpec struct {
 	ResumeFromDir   string
 	Auth            []runConfirmationAuthItem
 	PruneBuiltImage int
-	DryRun          bool
+	ExecutionMode   runbundle.ExecutionMode
 	ResumeWarning   *resumeWarningSummary
+}
+
+func (s runConfirmationSpec) DryRun() bool {
+	return s.ExecutionMode == runbundle.ExecutionModeDryRun
+}
+
+func (s runConfirmationSpec) OracleRun() bool {
+	return s.ExecutionMode == runbundle.ExecutionModeOracleRun
 }
 
 func runConfirmationTUI(out io.Writer, spec runConfirmationSpec) (bool, error) {
@@ -178,7 +188,11 @@ func renderRunAuthBlock(width int, spec runConfirmationSpec) string {
 	}
 	switch item.Method {
 	case "API key":
-		if spec.DryRun {
+		if spec.OracleRun() {
+			lines = append(lines, runConfirmationWarnTextStyle.Render("Oracle-run mode active: agent authentication is not used in this run."))
+			break
+		}
+		if spec.DryRun() {
 			lines = append(lines, runConfirmationWarnTextStyle.Render("Dry-run mode active: No token usage in this run."))
 			break
 		}
@@ -190,7 +204,11 @@ func renderRunAuthBlock(width int, spec runConfirmationSpec) string {
 			{text: " to run the agent " + agentName + ". Please ensure sufficient API credits before confirming the run.", style: runConfirmationWarnTextStyle},
 		}))
 	case "OAuth credential file":
-		if spec.DryRun {
+		if spec.OracleRun() {
+			lines = append(lines, runConfirmationWarnTextStyle.Render("Oracle-run mode active: agent authentication is not used in this run."))
+			break
+		}
+		if spec.DryRun() {
 			lines = append(lines, runConfirmationWarnTextStyle.Render("Dry-run mode active: No token usage in this run."))
 			break
 		}
@@ -202,7 +220,11 @@ func renderRunAuthBlock(width int, spec runConfirmationSpec) string {
 			{text: " to run the agent " + agentName + ". Note that this will use tokens.", style: runConfirmationWarnTextStyle},
 		}))
 	case "OAuth credential":
-		if spec.DryRun {
+		if spec.OracleRun() {
+			lines = append(lines, runConfirmationWarnTextStyle.Render("Oracle-run mode active: agent authentication is not used in this run."))
+			break
+		}
+		if spec.DryRun() {
 			lines = append(lines, runConfirmationWarnTextStyle.Render("Dry-run mode active: No token usage in this run."))
 			break
 		}
@@ -214,7 +236,11 @@ func renderRunAuthBlock(width int, spec runConfirmationSpec) string {
 			{text: " to run the agent " + agentName + ". Note that this will use tokens.", style: runConfirmationWarnTextStyle},
 		}))
 	default:
-		if spec.DryRun {
+		if spec.OracleRun() {
+			lines = append(lines, runConfirmationWarnTextStyle.Render("Oracle-run mode active: agent authentication is not used in this run."))
+			break
+		}
+		if spec.DryRun() {
 			lines = append(lines, runConfirmationWarnTextStyle.Render("Dry-run mode active: No token usage in this run."))
 			break
 		}

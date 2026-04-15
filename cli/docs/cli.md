@@ -103,6 +103,18 @@ margin run \
 
 Dry-run validates the prelaunch path through `run.prepare`, skill materialization, auth-file setup, and `agents.md` writing, skips agent execution, and still runs the case tests against the pristine workspace.
 
+To apply each case's oracle solution instead of running the agent, add `--oracle-run`:
+
+```bash
+margin run \
+  --suite ./suites/smoke \
+  --agent-config ./configs/agent-configs/my-agent-default \
+  --eval ./configs/evals/local.toml \
+  --oracle-run
+```
+
+Oracle-run provisions the case container, runs `oracle/solve.sh`, and then runs the normal case tests. It does not resolve agent auth, install `agent-server`, or launch the agent. Every selected case must define `oracle/solve.sh`. `--oracle-run` cannot be combined with `--dry-run`.
+
 The `margin` binary embeds the supported Linux `agent-server` payloads and extracts the required one into the user cache on demand.
 
 Use `--agent-server-binary /path/to/agent-server` only to force one exact host-side binary path.
@@ -120,6 +132,8 @@ If the corresponding provider API key is available, it still takes precedence. T
 ```bash
 margin run ... --auth-file-path /path/to/credentials.json
 ```
+
+`--auth-file-path` is only valid for normal and dry runs. Oracle-run does not use agent auth.
 
 Removed:
 

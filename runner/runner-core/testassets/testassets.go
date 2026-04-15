@@ -32,6 +32,27 @@ type Descriptor struct {
 	ArchiveTGZBytes  int    `json:"archive_tgz_bytes"`
 }
 
+func ContainsPath(desc Descriptor, relPath string, maxArchiveBytes int64) (bool, error) {
+	needle, err := sanitizeArchivePath(relPath)
+	if err != nil {
+		return false, fmt.Errorf("normalize archive path %q: %w", relPath, err)
+	}
+	payload, err := DecodeAndValidate(desc, maxArchiveBytes)
+	if err != nil {
+		return false, err
+	}
+	found := false
+	if _, err := walkArchive(payload, defaultMaxExtractedSize, func(name string, _ *tar.Header, _ io.Reader) error {
+		if name == needle {
+			found = true
+		}
+		return nil
+	}); err != nil {
+		return false, err
+	}
+	return found, nil
+}
+
 func PackDir(root string) (Descriptor, error) {
 	root = strings.TrimSpace(root)
 	if root == "" {

@@ -80,6 +80,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	exitOnComplete := fs.Bool("exit-on-complete", false, "exit immediately when an interactive run reaches a terminal state")
 	pruneBuiltImage := fs.Int("prune-built-image", 0, "enable lazy-built cleanup and globally prune all unused Docker images from the selected daemon every N completed executed instances (0 disables)")
 	dryRun := fs.Bool("dry-run", false, "skip agent execution but still run case tests on the pristine workspace")
+	oracleRun := fs.Bool("oracle-run", false, "skip agent execution, apply oracle/solve.sh, then run case tests")
 
 	runTimeout := fs.Duration("run-timeout", 0, "timeout waiting for run completion")
 	var agentEnv envFlag
@@ -90,7 +91,14 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	executionMode, err := resolveExecutionMode(*dryRun, *oracleRun)
+	if err != nil {
+		return err
+	}
 	if err := validateRunSourceFlags(*resumeFromDir, *suitePath, *agentConfigPath, *evalPath); err != nil {
+		return err
+	}
+	if err := validateExecutionModeForRunSource(*resumeFromDir, *suitePath, *agentConfigPath, *evalPath, executionMode); err != nil {
 		return err
 	}
 	runID, err := newRunID()
@@ -143,6 +151,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 		SuiteGit:        resolvedSuite.SuiteGit,
 		AgentConfigPath: *agentConfigPath,
 		EvalPath:        *evalPath,
+		ExecutionMode:   executionMode,
 		ResumeFromDir:   resolvedResumeFromDir,
 		NonInteractive:  *nonInteractive,
 	}, resumeMode)
@@ -150,14 +159,12 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 		return err
 	}
 	bundle := prepared.Bundle
-	if *dryRun {
-		bundle.ResolvedSnapshot.Execution.Mode = runbundle.ExecutionModeDryRun
-	} else {
-		bundle.ResolvedSnapshot.Execution.Mode = runbundle.ExecutionModeFull
-	}
 	workerCount, err := localWorkerCount(bundle.ResolvedSnapshot.Execution.MaxConcurrency)
 	if err != nil {
 		return err
+	}
+	if executionMode == runbundle.ExecutionModeOracleRun && strings.TrimSpace(*authFilePath) != "" {
+		return fmt.Errorf("--auth-file-path is not supported with --oracle-run")
 	}
 	if strings.TrimSpace(*authFilePath) != "" {
 		localCredentials := bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.LocalCredentials
@@ -165,9 +172,12 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 			return fmt.Errorf("--auth-file-path requires the selected agent definition to declare exactly one auth.local_credentials entry; found %d", len(localCredentials))
 		}
 	}
-	requiredAgentEnv, err := agentdef.ResolveRequiredEnvForConfigSpec(bundle.ResolvedSnapshot.Agent.Definition, bundle.ResolvedSnapshot.Agent.Config)
-	if err != nil {
-		return fmt.Errorf("resolve required agent auth: %w", err)
+	requiredAgentEnv := []string(nil)
+	if executionMode != runbundle.ExecutionModeOracleRun {
+		requiredAgentEnv, err = agentdef.ResolveRequiredEnvForConfigSpec(bundle.ResolvedSnapshot.Agent.Definition, bundle.ResolvedSnapshot.Agent.Config)
+		if err != nil {
+			return fmt.Errorf("resolve required agent auth: %w", err)
+		}
 	}
 
 	useInteractiveConfirmation := !*nonInteractive && shouldConfirmRun(a.stderr)
@@ -175,14 +185,17 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 		printResumeWarning(a.stderr, *prepared.ResumeWarning)
 	}
 	if useInteractiveConfirmation {
-		authPreview, err := localexecutor.PreviewAuth(
-			agentEnv.Clone(),
-			requiredAgentEnv,
-			bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.LocalCredentials,
-			strings.TrimSpace(*authFilePath),
-		)
-		if err != nil {
-			return err
+		authPreview := []localexecutor.AuthPreview(nil)
+		if executionMode != runbundle.ExecutionModeOracleRun {
+			authPreview, err = localexecutor.PreviewAuth(
+				agentEnv.Clone(),
+				requiredAgentEnv,
+				bundle.ResolvedSnapshot.Agent.Definition.Manifest.Auth.LocalCredentials,
+				strings.TrimSpace(*authFilePath),
+			)
+			if err != nil {
+				return err
+			}
 		}
 		confirmed, err := launchRunConfirmation(
 			a.stderr,
@@ -193,7 +206,7 @@ func (a *App) runRun(ctx context.Context, args []string) error {
 				resolvedResumeFromDir,
 				authPreview,
 				*pruneBuiltImage,
-				*dryRun,
+				executionMode,
 				prepared.ResumeWarning,
 			),
 		)
@@ -316,6 +329,7 @@ type runBundleInput struct {
 	SuiteGit        *runbundle.SuiteGitRef
 	AgentConfigPath string
 	EvalPath        string
+	ExecutionMode   runbundle.ExecutionMode
 	ResumeFromDir   string
 	NonInteractive  bool
 }
@@ -329,6 +343,7 @@ func (a *App) compileRunBundle(in runBundleInput) (runbundle.Bundle, error) {
 		SuitePath:       in.SuitePath,
 		AgentConfigPath: in.AgentConfigPath,
 		EvalPath:        in.EvalPath,
+		ExecutionMode:   in.ExecutionMode,
 		SubmitProjectID: defaultLocalProjectID,
 		Progress:        compileProgress.Update,
 	})
@@ -404,14 +419,14 @@ func localWorkerCount(maxConcurrency int) (int, error) {
 	return maxConcurrency, nil
 }
 
-func buildRunConfirmationSpec(agentName, runID, outputDir, resumeFromDir string, authPreview []localexecutor.AuthPreview, pruneBuiltImage int, dryRun bool, resumeWarning *resumeWarningSummary) runConfirmationSpec {
+func buildRunConfirmationSpec(agentName, runID, outputDir, resumeFromDir string, authPreview []localexecutor.AuthPreview, pruneBuiltImage int, executionMode runbundle.ExecutionMode, resumeWarning *resumeWarningSummary) runConfirmationSpec {
 	spec := runConfirmationSpec{
 		AgentName:       strings.TrimSpace(agentName),
 		RunID:           strings.TrimSpace(runID),
 		OutputDir:       strings.TrimSpace(outputDir),
 		ResumeFromDir:   strings.TrimSpace(resumeFromDir),
 		PruneBuiltImage: pruneBuiltImage,
-		DryRun:          dryRun,
+		ExecutionMode:   executionMode,
 		ResumeWarning:   resumeWarning,
 	}
 	for _, item := range authPreview {
@@ -446,6 +461,19 @@ func buildRunConfirmationSpec(agentName, runID, outputDir, resumeFromDir string,
 		})
 	}
 	return spec
+}
+
+func resolveExecutionMode(dryRun, oracleRun bool) (runbundle.ExecutionMode, error) {
+	switch {
+	case dryRun && oracleRun:
+		return "", fmt.Errorf("--dry-run and --oracle-run cannot be used together")
+	case oracleRun:
+		return runbundle.ExecutionModeOracleRun, nil
+	case dryRun:
+		return runbundle.ExecutionModeDryRun, nil
+	default:
+		return runbundle.ExecutionModeFull, nil
+	}
 }
 
 func printResumeWarning(out io.Writer, summary resumeWarningSummary) {

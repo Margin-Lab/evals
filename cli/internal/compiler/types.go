@@ -4,12 +4,14 @@ import (
 	"time"
 
 	"github.com/marginlab/margin-eval/runner/runner-core/agentdef"
+	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
 )
 
 type CompileInput struct {
 	SuitePath       string
 	AgentConfigPath string
 	EvalPath        string
+	ExecutionMode   runbundle.ExecutionMode
 
 	SubmitProjectID string
 	BundleID        string

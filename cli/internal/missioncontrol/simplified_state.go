@@ -9,6 +9,7 @@ const (
 	simplifiedStateBuildingImage     simplifiedState = "building_image"
 	simplifiedStateProvisioningAgent simplifiedState = "provisioning_agent"
 	simplifiedStateRunningAgent      simplifiedState = "running_agent"
+	simplifiedStateApplyingOracle    simplifiedState = "applying_oracle"
 	simplifiedStateTestingAgent      simplifiedState = "testing_agent"
 	simplifiedStateSucceeded         simplifiedState = "succeeded"
 	simplifiedStateTestFailed        simplifiedState = "test_failed"
@@ -50,6 +51,12 @@ var simplifiedStates = []simplifiedStateSpec{
 		LogStreams: []logStream{logStreamAgentPTY},
 	},
 	{
+		ID:         simplifiedStateApplyingOracle,
+		Label:      "Applying Oracle",
+		ShortLabel: "Oracle",
+		LogStreams: []logStream{logStreamOracleOutput},
+	},
+	{
 		ID:         simplifiedStateTestingAgent,
 		Label:      "Testing",
 		ShortLabel: "Testing",
@@ -86,6 +93,7 @@ var alwaysVisibleSimplifiedStates = []simplifiedState{
 	simplifiedStateBuildingImage,
 	simplifiedStateProvisioningAgent,
 	simplifiedStateRunningAgent,
+	simplifiedStateApplyingOracle,
 	simplifiedStateTestingAgent,
 }
 
@@ -104,6 +112,8 @@ func simplifiedStateForInstanceState(state domain.InstanceState) simplifiedState
 		return simplifiedStateProvisioningAgent
 	case domain.InstanceStateAgentRunning, domain.InstanceStateAgentCollecting:
 		return simplifiedStateRunningAgent
+	case domain.InstanceStateOracleApplying:
+		return simplifiedStateApplyingOracle
 	case domain.InstanceStateTesting, domain.InstanceStateCollecting:
 		return simplifiedStateTestingAgent
 	case domain.InstanceStateSucceeded:
