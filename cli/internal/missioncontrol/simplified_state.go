@@ -1,6 +1,9 @@
 package missioncontrol
 
-import "github.com/marginlab/margin-eval/runner/runner-core/domain"
+import (
+	"github.com/marginlab/margin-eval/runner/runner-core/domain"
+	"github.com/marginlab/margin-eval/runner/runner-core/runbundle"
+)
 
 type simplifiedState string
 
@@ -88,12 +91,11 @@ var simplifiedStates = []simplifiedStateSpec{
 	},
 }
 
-var alwaysVisibleSimplifiedStates = []simplifiedState{
+var baseVisibleSimplifiedStates = []simplifiedState{
 	simplifiedStatePending,
 	simplifiedStateBuildingImage,
 	simplifiedStateProvisioningAgent,
 	simplifiedStateRunningAgent,
-	simplifiedStateApplyingOracle,
 	simplifiedStateTestingAgent,
 }
 
@@ -160,9 +162,15 @@ func simplifiedStateIsTerminal(state simplifiedState) bool {
 	}
 }
 
-func visibleSimplifiedStates(current simplifiedState) []simplifiedStateSpec {
-	visible := make([]simplifiedStateSpec, 0, len(alwaysVisibleSimplifiedStates)+1)
-	for _, id := range alwaysVisibleSimplifiedStates {
+func visibleSimplifiedStates(current simplifiedState, executionMode runbundle.ExecutionMode) []simplifiedStateSpec {
+	visibleIDs := make([]simplifiedState, 0, len(baseVisibleSimplifiedStates)+2)
+	visibleIDs = append(visibleIDs, baseVisibleSimplifiedStates...)
+	if executionMode == runbundle.ExecutionModeOracleRun {
+		visibleIDs = append(visibleIDs, simplifiedStateApplyingOracle)
+	}
+
+	visible := make([]simplifiedStateSpec, 0, len(visibleIDs)+1)
+	for _, id := range visibleIDs {
 		visible = append(visible, simplifiedStateSpecByID(id))
 	}
 	if simplifiedStateIsTerminal(current) {

@@ -20,7 +20,7 @@ func deriveSimplifiedStateDurations(inst *runnerapi.InstanceSnapshot, now time.T
 		return events[i].CreatedAt.Before(events[j].CreatedAt)
 	})
 
-	durations := make(map[simplifiedState]time.Duration, len(alwaysVisibleSimplifiedStates))
+	durations := make(map[simplifiedState]time.Duration, len(baseVisibleSimplifiedStates)+1)
 	for idx, event := range events {
 		start := event.CreatedAt.UTC()
 		if start.IsZero() {
