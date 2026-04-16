@@ -3,7 +3,6 @@ package missioncontrol
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"strings"
 )
 
@@ -14,24 +13,20 @@ func formatJSONLText(input string, truncated bool) (string, error) {
 	}
 
 	blocks := make([]string, 0, len(lines))
-	var firstErr error
-	for idx, line := range lines {
+	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
 		formatted, err := formatJSONValue(line)
 		if err != nil {
-			if firstErr == nil {
-				firstErr = fmt.Errorf("jsonl parse error at line %d: %w", idx+1, err)
-			}
+			// PTY captures are a mixed byte stream, not a strict JSONL artifact.
+			// Preserve non-JSON lines verbatim so readable output never disappears.
+			blocks = append(blocks, line)
 			continue
 		}
 		blocks = append(blocks, formatted)
 	}
-	if len(blocks) == 0 && firstErr != nil {
-		return "", firstErr
-	}
-	return strings.Join(blocks, "\n\n"), nil
+	return strings.Join(blocks, "\n"), nil
 }
 
 func formatJSONValue(input string) (string, error) {
