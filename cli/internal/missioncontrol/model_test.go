@@ -1864,7 +1864,6 @@ func TestFormatJSONLTextPrettyPrintsEachLine(t *testing.T) {
 		`    "text": "hello"`,
 		`  }`,
 		"}",
-		"",
 		"[",
 		`  "a",`,
 		"  {",
@@ -1895,7 +1894,7 @@ func TestFormatJSONLTextDropsIncompleteTailWhenTruncated(t *testing.T) {
 	}
 }
 
-func TestFormatJSONLTextIgnoresLeadingNonJSONLinesWhenJSONExists(t *testing.T) {
+func TestFormatJSONLTextPreservesLeadingNonJSONLinesWhenJSONExists(t *testing.T) {
 	input := strings.Join([]string{
 		"Performing one time database migration, may take a few minutes...",
 		"sqlite-migration:done",
@@ -1909,6 +1908,9 @@ func TestFormatJSONLTextIgnoresLeadingNonJSONLinesWhenJSONExists(t *testing.T) {
 	}
 
 	want := strings.Join([]string{
+		"Performing one time database migration, may take a few minutes...",
+		"sqlite-migration:done",
+		"Database migration complete.",
 		"{",
 		`  "event": "assistant",`,
 		`  "payload": {`,
@@ -1945,7 +1947,7 @@ func TestAgentPTYStreamUsesJSONLRender(t *testing.T) {
 	}
 }
 
-func TestAgentPTYStreamRejectsInvalidJSONL(t *testing.T) {
+func TestAgentPTYStreamPreservesInvalidJSONLAsRawText(t *testing.T) {
 	m := newModel(context.Background(), Config{
 		RunID:            "run_1",
 		Source:           &fakeMissionSource{},
@@ -1961,14 +1963,14 @@ func TestAgentPTYStreamRejectsInvalidJSONL(t *testing.T) {
 		},
 	})
 
-	if !strings.Contains(m.logStatus, "showing raw output") {
-		t.Fatalf("expected parse failure status, got %q", m.logStatus)
+	if m.logStatus != "" {
+		t.Fatalf("expected empty log status, got %q", m.logStatus)
 	}
-	if m.logActiveRender != logRenderRaw {
-		t.Fatalf("expected raw fallback render mode, got %d", m.logActiveRender)
+	if m.logActiveRender != logRenderJSONL {
+		t.Fatalf("expected JSONL render mode, got %d", m.logActiveRender)
 	}
-	if m.logText != "not-json\n" {
-		t.Fatalf("expected raw fallback content, got %q", m.logText)
+	if m.logText != "not-json" {
+		t.Fatalf("expected raw line to be preserved, got %q", m.logText)
 	}
 }
 
