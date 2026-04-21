@@ -80,7 +80,8 @@ func TestServiceRunsAndPersistsSnapshot(t *testing.T) {
 	runDir := testRunDir(tmp, "persisted-snapshot")
 	svc, err := NewService(Config{
 		Executor: fakeExecutor{result: store.InstanceResult{
-			FinalState: domain.InstanceStateSucceeded,
+			FinalState:       domain.InstanceStateSucceeded,
+			InstalledVersion: "3.4.5",
 			Usage: &usage.Metrics{
 				InputTokens:  int64Ptr(17),
 				OutputTokens: int64Ptr(6),
@@ -139,6 +140,24 @@ func TestServiceRunsAndPersistsSnapshot(t *testing.T) {
 	}
 	if summary.Usage.InputTokens != 17 || summary.Usage.OutputTokens != 6 || summary.Usage.ToolCalls != 1 {
 		t.Fatalf("unexpected usage summary: %+v", summary.Usage)
+	}
+	if summary.InstalledVersion != "3.4.5" {
+		t.Fatalf("unexpected summary installed version: %q", summary.InstalledVersion)
+	}
+	if len(summary.Instances) != 1 || summary.Instances[0].InstalledVersion != "3.4.5" {
+		t.Fatalf("unexpected per-instance installed version summary: %+v", summary.Instances)
+	}
+
+	raw, err = os.ReadFile(instanceResultPath)
+	if err != nil {
+		t.Fatalf("read instance result: %v", err)
+	}
+	var instanceResult instanceResultFile
+	if err := json.Unmarshal(raw, &instanceResult); err != nil {
+		t.Fatalf("unmarshal instance result: %v", err)
+	}
+	if instanceResult.InstalledVersion != "3.4.5" {
+		t.Fatalf("unexpected instance result installed version: %q", instanceResult.InstalledVersion)
 	}
 }
 

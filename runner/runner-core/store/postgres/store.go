@@ -824,6 +824,7 @@ SELECT
   provider_ref,
   agent_run_id,
   agent_exit_code,
+  installed_version,
   trajectory_ref,
   input_tokens,
   output_tokens,
@@ -868,6 +869,7 @@ SELECT
   r.provider_ref,
   r.agent_run_id,
   r.agent_exit_code,
+  r.installed_version,
   r.trajectory_ref,
   r.input_tokens,
   r.output_tokens,
@@ -919,6 +921,7 @@ func scanStoredInstanceResult(scanner rowScanner) (store.StoredInstanceResult, e
 	var providerRef *string
 	var agentRunID *string
 	var agentExitCode *int
+	var installedVersion *string
 	var trajectoryRef *string
 	var inputTokens *int64
 	var outputTokens *int64
@@ -947,6 +950,7 @@ func scanStoredInstanceResult(scanner rowScanner) (store.StoredInstanceResult, e
 		&providerRef,
 		&agentRunID,
 		&agentExitCode,
+		&installedVersion,
 		&trajectoryRef,
 		&inputTokens,
 		&outputTokens,
@@ -975,6 +979,7 @@ func scanStoredInstanceResult(scanner rowScanner) (store.StoredInstanceResult, e
 	result.ProviderRef = derefString(providerRef)
 	result.AgentRunID = derefString(agentRunID)
 	result.AgentExitCode = agentExitCode
+	result.InstalledVersion = derefString(installedVersion)
 	result.TrajectoryRef = derefString(trajectoryRef)
 	result.Usage = usage.Clone(&usage.Metrics{
 		InputTokens:  inputTokens,
@@ -1730,6 +1735,7 @@ INSERT INTO instance_results (
   provider_ref,
   agent_run_id,
   agent_exit_code,
+  installed_version,
   trajectory_ref,
   input_tokens,
   output_tokens,
@@ -1770,15 +1776,16 @@ INSERT INTO instance_results (
   $16,
   $17,
   $18,
-  $19::jsonb,
-  $20,
+  $19,
+  $20::jsonb,
   $21,
   $22,
   $23,
   $24,
   $25,
   $26,
-  $27
+  $27,
+  $28
 )
 ON CONFLICT (instance_id) DO UPDATE SET
   attempt_id = EXCLUDED.attempt_id,
@@ -1786,6 +1793,7 @@ ON CONFLICT (instance_id) DO UPDATE SET
   provider_ref = EXCLUDED.provider_ref,
   agent_run_id = EXCLUDED.agent_run_id,
   agent_exit_code = EXCLUDED.agent_exit_code,
+  installed_version = EXCLUDED.installed_version,
   trajectory_ref = EXCLUDED.trajectory_ref,
   input_tokens = EXCLUDED.input_tokens,
   output_tokens = EXCLUDED.output_tokens,
@@ -1814,6 +1822,7 @@ ON CONFLICT (instance_id) DO UPDATE SET
 		nullableString(in.ProviderRef),
 		nullableString(in.Result.AgentRunID),
 		in.Result.AgentExitCode,
+		nullableString(in.Result.InstalledVersion),
 		nullableString(in.Result.Trajectory),
 		inputTokens,
 		outputTokens,
@@ -2221,6 +2230,7 @@ INSERT INTO instance_results (
   provider_ref,
   agent_run_id,
   agent_exit_code,
+  installed_version,
   trajectory_ref,
   input_tokens,
   output_tokens,
@@ -2261,15 +2271,16 @@ INSERT INTO instance_results (
   $16,
   $17,
   $18,
-  $19::jsonb,
-  $20,
+  $19,
+  $20::jsonb,
   $21,
   $22,
   $23,
   $24,
   $25,
   $26,
-  $27
+  $27,
+  $28
 )
 ON CONFLICT (instance_id) DO UPDATE SET
   attempt_id = EXCLUDED.attempt_id,
@@ -2277,6 +2288,7 @@ ON CONFLICT (instance_id) DO UPDATE SET
   provider_ref = EXCLUDED.provider_ref,
   agent_run_id = EXCLUDED.agent_run_id,
   agent_exit_code = EXCLUDED.agent_exit_code,
+  installed_version = EXCLUDED.installed_version,
   trajectory_ref = EXCLUDED.trajectory_ref,
   input_tokens = EXCLUDED.input_tokens,
   output_tokens = EXCLUDED.output_tokens,
@@ -2305,6 +2317,7 @@ ON CONFLICT (instance_id) DO UPDATE SET
 		nullableString(in.ProviderRef),
 		nullableString(in.Result.AgentRunID),
 		in.Result.AgentExitCode,
+		nullableString(in.Result.InstalledVersion),
 		nullableString(in.Result.Trajectory),
 		inputTokens,
 		outputTokens,

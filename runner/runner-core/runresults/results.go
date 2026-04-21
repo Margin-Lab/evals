@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/marginlab/margin-eval/runner/runner-core/domain"
@@ -22,6 +23,7 @@ const (
 )
 
 type Summary struct {
+	InstalledVersion    string                   `json:"installed_version,omitempty"`
 	RunID               string                   `json:"run_id"`
 	State               domain.RunState          `json:"state"`
 	TotalInstances      int                      `json:"total_instances"`
@@ -68,6 +70,7 @@ type InstanceSummary struct {
 	CaseID             string               `json:"case_id"`
 	FinalState         domain.InstanceState `json:"final_state"`
 	InfraFailureReason *string              `json:"infra_failure_reason"`
+	InstalledVersion   string               `json:"installed_version,omitempty"`
 	RuntimeMS          int64                `json:"runtime_ms"`
 	Usage              *usage.Metrics       `json:"usage"`
 }
@@ -111,6 +114,8 @@ func Build(run store.Run, instances []store.Instance, results []store.StoredInst
 	}
 
 	failureCounts := map[string]int{}
+	installedVersions := map[string]struct{}{}
+	missingInstalledVersion := 0
 	for _, inst := range sortedInstances {
 		result, hasResult := resultsByInstance[inst.InstanceID]
 		finalState := inst.State
@@ -154,12 +159,25 @@ func Build(run store.Run, instances []store.Instance, results []store.StoredInst
 			failureCounts[*infraReason]++
 		}
 
+		installedVersion := ""
+		if hasResult {
+			installedVersion = strings.TrimSpace(result.InstalledVersion)
+		}
+		if finalState.IsTerminal() {
+			if installedVersion == "" {
+				missingInstalledVersion++
+			} else {
+				installedVersions[installedVersion] = struct{}{}
+			}
+		}
+
 		summary.Instances = append(summary.Instances, InstanceSummary{
 			InstanceID:         inst.InstanceID,
 			Ordinal:            inst.Ordinal,
 			CaseID:             inst.Case.CaseID,
 			FinalState:         finalState,
 			InfraFailureReason: infraReason,
+			InstalledVersion:   installedVersion,
 			RuntimeMS:          instanceRuntimeMS(inst, result, hasResult),
 			Usage:              instanceUsage,
 		})
@@ -172,6 +190,17 @@ func Build(run store.Run, instances []store.Instance, results []store.StoredInst
 	summary.Status.Canceled.Percentage = percentage(summary.Status.Canceled.Count, summary.TotalInstances)
 	summary.Runtime.RunMS = runRuntimeMS(run)
 	summary.InfraFailureReasons = buildFailureReasonBreakdown(failureCounts)
+	switch len(installedVersions) {
+	case 0:
+	case 1:
+		if missingInstalledVersion == 0 {
+			for version := range installedVersions {
+				summary.InstalledVersion = version
+			}
+		}
+	default:
+		summary.InstalledVersion = "multiple"
+	}
 	return summary
 }
 

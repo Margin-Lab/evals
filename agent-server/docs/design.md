@@ -64,6 +64,8 @@ Hook roles:
 - `config.validate`: returns normalized config input JSON
 - `install.check`: returns install status JSON
 - `install.run`: performs installation and returns install result JSON
+  - repo-owned agent definitions report the installed agent version in `result.version`
+  - `resolved_version` is reserved for the managed Node runtime manifest, not agent install results
 - `run.prepare`: returns an exec spec JSON `{path,args,env,dir}`
 - `snapshot.prepare`: returns an exec spec for short-lived snapshot capture
 - `trajectory.collect`: returns full ATIF JSON

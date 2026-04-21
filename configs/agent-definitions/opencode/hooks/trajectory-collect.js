@@ -240,7 +240,7 @@ if (!sessionId) {
   process.exit(0);
 }
 
-const version = String(install.resolved_version || install.version || configInput.opencode_version || "unknown").trim();
+const version = String(install.version || configInput.opencode_version || "unknown").trim();
 const trajectory = compactDict({
   schema_version: "ATIF-v1.6",
   session_id: sessionId,

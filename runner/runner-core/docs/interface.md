@@ -183,3 +183,5 @@ Response example:
 pgStore != nil
 err == nil
 ```
+
+Note: the external `instance_results` schema must include nullable `installed_version text`. This repo updates the adapter and tests, but the actual schema migration is managed outside this codebase.

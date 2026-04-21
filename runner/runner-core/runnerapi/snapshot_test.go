@@ -56,9 +56,10 @@ func TestBuildRunSnapshotIncludesRequestedFields(t *testing.T) {
 		RunID:      claim.Run.RunID,
 		InstanceID: claim.Instance.InstanceID,
 		Result: store.InstanceResult{
-			FinalState:    domain.InstanceStateSucceeded,
-			AgentExitCode: &zero,
-			TestExitCode:  &zero,
+			FinalState:       domain.InstanceStateSucceeded,
+			AgentExitCode:    &zero,
+			InstalledVersion: "5.6.7",
+			TestExitCode:     &zero,
 			Usage: &usage.Metrics{
 				InputTokens:  int64Ptr(12),
 				OutputTokens: int64Ptr(5),
@@ -102,6 +103,9 @@ func TestBuildRunSnapshotIncludesRequestedFields(t *testing.T) {
 	if inst.Result == nil {
 		t.Fatalf("expected instance result")
 	}
+	if inst.Result.InstalledVersion != "5.6.7" {
+		t.Fatalf("unexpected installed version in instance snapshot: %+v", inst.Result)
+	}
 	if len(inst.Attempts) == 0 {
 		t.Fatalf("expected instance attempts")
 	}
@@ -113,6 +117,9 @@ func TestBuildRunSnapshotIncludesRequestedFields(t *testing.T) {
 	}
 	if full.Results == nil {
 		t.Fatalf("expected results summary")
+	}
+	if full.Results.InstalledVersion != "5.6.7" {
+		t.Fatalf("unexpected installed version in results summary: %+v", full.Results)
 	}
 	if full.Results.Usage.InputTokens != 12 || full.Results.Usage.OutputTokens != 5 || full.Results.Usage.ToolCalls != 1 {
 		t.Fatalf("unexpected results usage: %+v", full.Results.Usage)
