@@ -482,7 +482,7 @@ for (const event of events) {
   }
 }
 if (!version) {
-  version = String(install.resolved_version || install.version || configInput.claude_version || "unknown").trim();
+  version = String(install.version || configInput.claude_version || "unknown").trim();
 }
 
 let defaultModelName = parseDefaultModelName(configInput);

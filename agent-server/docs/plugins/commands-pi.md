@@ -36,6 +36,8 @@ Then it probes:
 <install_dir>/bin/pi --version
 ```
 
+The hook returns JSON with `installed`, `bin_path`, `version`, `install_method`, and `package`.
+
 ## Run Prepare
 
 The run hook:

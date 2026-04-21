@@ -172,13 +172,18 @@ func (e *Executor) ExecuteInstance(ctx context.Context, run store.Run, inst stor
 		"endpoint":        "/v1/agent/install",
 	}
 	e.emitStep("agent.install", "start", "Submitting POST /v1/agent/install to install the selected definition using the active config.", cloneStringMap(installStepDetails))
-	if err := e.postAgentInstall(ctx); err != nil {
+	installedVersion, err := e.postAgentInstall(ctx)
+	if err != nil {
 		failedDetails := cloneStringMap(installStepDetails)
 		failedDetails["error"] = err.Error()
 		e.emitStep("agent.install", "failed", "POST /v1/agent/install failed; agent installation could not be ensured.", failedDetails)
 		return store.InstanceResult{}, nil, err
 	}
-	e.emitStep("agent.install", "completed", "POST /v1/agent/install completed; installation is ready for execution.", cloneStringMap(installStepDetails))
+	completedInstallDetails := cloneStringMap(installStepDetails)
+	if installedVersion != "" {
+		completedInstallDetails["installed_version"] = installedVersion
+	}
+	e.emitStep("agent.install", "completed", "POST /v1/agent/install completed; installation is ready for execution.", completedInstallDetails)
 
 	runCleanupDetails := map[string]string{"endpoint": "/v1/run"}
 	e.emitStep("run.cleanup_previous", "start", "Sending DELETE /v1/run to clear any stale active run state before launch.", cloneStringMap(runCleanupDetails))
@@ -271,15 +276,17 @@ func (e *Executor) ExecuteInstance(ctx context.Context, run store.Run, inst stor
 			"trajectory_mode": "skipped",
 		})
 		return store.InstanceResult{
-			FinalState: final,
+			FinalState:       final,
+			InstalledVersion: installedVersion,
 		}, nil, e.clearExitedRun(agentRunID)
 	}
 	result := store.InstanceResult{
-		FinalState:     final,
-		AgentRunID:     agentRunID,
-		AgentExitCode:  intPtr(exitCode),
-		AgentStartedAt: timePtr(agentStartedAt),
-		AgentEndedAt:   timePtr(agentEndedAt),
+		FinalState:       final,
+		AgentRunID:       agentRunID,
+		AgentExitCode:    intPtr(exitCode),
+		InstalledVersion: installedVersion,
+		AgentStartedAt:   timePtr(agentStartedAt),
+		AgentEndedAt:     timePtr(agentEndedAt),
 	}
 
 	if strings.TrimSpace(trajectoryStatus) != "complete" {
@@ -388,6 +395,15 @@ type runResponse struct {
 	TrajectoryStatus string `json:"trajectory_status"`
 }
 
+type agentInstallInfo struct {
+	Result map[string]any `json:"result,omitempty"`
+}
+
+type postAgentInstallResponse struct {
+	State   string            `json:"state"`
+	Install *agentInstallInfo `json:"install,omitempty"`
+}
+
 func (e *Executor) getState(ctx context.Context) (stateResponse, error) {
 	var out stateResponse
 	if err := e.doJSON(ctx, http.MethodGet, "/v1/state", nil, &out); err != nil {
@@ -404,8 +420,12 @@ func (e *Executor) putAgentConfig(ctx context.Context, req putAgentConfigRequest
 	return e.doJSON(ctx, http.MethodPut, "/v1/agent-config", req, nil)
 }
 
-func (e *Executor) postAgentInstall(ctx context.Context) error {
-	return e.doJSON(ctx, http.MethodPost, "/v1/agent/install", nil, nil)
+func (e *Executor) postAgentInstall(ctx context.Context) (string, error) {
+	var out postAgentInstallResponse
+	if err := e.doJSON(ctx, http.MethodPost, "/v1/agent/install", nil, &out); err != nil {
+		return "", err
+	}
+	return extractInstalledVersion(out.Install), nil
 }
 
 type startRunResponse struct {
@@ -585,6 +605,17 @@ func intPtr(v int) *int {
 
 func timePtr(v time.Time) *time.Time {
 	return &v
+}
+
+func extractInstalledVersion(install *agentInstallInfo) string {
+	if install == nil || install.Result == nil {
+		return ""
+	}
+	value, ok := install.Result["version"].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
 }
 
 func (e *Executor) emitStep(step, status, message string, details map[string]string) {

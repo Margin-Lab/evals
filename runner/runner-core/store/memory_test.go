@@ -287,9 +287,10 @@ func TestMemoryStoreGetInstanceResult(t *testing.T) {
 		RunID:      claim.Run.RunID,
 		InstanceID: claim.Instance.InstanceID,
 		Result: InstanceResult{
-			FinalState:   domain.InstanceStateSucceeded,
-			Usage:        &usage.Metrics{InputTokens: int64Ptr(13), OutputTokens: int64Ptr(4), ToolCalls: int64Ptr(1)},
-			TestExitCode: intPtr(0),
+			FinalState:       domain.InstanceStateSucceeded,
+			InstalledVersion: "1.2.3",
+			Usage:            &usage.Metrics{InputTokens: int64Ptr(13), OutputTokens: int64Ptr(4), ToolCalls: int64Ptr(1)},
+			TestExitCode:     intPtr(0),
 		},
 	}, time.Now().UTC()); err != nil {
 		t.Fatalf("finalize attempt: %v", err)
@@ -305,6 +306,9 @@ func TestMemoryStoreGetInstanceResult(t *testing.T) {
 	if result.TestExitCode == nil || *result.TestExitCode != 0 {
 		t.Fatalf("expected test exit code 0, got %#v", result.TestExitCode)
 	}
+	if result.InstalledVersion != "1.2.3" {
+		t.Fatalf("installed version = %q, want 1.2.3", result.InstalledVersion)
+	}
 	if result.Usage == nil || result.Usage.InputTokens == nil || *result.Usage.InputTokens != 13 {
 		t.Fatalf("unexpected usage metrics: %+v", result.Usage)
 	}
@@ -315,6 +319,9 @@ func TestMemoryStoreGetInstanceResult(t *testing.T) {
 	}
 	if len(results) != 1 {
 		t.Fatalf("expected 1 instance result, got %d", len(results))
+	}
+	if results[0].InstalledVersion != "1.2.3" {
+		t.Fatalf("listed installed version = %q, want 1.2.3", results[0].InstalledVersion)
 	}
 	if results[0].Usage == nil || results[0].Usage.ToolCalls == nil || *results[0].Usage.ToolCalls != 1 {
 		t.Fatalf("unexpected listed usage metrics: %+v", results[0].Usage)
@@ -430,10 +437,11 @@ func TestMemoryStoreCarryForwardInstance(t *testing.T) {
 		SourceInstanceID: "run_src-inst-0001",
 		ProviderRef:      "provider://resume",
 		Result: InstanceResult{
-			FinalState:    domain.InstanceStateSucceeded,
-			Trajectory:    "run_src/inst/trajectory.json",
-			TestStdoutRef: "run_src/inst/test_stdout.txt",
-			TestStderrRef: "run_src/inst/test_stderr.txt",
+			FinalState:       domain.InstanceStateSucceeded,
+			InstalledVersion: "4.5.6",
+			Trajectory:       "run_src/inst/trajectory.json",
+			TestStdoutRef:    "run_src/inst/test_stdout.txt",
+			TestStderrRef:    "run_src/inst/test_stderr.txt",
 		},
 		Artifacts: []Artifact{{
 			ArtifactID:  "art-carry-trajectory",
@@ -466,6 +474,9 @@ func TestMemoryStoreCarryForwardInstance(t *testing.T) {
 	}
 	if result.ProviderRef != "provider://resume" {
 		t.Fatalf("unexpected provider ref: %s", result.ProviderRef)
+	}
+	if result.InstalledVersion != "4.5.6" {
+		t.Fatalf("installed version = %q, want 4.5.6", result.InstalledVersion)
 	}
 	if result.TrajectoryRef != "run_src/inst/trajectory.json" {
 		t.Fatalf("unexpected trajectory ref: %s", result.TrajectoryRef)
