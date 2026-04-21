@@ -237,7 +237,7 @@ function buildSteps(events, defaultModelName) {
       const extra = compactDict({
         stop_reason: message.stop_reason,
         stop_sequence: message.stop_sequence,
-        request_id: message.requestId,
+        request_id: event.requestId ?? message.requestId,
         id: event.id,
         agent_id: event.agent_id,
         cwd: event.cwd,
