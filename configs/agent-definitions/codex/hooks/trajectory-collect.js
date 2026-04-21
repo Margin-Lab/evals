@@ -351,7 +351,6 @@ if (!sessionId) {
 }
 
 const version = String(
-  install.resolved_version ||
   install.version ||
   sessionMeta.cli_version ||
   configInput.codex_version ||

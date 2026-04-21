@@ -37,7 +37,12 @@ func TestExecuteInstanceDefinitionConfigInstallFlow(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"state": "definition_loaded"})
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/agent/install":
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"state": "installed"})
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"state": "installed",
+				"install": map[string]any{
+					"result": map[string]any{"version": "1.2.3"},
+				},
+			})
 		case r.Method == http.MethodPut && r.URL.Path == "/v1/agent-config":
 			_ = json.NewDecoder(r.Body).Decode(&configReq)
 			w.WriteHeader(http.StatusCreated)
@@ -108,6 +113,9 @@ func TestExecuteInstanceDefinitionConfigInstallFlow(t *testing.T) {
 	if result.FinalState != domain.InstanceStateSucceeded {
 		t.Fatalf("expected succeeded, got %s", result.FinalState)
 	}
+	if result.InstalledVersion != "1.2.3" {
+		t.Fatalf("installed version = %q, want 1.2.3", result.InstalledVersion)
+	}
 	if result.Trajectory == "" {
 		t.Fatalf("expected trajectory ref")
 	}
@@ -163,7 +171,12 @@ func TestExecuteInstanceFetchesTrajectoryBeforeClearingRun(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"state": "definition_loaded"})
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/agent/install":
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"state": "installed"})
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"state": "installed",
+				"install": map[string]any{
+					"result": map[string]any{"version": "9.8.7"},
+				},
+			})
 		case r.Method == http.MethodPut && r.URL.Path == "/v1/agent-config":
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(map[string]any{"state": "configured"})
@@ -257,7 +270,12 @@ func TestExecuteInstanceDryRunSkipsTrajectoryAndExitMetadata(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"state": "definition_loaded"})
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/agent/install":
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"state": "installed"})
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"state": "installed",
+				"install": map[string]any{
+					"result": map[string]any{"version": "9.8.7"},
+				},
+			})
 		case r.Method == http.MethodPut && r.URL.Path == "/v1/agent-config":
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(map[string]any{"state": "configured"})
@@ -307,6 +325,9 @@ func TestExecuteInstanceDryRunSkipsTrajectoryAndExitMetadata(t *testing.T) {
 	if result.AgentRunID != "" || result.AgentExitCode != nil || result.Trajectory != "" {
 		t.Fatalf("unexpected dry-run result metadata: %+v", result)
 	}
+	if result.InstalledVersion != "9.8.7" {
+		t.Fatalf("installed version = %q, want 9.8.7", result.InstalledVersion)
+	}
 	if len(artifacts) != 0 {
 		t.Fatalf("expected no artifacts, got %d", len(artifacts))
 	}
@@ -317,6 +338,67 @@ func TestExecuteInstanceDryRunSkipsTrajectoryAndExitMetadata(t *testing.T) {
 		if req == "GET /v1/run/trajectory" {
 			t.Fatalf("unexpected trajectory request: %v", requests)
 		}
+	}
+}
+
+func TestExecuteInstanceIgnoresResolvedVersionOnlyInstallPayload(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/state":
+			_ = json.NewEncoder(w).Encode(map[string]any{"paths": map[string]any{"root": "/marginlab"}})
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/agent-definition":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "definition_loaded"})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/agent/install":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"state": "installed",
+				"install": map[string]any{
+					"result": map[string]any{"resolved_version": "2.0.0"},
+				},
+			})
+		case r.Method == http.MethodPut && r.URL.Path == "/v1/agent-config":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "configured"})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/run":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"run_id": "r_1", "state": "running"})
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/run":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"state":             "exited",
+				"exit_code":         0,
+				"trajectory_status": "none",
+			})
+		case r.Method == http.MethodDelete && r.URL.Path == "/v1/run":
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "idle"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	exec, err := New(Config{
+		BaseURL:      server.URL,
+		ArtifactRoot: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatalf("new executor: %v", err)
+	}
+
+	run := store.Run{RunID: "run_1", Bundle: validBundle()}
+	inst := store.Instance{
+		InstanceID: "inst-1",
+		Case:       run.Bundle.ResolvedSnapshot.Cases[0],
+	}
+
+	result, _, err := exec.ExecuteInstance(context.Background(), run, inst, func(domain.InstanceState) error { return nil })
+	if err != nil {
+		t.Fatalf("execute instance: %v", err)
+	}
+	if result.InstalledVersion != "" {
+		t.Fatalf("installed version = %q, want empty", result.InstalledVersion)
 	}
 }
 

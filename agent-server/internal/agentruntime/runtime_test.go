@@ -1810,9 +1810,8 @@ func setupRepoOwnedTrajectoryTest(t *testing.T, agentName string) (*Runtime, sta
 		Install: &state.InstallInfo{
 			InstalledAt: time.Now().UTC(),
 			Result: map[string]any{
-				"bin_path":         filepath.Join(installDir, "bin", agentName),
-				"resolved_version": "1.0.0",
-				"version":          "1.0.0",
+				"bin_path": filepath.Join(installDir, "bin", agentName),
+				"version":  "1.0.0",
 			},
 		},
 	}
