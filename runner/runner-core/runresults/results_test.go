@@ -49,19 +49,21 @@ func TestBuildSummarizesResultsUsageAndRuntime(t *testing.T) {
 
 	results := []store.StoredInstanceResult{
 		{
-			InstanceID:    "inst_1",
-			FinalState:    domain.InstanceStateSucceeded,
-			ProvisionedAt: timePtr(startedAt.Add(1 * time.Second)),
-			TestEndedAt:   timePtr(startedAt.Add(31 * time.Second)),
-			Usage:         metrics(100, 25, 2),
+			InstanceID:       "inst_1",
+			FinalState:       domain.InstanceStateSucceeded,
+			InstalledVersion: "1.0.0",
+			ProvisionedAt:    timePtr(startedAt.Add(1 * time.Second)),
+			TestEndedAt:      timePtr(startedAt.Add(31 * time.Second)),
+			Usage:            metrics(100, 25, 2),
 		},
 		{
-			InstanceID:    "inst_2",
-			FinalState:    domain.InstanceStateTestFailed,
-			TestExitCode:  intPtr(1),
-			ProvisionedAt: timePtr(startedAt.Add(11 * time.Second)),
-			AgentEndedAt:  timePtr(startedAt.Add(46 * time.Second)),
-			Usage:         metrics(20, 5, 1),
+			InstanceID:       "inst_2",
+			FinalState:       domain.InstanceStateTestFailed,
+			InstalledVersion: "1.0.0",
+			TestExitCode:     intPtr(1),
+			ProvisionedAt:    timePtr(startedAt.Add(11 * time.Second)),
+			AgentEndedAt:     timePtr(startedAt.Add(46 * time.Second)),
+			Usage:            metrics(20, 5, 1),
 		},
 		{
 			InstanceID:    "inst_3",
@@ -106,17 +108,26 @@ func TestBuildSummarizesResultsUsageAndRuntime(t *testing.T) {
 	if summary.Instances[0].InfraFailureReason != nil {
 		t.Fatalf("expected nil infra failure reason for success, got %+v", summary.Instances[0].InfraFailureReason)
 	}
+	if summary.Instances[0].InstalledVersion != "1.0.0" {
+		t.Fatalf("unexpected first instance installed version: %+v", summary.Instances[0])
+	}
 	if summary.Instances[1].InstanceID != "inst_2" || summary.Instances[1].RuntimeMS != 35000 {
 		t.Fatalf("unexpected second instance summary: %+v", summary.Instances[1])
 	}
 	if summary.Instances[1].InfraFailureReason != nil {
 		t.Fatalf("expected nil infra failure reason for test_failed, got %+v", summary.Instances[1].InfraFailureReason)
 	}
+	if summary.Instances[1].InstalledVersion != "1.0.0" {
+		t.Fatalf("unexpected second instance installed version: %+v", summary.Instances[1])
+	}
 	if summary.Instances[2].InstanceID != "inst_3" || summary.Instances[2].RuntimeMS != 3000 {
 		t.Fatalf("unexpected third instance summary: %+v", summary.Instances[2])
 	}
 	if summary.Instances[2].InfraFailureReason != nil {
 		t.Fatalf("expected nil infra failure reason for canceled, got %+v", summary.Instances[2].InfraFailureReason)
+	}
+	if summary.InstalledVersion != "" {
+		t.Fatalf("expected omitted top-level installed version when a terminal instance is missing it, got %q", summary.InstalledVersion)
 	}
 }
 
@@ -152,6 +163,42 @@ func TestBuildClassifiesInfraFailureReasons(t *testing.T) {
 	}
 	if reasons[InfraFailureReasonUnknownFailure] != 1 {
 		t.Fatalf("missing unknown_failure reason: %+v", summary.InfraFailureReasons)
+	}
+}
+
+func TestBuildSummarizesUniformInstalledVersion(t *testing.T) {
+	run := store.Run{RunID: "run_uniform"}
+	instances := []store.Instance{
+		{InstanceID: "inst_1", Ordinal: 0, Case: runbundle.Case{CaseID: "case_1"}, State: domain.InstanceStateSucceeded},
+		{InstanceID: "inst_2", Ordinal: 1, Case: runbundle.Case{CaseID: "case_2"}, State: domain.InstanceStateTestFailed},
+	}
+	results := []store.StoredInstanceResult{
+		{InstanceID: "inst_1", FinalState: domain.InstanceStateSucceeded, InstalledVersion: "2.3.4"},
+		{InstanceID: "inst_2", FinalState: domain.InstanceStateTestFailed, InstalledVersion: "2.3.4"},
+	}
+
+	summary := Build(run, instances, results)
+
+	if summary.InstalledVersion != "2.3.4" {
+		t.Fatalf("installed version = %q, want 2.3.4", summary.InstalledVersion)
+	}
+}
+
+func TestBuildSummarizesMultipleInstalledVersions(t *testing.T) {
+	run := store.Run{RunID: "run_multiple"}
+	instances := []store.Instance{
+		{InstanceID: "inst_1", Ordinal: 0, Case: runbundle.Case{CaseID: "case_1"}, State: domain.InstanceStateSucceeded},
+		{InstanceID: "inst_2", Ordinal: 1, Case: runbundle.Case{CaseID: "case_2"}, State: domain.InstanceStateSucceeded},
+	}
+	results := []store.StoredInstanceResult{
+		{InstanceID: "inst_1", FinalState: domain.InstanceStateSucceeded, InstalledVersion: "1.0.0"},
+		{InstanceID: "inst_2", FinalState: domain.InstanceStateSucceeded, InstalledVersion: "2.0.0"},
+	}
+
+	summary := Build(run, instances, results)
+
+	if summary.InstalledVersion != "multiple" {
+		t.Fatalf("installed version = %q, want multiple", summary.InstalledVersion)
 	}
 }
 
