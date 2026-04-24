@@ -29,6 +29,7 @@ filename = "AGENTS.md"
 [config.unified]
 translate = "hooks/translate-unified.js"
 allowed_models = [
+  "gpt-5.5",
   "gpt-5.4",
   "gpt-5.3-codex",
   "gpt-5.3-codex-spark",
