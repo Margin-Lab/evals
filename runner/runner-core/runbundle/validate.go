@@ -146,6 +146,9 @@ func validateResolvedSnapshot(s ResolvedSnapshot) error {
 	if s.Execution.InstanceTimeoutSecond <= 0 {
 		return fmt.Errorf("resolved_snapshot.execution.instance_timeout_seconds must be > 0")
 	}
+	if s.Execution.SamplesPerCase <= 0 {
+		return fmt.Errorf("resolved_snapshot.execution.samples_per_case must be > 0")
+	}
 	if err := agentdef.ValidateDefinitionSnapshot(s.Agent.Definition); err != nil {
 		return fmt.Errorf("resolved_snapshot.agent.definition: %w", err)
 	}
@@ -161,6 +164,58 @@ func validateResolvedSnapshot(s ResolvedSnapshot) error {
 	for i, c := range s.Cases {
 		if err := validateCase(c, s.Execution.Mode); err != nil {
 			return fmt.Errorf("case[%d]: %w", i, err)
+		}
+	}
+	if len(s.Instances) == 0 {
+		return fmt.Errorf("resolved_snapshot.instances must be non-empty")
+	}
+	if err := validateInstances(s.Cases, s.Instances, s.Execution.SamplesPerCase); err != nil {
+		return fmt.Errorf("resolved_snapshot.instances: %w", err)
+	}
+	return nil
+}
+
+func validateInstances(cases []Case, instances []InstanceSpec, samplesPerCase int) error {
+	seenKeys := map[string]struct{}{}
+	seenSamples := map[string]struct{}{}
+	for i, inst := range instances {
+		key := strings.TrimSpace(inst.InstanceKey)
+		if key == "" {
+			return fmt.Errorf("instance[%d].instance_key is required", i)
+		}
+		if _, ok := seenKeys[key]; ok {
+			return fmt.Errorf("duplicate instance_key %q", key)
+		}
+		seenKeys[key] = struct{}{}
+		if inst.CaseOrdinal < 0 || inst.CaseOrdinal >= len(cases) {
+			return fmt.Errorf("instance[%d].case_ordinal %d out of range", i, inst.CaseOrdinal)
+		}
+		caseID := strings.TrimSpace(inst.CaseID)
+		if caseID == "" {
+			return fmt.Errorf("instance[%d].case_id is required", i)
+		}
+		if caseID != strings.TrimSpace(cases[inst.CaseOrdinal].CaseID) {
+			return fmt.Errorf("instance[%d].case_id %q does not match case[%d].case_id %q", i, caseID, inst.CaseOrdinal, cases[inst.CaseOrdinal].CaseID)
+		}
+		if inst.SampleCount != samplesPerCase {
+			return fmt.Errorf("instance[%d].sample_count must equal samples_per_case", i)
+		}
+		if inst.SampleIndex <= 0 || inst.SampleIndex > inst.SampleCount {
+			return fmt.Errorf("instance[%d].sample_index must be between 1 and sample_count", i)
+		}
+		sampleKey := fmt.Sprintf("%s/%d", caseID, inst.SampleIndex)
+		if _, ok := seenSamples[sampleKey]; ok {
+			return fmt.Errorf("duplicate sample %s", sampleKey)
+		}
+		seenSamples[sampleKey] = struct{}{}
+	}
+	for _, c := range cases {
+		caseID := strings.TrimSpace(c.CaseID)
+		for sampleIndex := 1; sampleIndex <= samplesPerCase; sampleIndex++ {
+			sampleKey := fmt.Sprintf("%s/%d", caseID, sampleIndex)
+			if _, ok := seenSamples[sampleKey]; !ok {
+				return fmt.Errorf("missing sample %s", sampleKey)
+			}
 		}
 	}
 	return nil

@@ -12,6 +12,16 @@ import (
 )
 
 func fixtureBundle() runbundle.Bundle {
+	cases := []runbundle.Case{{
+		CaseID:            "case-1",
+		Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		InitialPrompt:     "hello",
+		AgentCwd:          "/workspace",
+		TestCommand:       []string{"bash", "-lc", "true"},
+		TestCwd:           "/work",
+		TestTimeoutSecond: 30,
+		TestAssets:        testfixture.MinimalTestAssets(),
+	}}
 	return runbundle.Bundle{
 		SchemaVersion: runbundle.SchemaVersionV1,
 		BundleID:      "bun_1",
@@ -23,19 +33,12 @@ func fixtureBundle() runbundle.Bundle {
 				MaxConcurrency:        1,
 				FailFast:              false,
 				InstanceTimeoutSecond: 120,
+				SamplesPerCase:        1,
 			},
 			Agent:       testfixture.MinimalAgent(),
 			RunDefaults: runbundle.RunDefault{Env: map[string]string{"TERM": "xterm-256color"}, PTY: runbundle.PTY{Cols: 120, Rows: 40}},
-			Cases: []runbundle.Case{{
-				CaseID:            "case-1",
-				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-				InitialPrompt:     "hello",
-				AgentCwd:          "/workspace",
-				TestCommand:       []string{"bash", "-lc", "true"},
-				TestCwd:           "/work",
-				TestTimeoutSecond: 30,
-				TestAssets:        testfixture.MinimalTestAssets(),
-			}},
+			Cases:       cases,
+			Instances:   runbundle.BuildInstanceSpecs(cases, 1),
 		},
 	}
 }
@@ -65,6 +68,42 @@ func TestMemoryStoreCreateRunAndList(t *testing.T) {
 	}
 	if len(runs) != 1 || runs[0].RunID != "run_1" {
 		t.Fatalf("unexpected runs response: %+v", runs)
+	}
+}
+
+func TestMemoryStoreCreateRunCreatesSamplesPerCase(t *testing.T) {
+	s := NewMemoryStore()
+	ctx := context.Background()
+	bundle := fixtureBundle()
+	bundle.ResolvedSnapshot.Execution.SamplesPerCase = 3
+	bundle.ResolvedSnapshot.Instances = runbundle.BuildInstanceSpecs(bundle.ResolvedSnapshot.Cases, 3)
+
+	_, err := s.CreateRun(ctx, CreateRunInput{
+		RunID:         "run_samples",
+		ProjectID:     "proj_1",
+		CreatedByUser: "user_1",
+		SourceKind:    runbundle.SourceKindLocalFiles,
+		Bundle:        bundle,
+		At:            time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	instances, err := s.ListInstances(ctx, "run_samples", nil)
+	if err != nil {
+		t.Fatalf("list instances: %v", err)
+	}
+	if len(instances) != 3 {
+		t.Fatalf("expected 3 instances, got %d", len(instances))
+	}
+	for i, inst := range instances {
+		wantSample := i + 1
+		if inst.Case.CaseID != "case-1" || inst.CaseOrdinal != 0 || inst.SampleIndex != wantSample || inst.SampleCount != 3 {
+			t.Fatalf("unexpected sample instance %d: %+v", i, inst)
+		}
+		if inst.InstanceKey != runbundle.BuildInstanceKey("case-1", wantSample) {
+			t.Fatalf("instance key = %q, want sample %d key", inst.InstanceKey, wantSample)
+		}
 	}
 }
 

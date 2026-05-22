@@ -279,7 +279,7 @@ func (s *Service) ensureTerminalRunSnapshot(ctx context.Context, runID string) e
 }
 
 func (s *Service) persistRunSnapshot(ctx context.Context, runID string) error {
-	run, err := s.runStore.GetRun(ctx, runID, false)
+	run, err := s.runStore.GetRun(ctx, runID, true)
 	if err != nil {
 		return err
 	}

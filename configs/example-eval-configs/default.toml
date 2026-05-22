@@ -4,4 +4,5 @@ description = "Safe defaults for getting started — sequential execution"
 
 max_concurrency = 4
 fail_fast = false
+samples_per_case = 1
 instance_timeout_seconds = 1800

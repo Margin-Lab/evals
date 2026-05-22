@@ -22,7 +22,11 @@ import (
 type instanceResultFile struct {
 	InstanceID       string                  `json:"instance_id"`
 	Ordinal          int                     `json:"ordinal"`
+	InstanceKey      string                  `json:"instance_key"`
 	CaseID           string                  `json:"case_id"`
+	CaseOrdinal      int                     `json:"case_ordinal"`
+	SampleIndex      int                     `json:"sample_index"`
+	SampleCount      int                     `json:"sample_count"`
 	FinalState       domain.InstanceState    `json:"final_state"`
 	ProviderRef      string                  `json:"provider_ref,omitempty"`
 	AgentRunID       string                  `json:"agent_run_id,omitempty"`
@@ -82,7 +86,11 @@ func buildInstanceResultFile(inst store.Instance, result store.StoredInstanceRes
 	out := instanceResultFile{
 		InstanceID:       inst.InstanceID,
 		Ordinal:          inst.Ordinal,
+		InstanceKey:      strings.TrimSpace(inst.InstanceKey),
 		CaseID:           strings.TrimSpace(inst.Case.CaseID),
+		CaseOrdinal:      inst.CaseOrdinal,
+		SampleIndex:      inst.SampleIndex,
+		SampleCount:      inst.SampleCount,
 		FinalState:       result.FinalState,
 		ProviderRef:      result.ProviderRef,
 		AgentRunID:       result.AgentRunID,

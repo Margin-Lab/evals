@@ -129,13 +129,21 @@ func writeSavedBundle(t *testing.T, runDir string, bundle runbundle.Bundle) {
 func writeSavedProgress(t *testing.T, runDir, runID, bundleHash string, finalStates map[string]domain.InstanceState) {
 	t.Helper()
 
-	caseIDs := make([]string, 0, len(finalStates))
-	cases := make(map[string]any, len(finalStates))
+	instanceKeys := make([]string, 0, len(finalStates))
+	instances := make(map[string]any, len(finalStates))
 	for caseID, state := range finalStates {
-		caseIDs = append(caseIDs, caseID)
-		instanceID := runID + "-" + caseID
-		cases[caseID] = map[string]any{
+		instanceKey := caseID
+		sampleIndex := 1
+		if !strings.Contains(instanceKey, "#") {
+			instanceKey = runbundle.BuildInstanceKey(caseID, 1)
+		}
+		instanceKeys = append(instanceKeys, instanceKey)
+		instanceID := runID + "-" + strings.ReplaceAll(instanceKey, "#", "-")
+		instances[instanceKey] = map[string]any{
+			"instance_key": instanceKey,
 			"case_id":      caseID,
+			"sample_index": sampleIndex,
+			"sample_count": 1,
 			"instance_id":  instanceID,
 			"final_state":  state,
 			"provider_ref": "",
@@ -149,11 +157,11 @@ func writeSavedProgress(t *testing.T, runDir, runID, bundleHash string, finalSta
 		}
 	}
 	payload := map[string]any{
-		"run_id":      runID,
-		"bundle_hash": bundleHash,
-		"updated_at":  time.Date(2026, 3, 1, 2, 3, 4, 0, time.UTC),
-		"case_ids":    caseIDs,
-		"cases":       cases,
+		"run_id":        runID,
+		"bundle_hash":   bundleHash,
+		"updated_at":    time.Date(2026, 3, 1, 2, 3, 4, 0, time.UTC),
+		"instance_keys": instanceKeys,
+		"instances":     instances,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {

@@ -181,6 +181,7 @@ description = "Eval runtime defaults"
 max_concurrency = 1
 fail_fast = false
 retry_count = 1
+samples_per_case = 1
 instance_timeout_seconds = 1800
 `, evalName)
 

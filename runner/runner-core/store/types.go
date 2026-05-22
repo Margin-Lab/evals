@@ -32,13 +32,17 @@ type Run struct {
 }
 
 type Instance struct {
-	InstanceID string               `json:"instance_id"`
-	RunID      string               `json:"run_id"`
-	Ordinal    int                  `json:"ordinal"`
-	Case       runbundle.Case       `json:"case"`
-	State      domain.InstanceState `json:"state"`
-	CreatedAt  time.Time            `json:"created_at"`
-	UpdatedAt  time.Time            `json:"updated_at"`
+	InstanceID  string               `json:"instance_id"`
+	RunID       string               `json:"run_id"`
+	Ordinal     int                  `json:"ordinal"`
+	InstanceKey string               `json:"instance_key"`
+	CaseOrdinal int                  `json:"case_ordinal"`
+	SampleIndex int                  `json:"sample_index"`
+	SampleCount int                  `json:"sample_count"`
+	Case        runbundle.Case       `json:"case"`
+	State       domain.InstanceState `json:"state"`
+	CreatedAt   time.Time            `json:"created_at"`
+	UpdatedAt   time.Time            `json:"updated_at"`
 }
 
 type Attempt struct {

@@ -17,6 +17,7 @@ name = "fast-feedback"
 max_concurrency = 1
 fail_fast = true
 retry_count = 1
+samples_per_case = 1
 instance_timeout_seconds = 600
 ```
 
@@ -28,6 +29,7 @@ name = "full-benchmark"
 max_concurrency = 6
 fail_fast = false
 retry_count = 1
+samples_per_case = 3
 instance_timeout_seconds = 1800
 ```
 
@@ -41,6 +43,7 @@ instance_timeout_seconds = 1800
 | `max_concurrency` | Yes | Max parallel Docker containers. Must be > 0 |
 | `fail_fast` | No | Stop scheduling after first failure. Default: `false` |
 | `retry_count` | No | Number of infra retries after the first attempt. Default: `1`. Must be >= 0 |
+| `samples_per_case` | No | Independent samples to run for each test case. Default: `1`. Must be > 0 |
 | `instance_timeout_seconds` | Yes | Hard ceiling per instance (build + bootstrap + agent + test). Must be > 0 |
 
 ## Choosing concurrency

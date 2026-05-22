@@ -26,12 +26,15 @@ type Summary struct {
 	InstalledVersion    string                   `json:"installed_version,omitempty"`
 	RunID               string                   `json:"run_id"`
 	State               domain.RunState          `json:"state"`
+	TotalCases          int                      `json:"total_cases"`
 	TotalInstances      int                      `json:"total_instances"`
+	SamplesPerCase      int                      `json:"samples_per_case"`
 	Status              StatusBreakdown          `json:"status"`
 	InfraFailureReasons []FailureReasonBreakdown `json:"infra_failure_reasons"`
 	Usage               AggregateUsage           `json:"usage"`
 	Runtime             RuntimeSummary           `json:"runtime"`
 	Instances           []InstanceSummary        `json:"instances"`
+	Cases               []CaseSummary            `json:"cases"`
 }
 
 type StatusBreakdown struct {
@@ -67,7 +70,11 @@ type RuntimeSummary struct {
 type InstanceSummary struct {
 	InstanceID         string               `json:"instance_id"`
 	Ordinal            int                  `json:"ordinal"`
+	InstanceKey        string               `json:"instance_key"`
 	CaseID             string               `json:"case_id"`
+	CaseOrdinal        int                  `json:"case_ordinal"`
+	SampleIndex        int                  `json:"sample_index"`
+	SampleCount        int                  `json:"sample_count"`
 	FinalState         domain.InstanceState `json:"final_state"`
 	InfraFailureReason *string              `json:"infra_failure_reason"`
 	InstalledVersion   string               `json:"installed_version,omitempty"`
@@ -75,11 +82,21 @@ type InstanceSummary struct {
 	Usage              *usage.Metrics       `json:"usage"`
 }
 
+type CaseSummary struct {
+	CaseID        string            `json:"case_id"`
+	SampleCount   int               `json:"sample_count"`
+	PassCount     int               `json:"pass_count"`
+	PassRate      float64           `json:"pass_rate"`
+	InstanceKeys  []string          `json:"instance_keys"`
+	StatusCounts  map[string]int    `json:"status_counts"`
+	SampleResults []InstanceSummary `json:"samples"`
+}
+
 func BuildFromStore(ctx context.Context, runStore store.RunStore, runID string) (Summary, error) {
 	if runStore == nil {
 		return Summary{}, fmt.Errorf("run store is required")
 	}
-	run, err := runStore.GetRun(ctx, runID, false)
+	run, err := runStore.GetRun(ctx, runID, true)
 	if err != nil {
 		return Summary{}, err
 	}
@@ -108,14 +125,19 @@ func Build(run store.Run, instances []store.Instance, results []store.StoredInst
 	summary := Summary{
 		RunID:               run.RunID,
 		State:               run.State,
+		TotalCases:          len(run.Bundle.ResolvedSnapshot.Cases),
 		TotalInstances:      len(sortedInstances),
+		SamplesPerCase:      run.Bundle.ResolvedSnapshot.Execution.SamplesPerCase,
 		InfraFailureReasons: make([]FailureReasonBreakdown, 0),
 		Instances:           make([]InstanceSummary, 0, len(sortedInstances)),
+		Cases:               make([]CaseSummary, 0),
 	}
 
 	failureCounts := map[string]int{}
 	installedVersions := map[string]struct{}{}
 	missingInstalledVersion := 0
+	caseSummaries := map[string]*CaseSummary{}
+	caseOrder := make([]string, 0)
 	for _, inst := range sortedInstances {
 		result, hasResult := resultsByInstance[inst.InstanceID]
 		finalState := inst.State
@@ -171,16 +193,45 @@ func Build(run store.Run, instances []store.Instance, results []store.StoredInst
 			}
 		}
 
-		summary.Instances = append(summary.Instances, InstanceSummary{
+		instanceSummary := InstanceSummary{
 			InstanceID:         inst.InstanceID,
 			Ordinal:            inst.Ordinal,
+			InstanceKey:        inst.InstanceKey,
 			CaseID:             inst.Case.CaseID,
+			CaseOrdinal:        inst.CaseOrdinal,
+			SampleIndex:        inst.SampleIndex,
+			SampleCount:        inst.SampleCount,
 			FinalState:         finalState,
 			InfraFailureReason: infraReason,
 			InstalledVersion:   installedVersion,
 			RuntimeMS:          instanceRuntimeMS(inst, result, hasResult),
 			Usage:              instanceUsage,
-		})
+		}
+		summary.Instances = append(summary.Instances, instanceSummary)
+		caseID := strings.TrimSpace(inst.Case.CaseID)
+		if caseID != "" {
+			caseSummary, ok := caseSummaries[caseID]
+			if !ok {
+				caseOrder = append(caseOrder, caseID)
+				caseSummary = &CaseSummary{
+					CaseID:        caseID,
+					SampleCount:   inst.SampleCount,
+					InstanceKeys:  make([]string, 0),
+					StatusCounts:  map[string]int{},
+					SampleResults: make([]InstanceSummary, 0),
+				}
+				caseSummaries[caseID] = caseSummary
+			}
+			if caseSummary.SampleCount < inst.SampleCount {
+				caseSummary.SampleCount = inst.SampleCount
+			}
+			if finalState == domain.InstanceStateSucceeded {
+				caseSummary.PassCount++
+			}
+			caseSummary.StatusCounts[string(finalState)]++
+			caseSummary.InstanceKeys = append(caseSummary.InstanceKeys, strings.TrimSpace(inst.InstanceKey))
+			caseSummary.SampleResults = append(caseSummary.SampleResults, instanceSummary)
+		}
 	}
 
 	summary.Usage.InstancesWithoutUsage = summary.TotalInstances - summary.Usage.InstancesWithUsage
@@ -200,6 +251,11 @@ func Build(run store.Run, instances []store.Instance, results []store.StoredInst
 		}
 	default:
 		summary.InstalledVersion = "multiple"
+	}
+	for _, caseID := range caseOrder {
+		item := *caseSummaries[caseID]
+		item.PassRate = percentage(item.PassCount, len(item.SampleResults))
+		summary.Cases = append(summary.Cases, item)
 	}
 	return summary
 }

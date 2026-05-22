@@ -61,6 +61,22 @@ func TestValidateRejectsNegativeRetryCount(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsMissingSamplesPerCase(t *testing.T) {
+	b := validBundle()
+	b.ResolvedSnapshot.Execution.SamplesPerCase = 0
+	if err := Validate(b); err == nil || !strings.Contains(err.Error(), "samples_per_case") {
+		t.Fatalf("expected samples_per_case error, got %v", err)
+	}
+}
+
+func TestValidateRejectsMissingInstances(t *testing.T) {
+	b := validBundle()
+	b.ResolvedSnapshot.Instances = nil
+	if err := Validate(b); err == nil || !strings.Contains(err.Error(), "instances") {
+		t.Fatalf("expected instances error, got %v", err)
+	}
+}
+
 func TestValidateRejectsMutableImageTag(t *testing.T) {
 	b := validBundle()
 	b.ResolvedSnapshot.Cases[0].Image = "ghcr.io/acme/repo:latest"

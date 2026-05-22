@@ -25,16 +25,19 @@ type progressStore struct {
 }
 
 type progressFile struct {
-	RunID       string                  `json:"run_id"`
-	BundleHash  string                  `json:"bundle_hash"`
-	OriginRunID string                  `json:"origin_run_id,omitempty"`
-	UpdatedAt   time.Time               `json:"updated_at"`
-	CaseIDs     []string                `json:"case_ids"`
-	Cases       map[string]progressCase `json:"cases"`
+	RunID        string                      `json:"run_id"`
+	BundleHash   string                      `json:"bundle_hash"`
+	OriginRunID  string                      `json:"origin_run_id,omitempty"`
+	UpdatedAt    time.Time                   `json:"updated_at"`
+	InstanceKeys []string                    `json:"instance_keys"`
+	Instances    map[string]progressInstance `json:"instances"`
 }
 
-type progressCase struct {
+type progressInstance struct {
+	InstanceKey string                     `json:"instance_key"`
 	CaseID      string                     `json:"case_id"`
+	SampleIndex int                        `json:"sample_index"`
+	SampleCount int                        `json:"sample_count"`
 	InstanceID  string                     `json:"instance_id"`
 	FinalState  domain.InstanceState       `json:"final_state"`
 	ProviderRef string                     `json:"provider_ref,omitempty"`
@@ -89,18 +92,22 @@ func (p *progressStore) syncRunProgress(ctx context.Context, runID string) error
 	if err != nil {
 		return err
 	}
-	caseIDs := make([]string, 0, len(run.Bundle.ResolvedSnapshot.Cases))
-	for _, c := range run.Bundle.ResolvedSnapshot.Cases {
-		if strings.TrimSpace(c.CaseID) == "" {
+	instanceKeys := make([]string, 0, len(run.Bundle.ResolvedSnapshot.Instances))
+	for _, inst := range run.Bundle.ResolvedSnapshot.Instances {
+		if strings.TrimSpace(inst.InstanceKey) == "" {
 			continue
 		}
-		caseIDs = append(caseIDs, c.CaseID)
+		instanceKeys = append(instanceKeys, inst.InstanceKey)
 	}
-	cases := map[string]progressCase{}
+	progressInstances := map[string]progressInstance{}
 	resultsByInstance := map[string]store.StoredInstanceResult{}
 	artifactsByInstance := map[string][]store.Artifact{}
 	for _, inst := range instances {
 		if !inst.State.IsTerminal() {
+			continue
+		}
+		instanceKey := strings.TrimSpace(inst.InstanceKey)
+		if instanceKey == "" {
 			continue
 		}
 		caseID := strings.TrimSpace(inst.Case.CaseID)
@@ -124,8 +131,11 @@ func (p *progressStore) syncRunProgress(ctx context.Context, runID string) error
 		sortArtifacts(arts)
 		resultsByInstance[inst.InstanceID] = result
 		artifactsByInstance[inst.InstanceID] = arts
-		cases[caseID] = progressCase{
+		progressInstances[instanceKey] = progressInstance{
+			InstanceKey: instanceKey,
 			CaseID:      caseID,
+			SampleIndex: inst.SampleIndex,
+			SampleCount: inst.SampleCount,
 			InstanceID:  inst.InstanceID,
 			FinalState:  inst.State,
 			ProviderRef: result.ProviderRef,
@@ -135,12 +145,12 @@ func (p *progressStore) syncRunProgress(ctx context.Context, runID string) error
 	}
 
 	payload := progressFile{
-		RunID:       run.RunID,
-		BundleHash:  run.BundleHash,
-		OriginRunID: strings.TrimSpace(run.Bundle.Source.OriginRunID),
-		UpdatedAt:   time.Now().UTC(),
-		CaseIDs:     caseIDs,
-		Cases:       cases,
+		RunID:        run.RunID,
+		BundleHash:   run.BundleHash,
+		OriginRunID:  strings.TrimSpace(run.Bundle.Source.OriginRunID),
+		UpdatedAt:    time.Now().UTC(),
+		InstanceKeys: instanceKeys,
+		Instances:    progressInstances,
 	}
 	runDir, err := p.runDir(runID)
 	if err != nil {
@@ -187,14 +197,16 @@ func LoadProgressSnapshot(runDir string) (resume.Snapshot, error) {
 	if strings.TrimSpace(file.RunID) == "" {
 		return resume.Snapshot{}, fmt.Errorf("progress file missing run_id")
 	}
-	completed := make(map[string]resume.CompletedCase, len(file.Cases))
-	for caseID, c := range file.Cases {
-		trimmed := strings.TrimSpace(caseID)
+	completed := make(map[string]resume.CompletedInstance, len(file.Instances))
+	for instanceKey, c := range file.Instances {
+		trimmed := strings.TrimSpace(instanceKey)
 		if trimmed == "" {
 			continue
 		}
-		completed[trimmed] = resume.CompletedCase{
-			CaseID:           trimmed,
+		completed[trimmed] = resume.CompletedInstance{
+			InstanceKey:      trimmed,
+			CaseID:           c.CaseID,
+			SampleIndex:      c.SampleIndex,
 			SourceRunID:      file.RunID,
 			SourceInstanceID: c.InstanceID,
 			ProviderRef:      c.ProviderRef,
@@ -202,13 +214,13 @@ func LoadProgressSnapshot(runDir string) (resume.Snapshot, error) {
 			Artifacts:        c.Artifacts,
 		}
 	}
-	caseIDs := append([]string(nil), file.CaseIDs...)
-	sort.Strings(caseIDs)
+	instanceKeys := append([]string(nil), file.InstanceKeys...)
+	sort.Strings(instanceKeys)
 	return resume.Snapshot{
-		RunID:      file.RunID,
-		BundleHash: strings.TrimSpace(file.BundleHash),
-		CaseIDs:    caseIDs,
-		Completed:  completed,
+		RunID:        file.RunID,
+		BundleHash:   strings.TrimSpace(file.BundleHash),
+		InstanceKeys: instanceKeys,
+		Completed:    completed,
 	}, nil
 }
 

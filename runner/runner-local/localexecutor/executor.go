@@ -662,10 +662,10 @@ func normalizeExecutionMode(mode runbundle.ExecutionMode) runbundle.ExecutionMod
 }
 
 func resolveCaseForExecution(run store.Run, inst store.Instance) (runbundle.Case, error) {
-	if inst.Ordinal < 0 || inst.Ordinal >= len(run.Bundle.ResolvedSnapshot.Cases) {
-		return runbundle.Case{}, fmt.Errorf("instance %q has invalid case ordinal %d", inst.InstanceID, inst.Ordinal)
+	if inst.CaseOrdinal < 0 || inst.CaseOrdinal >= len(run.Bundle.ResolvedSnapshot.Cases) {
+		return runbundle.Case{}, fmt.Errorf("instance %q has invalid case ordinal %d", inst.InstanceID, inst.CaseOrdinal)
 	}
-	caseSpec := run.Bundle.ResolvedSnapshot.Cases[inst.Ordinal]
+	caseSpec := run.Bundle.ResolvedSnapshot.Cases[inst.CaseOrdinal]
 	if strings.TrimSpace(caseSpec.CaseID) != strings.TrimSpace(inst.Case.CaseID) {
 		return runbundle.Case{}, fmt.Errorf(
 			"instance %q case mismatch: bundle case_id=%q instance case_id=%q",

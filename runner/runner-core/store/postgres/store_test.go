@@ -19,6 +19,16 @@ type scanFn func(dest ...any) error
 func (f scanFn) Scan(dest ...any) error { return f(dest...) }
 
 func TestScanRunIncludeBundle(t *testing.T) {
+	cases := []runbundle.Case{{
+		CaseID:            "case_1",
+		Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		InitialPrompt:     "hello",
+		AgentCwd:          "/workspace",
+		TestCommand:       []string{"bash", "-lc", "true"},
+		TestCwd:           "/work",
+		TestTimeoutSecond: 30,
+		TestAssets:        testfixture.MinimalTestAssets(),
+	}}
 	bundle := runbundle.Bundle{
 		SchemaVersion: runbundle.SchemaVersionV1,
 		BundleID:      "bun_1",
@@ -33,19 +43,12 @@ func TestScanRunIncludeBundle(t *testing.T) {
 				MaxConcurrency:        1,
 				FailFast:              false,
 				InstanceTimeoutSecond: 120,
+				SamplesPerCase:        1,
 			},
 			Agent:       testfixture.MinimalAgent(),
 			RunDefaults: runbundle.RunDefault{Env: map[string]string{}, PTY: runbundle.PTY{Cols: 120, Rows: 40}},
-			Cases: []runbundle.Case{{
-				CaseID:            "case_1",
-				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-				InitialPrompt:     "hello",
-				AgentCwd:          "/workspace",
-				TestCommand:       []string{"bash", "-lc", "true"},
-				TestCwd:           "/work",
-				TestTimeoutSecond: 30,
-				TestAssets:        testfixture.MinimalTestAssets(),
-			}},
+			Cases:       cases,
+			Instances:   runbundle.BuildInstanceSpecs(cases, 1),
 		},
 	}
 	raw, err := json.Marshal(bundle)
