@@ -64,11 +64,12 @@ type SuiteGitRef struct {
 }
 
 type ResolvedSnapshot struct {
-	Name        string     `json:"name"`
-	Execution   Execution  `json:"execution"`
-	Agent       Agent      `json:"agent"`
-	RunDefaults RunDefault `json:"run_defaults"`
-	Cases       []Case     `json:"cases"`
+	Name        string         `json:"name"`
+	Execution   Execution      `json:"execution"`
+	Agent       Agent          `json:"agent"`
+	RunDefaults RunDefault     `json:"run_defaults"`
+	Cases       []Case         `json:"cases"`
+	Instances   []InstanceSpec `json:"instances"`
 }
 
 type ExecutionMode string
@@ -85,6 +86,7 @@ type Execution struct {
 	FailFast              bool          `json:"fail_fast"`
 	RetryCount            int           `json:"retry_count"`
 	InstanceTimeoutSecond int           `json:"instance_timeout_seconds"`
+	SamplesPerCase        int           `json:"samples_per_case"`
 }
 
 type Agent struct {
@@ -113,6 +115,14 @@ type Case struct {
 	TestCwd           string          `json:"test_cwd"`
 	TestTimeoutSecond int             `json:"test_timeout_seconds"`
 	TestAssets        TestAssets      `json:"test_assets"`
+}
+
+type InstanceSpec struct {
+	InstanceKey string `json:"instance_key"`
+	CaseID      string `json:"case_id"`
+	CaseOrdinal int    `json:"case_ordinal"`
+	SampleIndex int    `json:"sample_index"`
+	SampleCount int    `json:"sample_count"`
 }
 
 type CaseImageBuild struct {

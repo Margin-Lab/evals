@@ -63,6 +63,8 @@ func Compile(in CompileInput) (runbundle.Bundle, error) {
 	if err != nil {
 		return runbundle.Bundle{}, err
 	}
+	samplesPerCase := valueOrZero(evalDoc.SamplesPerCase)
+	instances := runbundle.BuildInstanceSpecs(cases, samplesPerCase)
 
 	bundleID := strings.TrimSpace(in.BundleID)
 	if bundleID == "" {
@@ -98,10 +100,12 @@ func Compile(in CompileInput) (runbundle.Bundle, error) {
 				FailFast:              evalDoc.FailFast,
 				RetryCount:            valueOrZero(evalDoc.RetryCount),
 				InstanceTimeoutSecond: evalDoc.InstanceTimeoutSecond,
+				SamplesPerCase:        samplesPerCase,
 			},
 			Agent:       agentSpec,
 			RunDefaults: compileRunDefaults(in),
 			Cases:       cases,
+			Instances:   instances,
 		},
 	}
 
@@ -446,6 +450,14 @@ func compileEval(evalPath string) (evalFile, error) {
 		return evalFile{}, fmt.Errorf("%s retry_count must be >= 0", evalPath)
 	}
 	ef.RetryCount = &retryCount
+	samplesPerCase := 1
+	if ef.SamplesPerCase != nil {
+		samplesPerCase = *ef.SamplesPerCase
+	}
+	if samplesPerCase <= 0 {
+		return evalFile{}, fmt.Errorf("%s samples_per_case must be > 0", evalPath)
+	}
+	ef.SamplesPerCase = &samplesPerCase
 	if ef.InstanceTimeoutSecond <= 0 {
 		return evalFile{}, fmt.Errorf("%s instance_timeout_seconds must be > 0", evalPath)
 	}

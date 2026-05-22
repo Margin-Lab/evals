@@ -193,7 +193,8 @@ INSERT INTO runs (
 		return store.Run{}, fmt.Errorf("insert run: %w", err)
 	}
 
-	for i, c := range in.Bundle.ResolvedSnapshot.Cases {
+	for i, spec := range in.Bundle.ResolvedSnapshot.Instances {
+		c := in.Bundle.ResolvedSnapshot.Cases[spec.CaseOrdinal]
 		instanceID := fmt.Sprintf("%s-inst-%04d", in.RunID, i+1)
 		_, err = tx.Exec(ctx, `
 INSERT INTO run_instances (
@@ -495,6 +496,10 @@ SELECT
   ri.instance_id,
   ri.run_id,
   ri.ordinal,
+  r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'instance_key'] AS instance_key,
+  (r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'case_ordinal'])::int AS case_ordinal,
+  (r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'sample_index'])::int AS sample_index,
+  (r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'sample_count'])::int AS sample_count,
   ri.case_id,
   ri.image,
   ri.initial_prompt,
@@ -502,8 +507,8 @@ SELECT
   ri.test_command,
   ri.test_cwd,
   ri.test_timeout_seconds,
-  jsonb_extract_path(r.run_bundle_json, 'resolved_snapshot', 'cases', ri.ordinal::text, 'oracle_assets') AS oracle_assets,
-  jsonb_extract_path(r.run_bundle_json, 'resolved_snapshot', 'cases', ri.ordinal::text, 'test_assets') AS test_assets,
+  r.run_bundle_json #> ARRAY['resolved_snapshot', 'cases', r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'case_ordinal'], 'oracle_assets'] AS oracle_assets,
+  r.run_bundle_json #> ARRAY['resolved_snapshot', 'cases', r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'case_ordinal'], 'test_assets'] AS test_assets,
   ri.state::text,
   ri.created_at,
   ri.updated_at
@@ -543,6 +548,10 @@ SELECT
   ri.instance_id,
   ri.run_id,
   ri.ordinal,
+  r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'instance_key'] AS instance_key,
+  (r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'case_ordinal'])::int AS case_ordinal,
+  (r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'sample_index'])::int AS sample_index,
+  (r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'sample_count'])::int AS sample_count,
   ri.case_id,
   ri.image,
   ri.initial_prompt,
@@ -550,8 +559,8 @@ SELECT
   ri.test_command,
   ri.test_cwd,
   ri.test_timeout_seconds,
-  jsonb_extract_path(r.run_bundle_json, 'resolved_snapshot', 'cases', ri.ordinal::text, 'oracle_assets') AS oracle_assets,
-  jsonb_extract_path(r.run_bundle_json, 'resolved_snapshot', 'cases', ri.ordinal::text, 'test_assets') AS test_assets,
+  r.run_bundle_json #> ARRAY['resolved_snapshot', 'cases', r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'case_ordinal'], 'oracle_assets'] AS oracle_assets,
+  r.run_bundle_json #> ARRAY['resolved_snapshot', 'cases', r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'case_ordinal'], 'test_assets'] AS test_assets,
   ri.state::text,
   ri.created_at,
   ri.updated_at
@@ -573,6 +582,10 @@ func scanInstance(row interface{ Scan(...any) error }) (store.Instance, error) {
 	var instanceID string
 	var runID string
 	var ordinal int
+	var instanceKey string
+	var caseOrdinal int
+	var sampleIndex int
+	var sampleCount int
 	var caseID string
 	var image string
 	var initialPrompt string
@@ -590,6 +603,10 @@ func scanInstance(row interface{ Scan(...any) error }) (store.Instance, error) {
 		&instanceID,
 		&runID,
 		&ordinal,
+		&instanceKey,
+		&caseOrdinal,
+		&sampleIndex,
+		&sampleCount,
 		&caseID,
 		&image,
 		&initialPrompt,
@@ -618,9 +635,13 @@ func scanInstance(row interface{ Scan(...any) error }) (store.Instance, error) {
 		return store.Instance{}, fmt.Errorf("scan instance: %w", err)
 	}
 	return store.Instance{
-		InstanceID: instanceID,
-		RunID:      runID,
-		Ordinal:    ordinal,
+		InstanceID:  instanceID,
+		RunID:       runID,
+		Ordinal:     ordinal,
+		InstanceKey: instanceKey,
+		CaseOrdinal: caseOrdinal,
+		SampleIndex: sampleIndex,
+		SampleCount: sampleCount,
 		Case: runbundle.Case{
 			CaseID:            caseID,
 			Image:             image,
@@ -1177,6 +1198,10 @@ SELECT
   r.created_at,
   ri.instance_id,
   ri.ordinal,
+  r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'instance_key'] AS instance_key,
+  (r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'case_ordinal'])::int AS case_ordinal,
+  (r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'sample_index'])::int AS sample_index,
+  (r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'sample_count'])::int AS sample_count,
   ri.case_id,
   ri.image,
   ri.initial_prompt,
@@ -1184,8 +1209,8 @@ SELECT
   ri.test_command,
   ri.test_cwd,
   ri.test_timeout_seconds,
-  jsonb_extract_path(r.run_bundle_json, 'resolved_snapshot', 'cases', ri.ordinal::text, 'oracle_assets') AS oracle_assets,
-  jsonb_extract_path(r.run_bundle_json, 'resolved_snapshot', 'cases', ri.ordinal::text, 'test_assets') AS test_assets,
+  r.run_bundle_json #> ARRAY['resolved_snapshot', 'cases', r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'case_ordinal'], 'oracle_assets'] AS oracle_assets,
+  r.run_bundle_json #> ARRAY['resolved_snapshot', 'cases', r.run_bundle_json #>> ARRAY['resolved_snapshot', 'instances', ri.ordinal::text, 'case_ordinal'], 'test_assets'] AS test_assets,
   ri.state::text,
   ri.created_at,
   ri.updated_at
@@ -1215,6 +1240,10 @@ LIMIT 1
 	var runCreatedAt time.Time
 	var instanceID string
 	var ordinal int
+	var instanceKey string
+	var caseOrdinal int
+	var sampleIndex int
+	var sampleCount int
 	var caseID string
 	var image string
 	var initialPrompt string
@@ -1243,6 +1272,10 @@ LIMIT 1
 		&runCreatedAt,
 		&instanceID,
 		&ordinal,
+		&instanceKey,
+		&caseOrdinal,
+		&sampleIndex,
+		&sampleCount,
 		&caseID,
 		&image,
 		&initialPrompt,
@@ -1397,9 +1430,13 @@ VALUES ($1, 'worker', 'queued', 'running', NULL, $2)
 		LeaseToken: leaseToken,
 		Run:        run,
 		Instance: store.Instance{
-			InstanceID: instanceID,
-			RunID:      runID,
-			Ordinal:    ordinal,
+			InstanceID:  instanceID,
+			RunID:       runID,
+			Ordinal:     ordinal,
+			InstanceKey: instanceKey,
+			CaseOrdinal: caseOrdinal,
+			SampleIndex: sampleIndex,
+			SampleCount: sampleCount,
 			Case: runbundle.Case{
 				CaseID:            caseID,
 				Image:             image,

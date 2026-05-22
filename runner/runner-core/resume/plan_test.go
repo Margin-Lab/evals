@@ -11,6 +11,28 @@ import (
 )
 
 func testBundle() runbundle.Bundle {
+	cases := []runbundle.Case{
+		{
+			CaseID:            "case-1",
+			Image:             "img-1",
+			InitialPrompt:     "one",
+			AgentCwd:          "/workspace",
+			TestCommand:       []string{"true"},
+			TestCwd:           "/work",
+			TestTimeoutSecond: 30,
+			TestAssets:        testfixture.MinimalTestAssets(),
+		},
+		{
+			CaseID:            "case-2",
+			Image:             "img-2",
+			InitialPrompt:     "two",
+			AgentCwd:          "/workspace",
+			TestCommand:       []string{"true"},
+			TestCwd:           "/work",
+			TestTimeoutSecond: 30,
+			TestAssets:        testfixture.MinimalTestAssets(),
+		},
+	}
 	return runbundle.Bundle{
 		SchemaVersion: runbundle.SchemaVersionV1,
 		BundleID:      "bun_1",
@@ -22,31 +44,12 @@ func testBundle() runbundle.Bundle {
 				MaxConcurrency:        1,
 				FailFast:              false,
 				InstanceTimeoutSecond: 120,
+				SamplesPerCase:        1,
 			},
 			Agent:       testfixture.MinimalAgent(),
 			RunDefaults: runbundle.RunDefault{Env: map[string]string{}, PTY: runbundle.PTY{Cols: 120, Rows: 40}},
-			Cases: []runbundle.Case{
-				{
-					CaseID:            "case-1",
-					Image:             "img-1",
-					InitialPrompt:     "one",
-					AgentCwd:          "/workspace",
-					TestCommand:       []string{"true"},
-					TestCwd:           "/work",
-					TestTimeoutSecond: 30,
-					TestAssets:        testfixture.MinimalTestAssets(),
-				},
-				{
-					CaseID:            "case-2",
-					Image:             "img-2",
-					InitialPrompt:     "two",
-					AgentCwd:          "/workspace",
-					TestCommand:       []string{"true"},
-					TestCwd:           "/work",
-					TestTimeoutSecond: 30,
-					TestAssets:        testfixture.MinimalTestAssets(),
-				},
-			},
+			Cases:       cases,
+			Instances:   runbundle.BuildInstanceSpecs(cases, 1),
 		},
 	}
 }
@@ -54,11 +57,11 @@ func testBundle() runbundle.Bundle {
 func TestBuildPlanResumeModeCarriesAllTerminalCases(t *testing.T) {
 	bundle := testBundle()
 	snap := Snapshot{
-		RunID:      "run_src",
-		BundleHash: "hash_1",
-		CaseIDs:    []string{"case-1", "case-2"},
-		Completed: map[string]CompletedCase{
-			"case-1": {
+		RunID:        "run_src",
+		BundleHash:   "hash_1",
+		InstanceKeys: []string{"case-1#1", "case-2#1"},
+		Completed: map[string]CompletedInstance{
+			"case-1#1": {
 				CaseID:           "case-1",
 				SourceRunID:      "run_src",
 				SourceInstanceID: "run_src-inst-0001",
@@ -66,7 +69,7 @@ func TestBuildPlanResumeModeCarriesAllTerminalCases(t *testing.T) {
 					FinalState: domain.InstanceStateSucceeded,
 				},
 			},
-			"case-2": {
+			"case-2#1": {
 				CaseID:           "case-2",
 				SourceRunID:      "run_src",
 				SourceInstanceID: "run_src-inst-0002",
@@ -83,13 +86,13 @@ func TestBuildPlanResumeModeCarriesAllTerminalCases(t *testing.T) {
 	if plan.OriginRunID != "run_src" {
 		t.Fatalf("unexpected origin run id: %s", plan.OriginRunID)
 	}
-	if len(plan.CarryByCase) != 2 {
-		t.Fatalf("expected 2 carried cases, got %d", len(plan.CarryByCase))
+	if len(plan.CarryByInstance) != 2 {
+		t.Fatalf("expected 2 carried cases, got %d", len(plan.CarryByInstance))
 	}
-	if _, ok := plan.CarryByCase["case-1"]; !ok {
+	if _, ok := plan.CarryByInstance["case-1#1"]; !ok {
 		t.Fatalf("expected case-1 to be carried")
 	}
-	if _, ok := plan.CarryByCase["case-2"]; !ok {
+	if _, ok := plan.CarryByInstance["case-2#1"]; !ok {
 		t.Fatalf("expected case-2 to be carried")
 	}
 	if plan.HasBundleMismatch() {
@@ -100,11 +103,11 @@ func TestBuildPlanResumeModeCarriesAllTerminalCases(t *testing.T) {
 func TestBuildPlanRetryFailedCarriesSucceededOnly(t *testing.T) {
 	bundle := testBundle()
 	snap := Snapshot{
-		RunID:      "run_src",
-		BundleHash: "hash_1",
-		CaseIDs:    []string{"case-1", "case-2"},
-		Completed: map[string]CompletedCase{
-			"case-1": {
+		RunID:        "run_src",
+		BundleHash:   "hash_1",
+		InstanceKeys: []string{"case-1#1", "case-2#1"},
+		Completed: map[string]CompletedInstance{
+			"case-1#1": {
 				CaseID:           "case-1",
 				SourceRunID:      "run_src",
 				SourceInstanceID: "run_src-inst-0001",
@@ -112,7 +115,7 @@ func TestBuildPlanRetryFailedCarriesSucceededOnly(t *testing.T) {
 					FinalState: domain.InstanceStateSucceeded,
 				},
 			},
-			"case-2": {
+			"case-2#1": {
 				CaseID:           "case-2",
 				SourceRunID:      "run_src",
 				SourceInstanceID: "run_src-inst-0002",
@@ -126,22 +129,68 @@ func TestBuildPlanRetryFailedCarriesSucceededOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build plan: %v", err)
 	}
-	if len(plan.CarryByCase) != 1 {
-		t.Fatalf("expected 1 carried case, got %d", len(plan.CarryByCase))
+	if len(plan.CarryByInstance) != 1 {
+		t.Fatalf("expected 1 carried case, got %d", len(plan.CarryByInstance))
 	}
-	if _, ok := plan.CarryByCase["case-1"]; !ok {
+	if _, ok := plan.CarryByInstance["case-1#1"]; !ok {
 		t.Fatalf("expected case-1 to be carried")
 	}
-	if _, ok := plan.CarryByCase["case-2"]; ok {
+	if _, ok := plan.CarryByInstance["case-2#1"]; ok {
 		t.Fatalf("expected case-2 to be rerun")
+	}
+}
+
+func TestBuildPlanCarriesIndividualSamples(t *testing.T) {
+	bundle := testBundle()
+	bundle.ResolvedSnapshot.Execution.SamplesPerCase = 2
+	bundle.ResolvedSnapshot.Instances = runbundle.BuildInstanceSpecs(bundle.ResolvedSnapshot.Cases, 2)
+	snap := Snapshot{
+		RunID:        "run_src",
+		BundleHash:   "hash_1",
+		InstanceKeys: []string{"case-1#1", "case-1#2", "case-2#1", "case-2#2"},
+		Completed: map[string]CompletedInstance{
+			"case-1#1": {
+				InstanceKey:      "case-1#1",
+				CaseID:           "case-1",
+				SampleIndex:      1,
+				SourceRunID:      "run_src",
+				SourceInstanceID: "run_src-inst-0001",
+				Result:           store.StoredInstanceResult{FinalState: domain.InstanceStateSucceeded},
+			},
+			"case-2#2": {
+				InstanceKey:      "case-2#2",
+				CaseID:           "case-2",
+				SampleIndex:      2,
+				SourceRunID:      "run_src",
+				SourceInstanceID: "run_src-inst-0004",
+				Result:           store.StoredInstanceResult{FinalState: domain.InstanceStateSucceeded},
+			},
+		},
+	}
+
+	plan, err := BuildPlan(bundle, "hash_1", snap, DefaultMode(), BundlePolicyExact)
+	if err != nil {
+		t.Fatalf("build plan: %v", err)
+	}
+	if len(plan.CarryByInstance) != 2 {
+		t.Fatalf("expected 2 carried samples, got %d", len(plan.CarryByInstance))
+	}
+	if _, ok := plan.CarryByInstance["case-1#1"]; !ok {
+		t.Fatalf("expected case-1#1 to be carried")
+	}
+	if _, ok := plan.CarryByInstance["case-1#2"]; ok {
+		t.Fatalf("did not expect incomplete case-1#2 to be carried")
+	}
+	if len(plan.RerunInstances) != 2 {
+		t.Fatalf("expected 2 rerun samples, got %v", plan.RerunInstances)
 	}
 }
 
 func TestBuildPlanRejectsInvalidMode(t *testing.T) {
 	_, err := BuildPlan(testBundle(), "hash_1", Snapshot{
-		RunID:      "run_src",
-		BundleHash: "hash_1",
-		CaseIDs:    []string{"case-1", "case-2"},
+		RunID:        "run_src",
+		BundleHash:   "hash_1",
+		InstanceKeys: []string{"case-1#1", "case-2#1"},
 	}, Mode(""), BundlePolicyExact)
 	if err == nil {
 		t.Fatalf("expected error")
@@ -150,9 +199,9 @@ func TestBuildPlanRejectsInvalidMode(t *testing.T) {
 
 func TestBuildPlanRejectsHashMismatch(t *testing.T) {
 	_, err := BuildPlan(testBundle(), "hash_new", Snapshot{
-		RunID:      "run_src",
-		BundleHash: "hash_old",
-		CaseIDs:    []string{"case-1", "case-2"},
+		RunID:        "run_src",
+		BundleHash:   "hash_old",
+		InstanceKeys: []string{"case-1#1", "case-2#1"},
 	}, DefaultMode(), BundlePolicyExact)
 	if err == nil {
 		t.Fatalf("expected error")
@@ -161,9 +210,9 @@ func TestBuildPlanRejectsHashMismatch(t *testing.T) {
 
 func TestBuildPlanRejectsCaseMismatch(t *testing.T) {
 	_, err := BuildPlan(testBundle(), "hash_1", Snapshot{
-		RunID:      "run_src",
-		BundleHash: "hash_1",
-		CaseIDs:    []string{"case-1"},
+		RunID:        "run_src",
+		BundleHash:   "hash_1",
+		InstanceKeys: []string{"case-1#1"},
 	}, DefaultMode(), BundlePolicyExact)
 	if err == nil {
 		t.Fatalf("expected error")
@@ -182,12 +231,13 @@ func TestBuildPlanAllowMismatchCarriesOnlyIntersectingCases(t *testing.T) {
 		TestTimeoutSecond: 30,
 		TestAssets:        testfixture.MinimalTestAssets(),
 	})
+	bundle.ResolvedSnapshot.Instances = runbundle.BuildInstanceSpecs(bundle.ResolvedSnapshot.Cases, 1)
 	snap := Snapshot{
-		RunID:      "run_src",
-		BundleHash: "hash_old",
-		CaseIDs:    []string{"case-1", "case-removed"},
-		Completed: map[string]CompletedCase{
-			"case-1": {
+		RunID:        "run_src",
+		BundleHash:   "hash_old",
+		InstanceKeys: []string{"case-1#1", "case-removed#1"},
+		Completed: map[string]CompletedInstance{
+			"case-1#1": {
 				CaseID:           "case-1",
 				SourceRunID:      "run_src",
 				SourceInstanceID: "run_src-inst-0001",
@@ -195,7 +245,7 @@ func TestBuildPlanAllowMismatchCarriesOnlyIntersectingCases(t *testing.T) {
 					FinalState: domain.InstanceStateSucceeded,
 				},
 			},
-			"case-removed": {
+			"case-removed#1": {
 				CaseID:           "case-removed",
 				SourceRunID:      "run_src",
 				SourceInstanceID: "run_src-inst-0009",
@@ -214,31 +264,31 @@ func TestBuildPlanAllowMismatchCarriesOnlyIntersectingCases(t *testing.T) {
 	}
 	if !plan.BundleHashMatch == false {
 	}
-	if len(plan.CarryByCase) != 1 {
-		t.Fatalf("expected 1 carried case, got %d", len(plan.CarryByCase))
+	if len(plan.CarryByInstance) != 1 {
+		t.Fatalf("expected 1 carried case, got %d", len(plan.CarryByInstance))
 	}
-	if _, ok := plan.CarryByCase["case-1"]; !ok {
+	if _, ok := plan.CarryByInstance["case-1#1"]; !ok {
 		t.Fatalf("expected case-1 to be carried")
 	}
-	if len(plan.AddedCaseIDs) != 2 {
-		t.Fatalf("expected 2 added cases, got %v", plan.AddedCaseIDs)
+	if len(plan.AddedInstances) != 2 {
+		t.Fatalf("expected 2 added cases, got %v", plan.AddedInstances)
 	}
-	if len(plan.DroppedCaseIDs) != 1 || plan.DroppedCaseIDs[0] != "case-removed" {
-		t.Fatalf("unexpected dropped cases: %v", plan.DroppedCaseIDs)
+	if len(plan.DroppedInstances) != 1 || plan.DroppedInstances[0] != "case-removed#1" {
+		t.Fatalf("unexpected dropped cases: %v", plan.DroppedInstances)
 	}
-	if len(plan.RerunCaseIDs) != 2 {
-		t.Fatalf("expected 2 rerun cases, got %v", plan.RerunCaseIDs)
+	if len(plan.RerunInstances) != 2 {
+		t.Fatalf("expected 2 rerun cases, got %v", plan.RerunInstances)
 	}
 }
 
 func TestBuildPlanAllowMismatchStillUsesResumePolicy(t *testing.T) {
 	bundle := testBundle()
 	snap := Snapshot{
-		RunID:      "run_src",
-		BundleHash: "hash_old",
-		CaseIDs:    []string{"case-1", "case-2"},
-		Completed: map[string]CompletedCase{
-			"case-1": {
+		RunID:        "run_src",
+		BundleHash:   "hash_old",
+		InstanceKeys: []string{"case-1#1", "case-2#1"},
+		Completed: map[string]CompletedInstance{
+			"case-1#1": {
 				CaseID:           "case-1",
 				SourceRunID:      "run_src",
 				SourceInstanceID: "run_src-inst-0001",
@@ -246,7 +296,7 @@ func TestBuildPlanAllowMismatchStillUsesResumePolicy(t *testing.T) {
 					FinalState: domain.InstanceStateSucceeded,
 				},
 			},
-			"case-2": {
+			"case-2#1": {
 				CaseID:           "case-2",
 				SourceRunID:      "run_src",
 				SourceInstanceID: "run_src-inst-0002",
@@ -260,22 +310,22 @@ func TestBuildPlanAllowMismatchStillUsesResumePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build plan: %v", err)
 	}
-	if len(plan.CarryByCase) != 1 {
-		t.Fatalf("expected 1 carried case, got %d", len(plan.CarryByCase))
+	if len(plan.CarryByInstance) != 1 {
+		t.Fatalf("expected 1 carried case, got %d", len(plan.CarryByInstance))
 	}
-	if _, ok := plan.CarryByCase["case-2"]; ok {
+	if _, ok := plan.CarryByInstance["case-2#1"]; ok {
 		t.Fatalf("expected test_failed case to rerun under retry-failed")
 	}
-	if len(plan.RerunCaseIDs) != 1 || plan.RerunCaseIDs[0] != "case-2" {
-		t.Fatalf("unexpected rerun cases: %v", plan.RerunCaseIDs)
+	if len(plan.RerunInstances) != 1 || plan.RerunInstances[0] != "case-2#1" {
+		t.Fatalf("unexpected rerun cases: %v", plan.RerunInstances)
 	}
 }
 
 func TestBuildPlanRejectsInvalidBundlePolicy(t *testing.T) {
 	_, err := BuildPlan(testBundle(), "hash_1", Snapshot{
-		RunID:      "run_src",
-		BundleHash: "hash_1",
-		CaseIDs:    []string{"case-1", "case-2"},
+		RunID:        "run_src",
+		BundleHash:   "hash_1",
+		InstanceKeys: []string{"case-1#1", "case-2#1"},
 	}, DefaultMode(), BundlePolicy(""))
 	if err == nil {
 		t.Fatalf("expected error")

@@ -126,6 +126,16 @@ func buildInstructionBundle(t *testing.T, definitionName, configName, version st
 }
 
 func buildBundleWithAgent(prompt string, agent runbundle.Agent) runbundle.Bundle {
+	cases := []runbundle.Case{{
+		CaseID:            "case_1",
+		Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		InitialPrompt:     prompt,
+		AgentCwd:          "/workspace",
+		TestCommand:       []string{"bash", "-lc", "true"},
+		TestCwd:           "/work",
+		TestTimeoutSecond: 120,
+		TestAssets:        testfixture.MinimalTestAssets(),
+	}}
 	return runbundle.Bundle{
 		SchemaVersion: runbundle.SchemaVersionV1,
 		BundleID:      "bun_local_it",
@@ -137,22 +147,15 @@ func buildBundleWithAgent(prompt string, agent runbundle.Agent) runbundle.Bundle
 				MaxConcurrency:        1,
 				FailFast:              false,
 				InstanceTimeoutSecond: 180,
+				SamplesPerCase:        1,
 			},
 			Agent: agent,
 			RunDefaults: runbundle.RunDefault{
 				Env: map[string]string{"TERM": "xterm-256color"},
 				PTY: runbundle.PTY{Cols: 120, Rows: 40},
 			},
-			Cases: []runbundle.Case{{
-				CaseID:            "case_1",
-				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-				InitialPrompt:     prompt,
-				AgentCwd:          "/workspace",
-				TestCommand:       []string{"bash", "-lc", "true"},
-				TestCwd:           "/work",
-				TestTimeoutSecond: 120,
-				TestAssets:        testfixture.MinimalTestAssets(),
-			}},
+			Cases:     cases,
+			Instances: runbundle.BuildInstanceSpecs(cases, 1),
 		},
 	}
 }

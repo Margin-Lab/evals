@@ -102,16 +102,21 @@ func (s *MemoryStore) CreateRun(_ context.Context, in CreateRunInput) (Run, erro
 	s.runs[run.RunID] = run
 	s.runOrder = append(s.runOrder, run.RunID)
 
-	for i, c := range in.Bundle.ResolvedSnapshot.Cases {
+	for i, spec := range in.Bundle.ResolvedSnapshot.Instances {
+		c := in.Bundle.ResolvedSnapshot.Cases[spec.CaseOrdinal]
 		id := fmt.Sprintf("%s-inst-%04d", run.RunID, i+1)
 		inst := &Instance{
-			InstanceID: id,
-			RunID:      run.RunID,
-			Ordinal:    i,
-			Case:       c,
-			State:      domain.InstanceStatePending,
-			CreatedAt:  in.At,
-			UpdatedAt:  in.At,
+			InstanceID:  id,
+			RunID:       run.RunID,
+			Ordinal:     i,
+			InstanceKey: spec.InstanceKey,
+			CaseOrdinal: spec.CaseOrdinal,
+			SampleIndex: spec.SampleIndex,
+			SampleCount: spec.SampleCount,
+			Case:        c,
+			State:       domain.InstanceStatePending,
+			CreatedAt:   in.At,
+			UpdatedAt:   in.At,
 		}
 		s.instances[id] = inst
 		s.instanceIDsByRun[run.RunID] = append(s.instanceIDsByRun[run.RunID], id)
@@ -170,9 +175,22 @@ func (s *MemoryStore) createRunLocked(in CreateRunInput) (Run, error) {
 	}
 	s.runs[run.RunID] = run
 	s.runOrder = append(s.runOrder, run.RunID)
-	for i, c := range in.Bundle.ResolvedSnapshot.Cases {
+	for i, spec := range in.Bundle.ResolvedSnapshot.Instances {
+		c := in.Bundle.ResolvedSnapshot.Cases[spec.CaseOrdinal]
 		id := fmt.Sprintf("%s-inst-%04d", run.RunID, i+1)
-		inst := &Instance{InstanceID: id, RunID: run.RunID, Ordinal: i, Case: c, State: domain.InstanceStatePending, CreatedAt: in.At, UpdatedAt: in.At}
+		inst := &Instance{
+			InstanceID:  id,
+			RunID:       run.RunID,
+			Ordinal:     i,
+			InstanceKey: spec.InstanceKey,
+			CaseOrdinal: spec.CaseOrdinal,
+			SampleIndex: spec.SampleIndex,
+			SampleCount: spec.SampleCount,
+			Case:        c,
+			State:       domain.InstanceStatePending,
+			CreatedAt:   in.At,
+			UpdatedAt:   in.At,
+		}
 		s.instances[id] = inst
 		s.instanceIDsByRun[run.RunID] = append(s.instanceIDsByRun[run.RunID], id)
 	}

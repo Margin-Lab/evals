@@ -56,6 +56,12 @@ instance_timeout_seconds = 600
 	if bundle.ResolvedSnapshot.Execution.RetryCount != 1 {
 		t.Fatalf("Execution.RetryCount = %d, want 1", bundle.ResolvedSnapshot.Execution.RetryCount)
 	}
+	if bundle.ResolvedSnapshot.Execution.SamplesPerCase != 1 {
+		t.Fatalf("Execution.SamplesPerCase = %d, want 1", bundle.ResolvedSnapshot.Execution.SamplesPerCase)
+	}
+	if got := len(bundle.ResolvedSnapshot.Instances); got != 2 {
+		t.Fatalf("instance count = %d, want 2", got)
+	}
 	if got := bundle.ResolvedSnapshot.Cases[0].InitialPrompt; got != "run case repo-build" {
 		t.Fatalf("InitialPrompt = %q, want %q", got, "run case repo-build")
 	}
@@ -86,6 +92,43 @@ instance_timeout_seconds = 600
 	}
 	if _, err := os.Stat(filepath.Join(definitionPath, "definition.toml")); err != nil {
 		t.Fatalf("definition.toml missing: %v", err)
+	}
+}
+
+func TestCompileExpandsSamplesPerCase(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	suitePath := filepath.Join(root, "suite")
+	createSuiteWithCases(t, suitePath, []string{"repo-build", "lint"})
+
+	_, configPath := createAgentDefinitionConfig(t, root, "shell-agent", `[input]
+command = ["bash", "-lc", "echo hello"]
+`)
+
+	evalPath := filepath.Join(root, "eval.toml")
+	writeFile(t, evalPath, `kind = "eval_config"
+name = "smoke"
+max_concurrency = 1
+fail_fast = false
+samples_per_case = 3
+instance_timeout_seconds = 300
+`)
+
+	bundle, err := Compile(CompileInput{SuitePath: suitePath, AgentConfigPath: configPath, EvalPath: evalPath})
+	if err != nil {
+		t.Fatalf("Compile() error = %v", err)
+	}
+	if bundle.ResolvedSnapshot.Execution.SamplesPerCase != 3 {
+		t.Fatalf("SamplesPerCase = %d, want 3", bundle.ResolvedSnapshot.Execution.SamplesPerCase)
+	}
+	got := make([]string, 0, len(bundle.ResolvedSnapshot.Instances))
+	for _, inst := range bundle.ResolvedSnapshot.Instances {
+		got = append(got, inst.InstanceKey)
+	}
+	want := []string{"repo-build#1", "repo-build#2", "repo-build#3", "lint#1", "lint#2", "lint#3"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("instance keys = %#v, want %#v", got, want)
 	}
 }
 
@@ -138,6 +181,32 @@ instance_timeout_seconds = 300
 	_, err := Compile(CompileInput{SuitePath: suitePath, AgentConfigPath: configPath, EvalPath: evalPath})
 	if err == nil || !strings.Contains(err.Error(), "retry_count must be >= 0") {
 		t.Fatalf("expected retry_count validation error, got %v", err)
+	}
+}
+
+func TestCompileRejectsInvalidSamplesPerCase(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+
+	suitePath := filepath.Join(root, "suite")
+	createSuiteWithCases(t, suitePath, []string{"repo-build"})
+
+	_, configPath := createAgentDefinitionConfig(t, root, "shell-agent", `[input]
+command = ["bash", "-lc", "echo hello"]
+`)
+
+	evalPath := filepath.Join(root, "eval.toml")
+	writeFile(t, evalPath, `kind = "eval_config"
+name = "smoke"
+max_concurrency = 1
+fail_fast = false
+samples_per_case = 0
+instance_timeout_seconds = 300
+`)
+
+	_, err := Compile(CompileInput{SuitePath: suitePath, AgentConfigPath: configPath, EvalPath: evalPath})
+	if err == nil || !strings.Contains(err.Error(), "samples_per_case must be > 0") {
+		t.Fatalf("expected samples_per_case validation error, got %v", err)
 	}
 }
 

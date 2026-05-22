@@ -693,10 +693,11 @@ func validBundleWithCases(caseIDs ...string) runbundle.Bundle {
 		Source:        runbundle.Source{Kind: runbundle.SourceKindLocalFiles, SubmitProjectID: "proj_local"},
 		ResolvedSnapshot: runbundle.ResolvedSnapshot{
 			Name:        "smoke",
-			Execution:   runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1, FailFast: false, InstanceTimeoutSecond: 120},
+			Execution:   runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1, FailFast: false, InstanceTimeoutSecond: 120, SamplesPerCase: 1},
 			Agent:       testfixture.MinimalAgent(),
 			RunDefaults: runbundle.RunDefault{Env: map[string]string{"TERM": "xterm-256color"}, PTY: runbundle.PTY{Cols: 120, Rows: 40}},
 			Cases:       cases,
+			Instances:   runbundle.BuildInstanceSpecs(cases, 1),
 		},
 	}
 }

@@ -160,6 +160,16 @@ func int64Ptr(v int64) *int64 {
 }
 
 func snapshotFixtureBundle() runbundle.Bundle {
+	cases := []runbundle.Case{{
+		CaseID:            "case_1",
+		Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		InitialPrompt:     "Fix tests",
+		AgentCwd:          "/workspace",
+		TestCommand:       []string{"bash", "-lc", "true"},
+		TestCwd:           "/work",
+		TestTimeoutSecond: 60,
+		TestAssets:        testfixture.MinimalTestAssets(),
+	}}
 	return runbundle.Bundle{
 		SchemaVersion: runbundle.SchemaVersionV1,
 		BundleID:      "bun_1",
@@ -167,22 +177,14 @@ func snapshotFixtureBundle() runbundle.Bundle {
 		Source:        runbundle.Source{Kind: runbundle.SourceKindLocalFiles, SubmitProjectID: "proj_1"},
 		ResolvedSnapshot: runbundle.ResolvedSnapshot{
 			Name:      "smoke",
-			Execution: runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1, FailFast: false, InstanceTimeoutSecond: 120},
+			Execution: runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1, FailFast: false, InstanceTimeoutSecond: 120, SamplesPerCase: 1},
 			Agent:     testfixture.MinimalAgent(),
 			RunDefaults: runbundle.RunDefault{
 				Env: map[string]string{"TERM": "xterm-256color"},
 				PTY: runbundle.PTY{Cols: 120, Rows: 40},
 			},
-			Cases: []runbundle.Case{{
-				CaseID:            "case_1",
-				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-				InitialPrompt:     "Fix tests",
-				AgentCwd:          "/workspace",
-				TestCommand:       []string{"bash", "-lc", "true"},
-				TestCwd:           "/work",
-				TestTimeoutSecond: 60,
-				TestAssets:        testfixture.MinimalTestAssets(),
-			}},
+			Cases:     cases,
+			Instances: runbundle.BuildInstanceSpecs(cases, 1),
 		},
 	}
 }

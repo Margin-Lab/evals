@@ -164,9 +164,9 @@ func (m *model) renderInstances(width, height int) string {
 
 func (m *model) renderInstanceRow(item runnerapi.InstanceSnapshot, width int, selected bool) string {
 	icon := instanceStateIcon(item.Instance.State)
-	caseID := strings.TrimSpace(item.Instance.Case.CaseID)
-	if caseID == "" {
-		caseID = "(no-case-id)"
+	instanceLabel := displayInstanceLabel(item.Instance)
+	if instanceLabel == "" {
+		instanceLabel = "(no-case-id)"
 	}
 
 	cursor := "  "
@@ -219,7 +219,7 @@ func (m *model) renderInstanceRow(item runnerapi.InstanceSnapshot, width int, se
 			}
 			caseWidth := remaining - caseGap
 			if caseWidth > 0 {
-				row += strings.Repeat(" ", caseGap) + padRight(truncateText(caseID, caseWidth), caseWidth)
+				row += strings.Repeat(" ", caseGap) + padRight(truncateText(instanceLabel, caseWidth), caseWidth)
 			}
 		}
 	}
@@ -287,11 +287,23 @@ func (m *model) renderIdentityBar(inst *runnerapi.InstanceSnapshot, width int) s
 	if caseID != "" {
 		parts = append(parts, renderStyledKeyValue("case", caseID, width))
 	}
+	if inst.Instance.SampleCount > 1 {
+		parts = append(parts, renderStyledKeyValue("sample", fmt.Sprintf("%d/%d", inst.Instance.SampleIndex, inst.Instance.SampleCount), width))
+	}
 	retry := m.retrySummary(inst)
 	if retry.Visible() {
 		parts = append(parts, renderStyledKeyValue("retry", retry.DetailValue(), width))
 	}
 	return wrapInlineSegments(parts, width)
+}
+
+func displayInstanceLabel(inst store.Instance) string {
+	if inst.SampleCount > 1 {
+		if key := strings.TrimSpace(inst.InstanceKey); key != "" {
+			return key
+		}
+	}
+	return strings.TrimSpace(inst.Case.CaseID)
 }
 
 // ---------------------------------------------------------------------------

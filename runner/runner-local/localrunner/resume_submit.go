@@ -55,32 +55,32 @@ func (s *Service) submitResumedRun(ctx context.Context, in runnerapi.SubmitInput
 }
 
 func (s *Service) carryForwardLocalCases(ctx context.Context, runID, runDir, resumeFromDir string, plan resume.Plan) error {
-	if len(plan.CarryByCase) == 0 {
+	if len(plan.CarryByInstance) == 0 {
 		return nil
 	}
 	instances, err := s.runStore.ListInstances(ctx, runID, nil)
 	if err != nil {
 		return err
 	}
-	instanceByCaseID := make(map[string]store.Instance, len(instances))
+	instanceByKey := make(map[string]store.Instance, len(instances))
 	for _, inst := range instances {
-		instanceByCaseID[strings.TrimSpace(inst.Case.CaseID)] = inst
+		instanceByKey[strings.TrimSpace(inst.InstanceKey)] = inst
 	}
-	caseIDs := make([]string, 0, len(plan.CarryByCase))
-	for caseID := range plan.CarryByCase {
-		caseIDs = append(caseIDs, caseID)
+	instanceKeys := make([]string, 0, len(plan.CarryByInstance))
+	for instanceKey := range plan.CarryByInstance {
+		instanceKeys = append(instanceKeys, instanceKey)
 	}
-	sort.Strings(caseIDs)
-	for _, caseID := range caseIDs {
-		item := plan.CarryByCase[caseID]
-		inst, ok := instanceByCaseID[caseID]
+	sort.Strings(instanceKeys)
+	for _, instanceKey := range instanceKeys {
+		item := plan.CarryByInstance[instanceKey]
+		inst, ok := instanceByKey[instanceKey]
 		if !ok {
-			return fmt.Errorf("carry-forward case %q has no target instance in resumed run", caseID)
+			return fmt.Errorf("carry-forward instance %q has no target instance in resumed run", instanceKey)
 		}
 		result := storedToInstanceResult(item.Result)
 		artifacts, rewritten, err := s.copyCarriedArtifacts(runID, runDir, resumeFromDir, inst.InstanceID, result, item)
 		if err != nil {
-			return fmt.Errorf("copy carry-forward artifacts for case %q: %w", caseID, err)
+			return fmt.Errorf("copy carry-forward artifacts for instance %q: %w", instanceKey, err)
 		}
 		if err := s.runStore.CarryForwardInstance(ctx, store.CarryForwardInput{
 			RunID:            runID,
@@ -91,13 +91,13 @@ func (s *Service) carryForwardLocalCases(ctx context.Context, runID, runDir, res
 			Result:           rewritten,
 			Artifacts:        artifacts,
 		}, s.now()); err != nil {
-			return fmt.Errorf("carry-forward case %q: %w", caseID, err)
+			return fmt.Errorf("carry-forward instance %q: %w", instanceKey, err)
 		}
 	}
 	return nil
 }
 
-func (s *Service) copyCarriedArtifacts(runID, runDir, resumeFromDir, instanceID string, result store.InstanceResult, item resume.CompletedCase) ([]store.Artifact, store.InstanceResult, error) {
+func (s *Service) copyCarriedArtifacts(runID, runDir, resumeFromDir, instanceID string, result store.InstanceResult, item resume.CompletedInstance) ([]store.Artifact, store.InstanceResult, error) {
 	if len(item.Artifacts) == 0 {
 		return nil, result, nil
 	}

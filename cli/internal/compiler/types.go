@@ -182,4 +182,5 @@ type evalFile struct {
 	FailFast              bool   `toml:"fail_fast"`
 	RetryCount            *int   `toml:"retry_count"`
 	InstanceTimeoutSecond int    `toml:"instance_timeout_seconds"`
+	SamplesPerCase        *int   `toml:"samples_per_case"`
 }

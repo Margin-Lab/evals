@@ -167,13 +167,18 @@ func TestResolveCaseForExecutionUsesPersistedImage(t *testing.T) {
 	run := store.Run{
 		Bundle: runbundle.Bundle{
 			ResolvedSnapshot: runbundle.ResolvedSnapshot{
-				Cases: []runbundle.Case{bundleCase},
+				Cases:     []runbundle.Case{bundleCase},
+				Instances: runbundle.BuildInstanceSpecs([]runbundle.Case{bundleCase}, 1),
 			},
 		},
 	}
 	inst := store.Instance{
-		InstanceID: "inst_1",
-		Ordinal:    0,
+		InstanceID:  "inst_1",
+		Ordinal:     0,
+		InstanceKey: "case_1#1",
+		CaseOrdinal: 0,
+		SampleIndex: 1,
+		SampleCount: 1,
 		Case: runbundle.Case{
 			CaseID: "case_1",
 			Image:  "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

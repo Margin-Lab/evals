@@ -77,6 +77,16 @@ func (blockingExecutor) ExecuteInstance(ctx context.Context, _ store.Run, _ stor
 }
 
 func testBundle() runbundle.Bundle {
+	cases := []runbundle.Case{{
+		CaseID:            "c1",
+		Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		InitialPrompt:     "hello",
+		AgentCwd:          "/workspace",
+		TestCommand:       []string{"bash", "-lc", "true"},
+		TestCwd:           "/work",
+		TestTimeoutSecond: 20,
+		TestAssets:        testfixture.MinimalTestAssets(),
+	}}
 	return runbundle.Bundle{
 		SchemaVersion: runbundle.SchemaVersionV1,
 		BundleID:      "bun_t",
@@ -84,19 +94,11 @@ func testBundle() runbundle.Bundle {
 		Source:        runbundle.Source{Kind: runbundle.SourceKindLocalFiles},
 		ResolvedSnapshot: runbundle.ResolvedSnapshot{
 			Name:        "smoke",
-			Execution:   runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1, InstanceTimeoutSecond: 60},
+			Execution:   runbundle.Execution{Mode: runbundle.ExecutionModeFull, MaxConcurrency: 1, InstanceTimeoutSecond: 60, SamplesPerCase: 1},
 			Agent:       testfixture.MinimalAgent(),
 			RunDefaults: runbundle.RunDefault{Env: map[string]string{}, PTY: runbundle.PTY{}},
-			Cases: []runbundle.Case{{
-				CaseID:            "c1",
-				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-				InitialPrompt:     "hello",
-				AgentCwd:          "/workspace",
-				TestCommand:       []string{"bash", "-lc", "true"},
-				TestCwd:           "/work",
-				TestTimeoutSecond: 20,
-				TestAssets:        testfixture.MinimalTestAssets(),
-			}},
+			Cases:       cases,
+			Instances:   runbundle.BuildInstanceSpecs(cases, 1),
 		},
 	}
 }

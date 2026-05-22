@@ -158,6 +158,9 @@ func TestInitEvalConfig(t *testing.T) {
 	if !strings.Contains(string(body), "retry_count = 1") {
 		t.Fatalf("eval config missing retry_count default")
 	}
+	if !strings.Contains(string(body), "samples_per_case = 1") {
+		t.Fatalf("eval config missing samples_per_case default")
+	}
 }
 
 func TestInitRefusesOverwrite(t *testing.T) {

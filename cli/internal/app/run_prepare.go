@@ -77,10 +77,10 @@ func (a *App) prepareRunBundle(ctx context.Context, in runBundleInput, resumeMod
 			out.ResumeWarning = &resumeWarningSummary{
 				SourceRunID:  strings.TrimSpace(inferSourceRunID(snapshot.RunID)),
 				SourceRunDir: strings.TrimSpace(in.ResumeFromDir),
-				ReusedCount:  len(plan.CarryByCase),
-				RerunCount:   len(plan.RerunCaseIDs),
-				AddedCount:   len(plan.AddedCaseIDs),
-				DroppedCount: len(plan.DroppedCaseIDs),
+				ReusedCount:  len(plan.CarryByInstance),
+				RerunCount:   len(plan.RerunInstances),
+				AddedCount:   len(plan.AddedInstances),
+				DroppedCount: len(plan.DroppedInstances),
 				PolicyText:   resumeReusePolicyText(resumeMode),
 			}
 		}

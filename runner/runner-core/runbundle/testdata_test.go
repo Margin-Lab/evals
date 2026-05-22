@@ -20,20 +20,8 @@ func validBundle() Bundle {
 			Kind:            SourceKindLocalFiles,
 			SubmitProjectID: "proj_123",
 		},
-		ResolvedSnapshot: ResolvedSnapshot{
-			Name: "smoke",
-			Execution: Execution{
-				Mode:                  ExecutionModeFull,
-				MaxConcurrency:        8,
-				FailFast:              false,
-				InstanceTimeoutSecond: 1200,
-			},
-			Agent: minimalAgent(),
-			RunDefaults: RunDefault{
-				Env: map[string]string{"TERM": "xterm-256color"},
-				PTY: PTY{Cols: 120, Rows: 40},
-			},
-			Cases: []Case{{
+		ResolvedSnapshot: func() ResolvedSnapshot {
+			cases := []Case{{
 				CaseID:            "repo-build",
 				Image:             "ghcr.io/acme/repo@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 				InitialPrompt:     "Fix build",
@@ -42,8 +30,25 @@ func validBundle() Bundle {
 				TestCwd:           "/work",
 				TestTimeoutSecond: 900,
 				TestAssets:        minimalTestAssets(),
-			}},
-		},
+			}}
+			return ResolvedSnapshot{
+				Name: "smoke",
+				Execution: Execution{
+					Mode:                  ExecutionModeFull,
+					MaxConcurrency:        8,
+					FailFast:              false,
+					InstanceTimeoutSecond: 1200,
+					SamplesPerCase:        1,
+				},
+				Agent: minimalAgent(),
+				RunDefaults: RunDefault{
+					Env: map[string]string{"TERM": "xterm-256color"},
+					PTY: PTY{Cols: 120, Rows: 40},
+				},
+				Cases:     cases,
+				Instances: BuildInstanceSpecs(cases, 1),
+			}
+		}(),
 	}
 }
 
