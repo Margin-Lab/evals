@@ -10,16 +10,16 @@ LOG_FILE="${LOG_DIR}/run-$(date +%Y%m%d).log"
 ZSH_BIN="/usr/bin/zsh"
 TIMEOUT_SECONDS="${MARGINLAB_DAILY_TIMEOUT_SECONDS:-28800}"
 ALERT_HOOK="${MARGINLAB_DAILY_ALERT_HOOK:-}"
-DEPLOY=0
+PUBLISH=0
 
 usage() {
-  echo "Usage: $0 [--deploy]" >&2
+  echo "Usage: $0 [--publish]" >&2
 }
 
 while (($# > 0)); do
   case "$1" in
-    --deploy)
-      DEPLOY=1
+    --publish)
+      PUBLISH=1
       ;;
     -h|--help)
       usage
@@ -44,8 +44,8 @@ mkdir -p "${LOG_DIR}"
   echo "[$(date '+%Y-%m-%dT%H:%M:%S%z')] Starting daily run"
 
   run_command="cd \"${SCRIPT_DIR}\" && ./run.sh"
-  if ((DEPLOY)); then
-    run_command+=" --deploy"
+  if ((PUBLISH)); then
+    run_command+=" --publish"
   fi
 
   if timeout --signal=TERM --kill-after=300 "${TIMEOUT_SECONDS}" \

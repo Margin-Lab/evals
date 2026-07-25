@@ -54,6 +54,39 @@ status totals, or too few policy-valid instances are excluded. The current
 run's `results.json` is explicitly required and must pass those checks, so a
 bad new run cannot be hidden by valid history or publish stale statistics.
 
+## Site-data publication
+
+The parent runner always invokes the website's site-data publisher after both
+trackers pass. With no flag, this is a read-only export and validation in a
+temporary directory. It does not fetch, commit, push, open a pull request, or
+deploy Firebase. The runner removes any inherited
+`MARGINLAB_SITE_DATA_PUBLISH` value in this mode.
+
+`./run.sh --publish` and `./run-from-cron.sh --publish` enable Git publication.
+The runner then supplies both confirmations required by the publisher:
+`--publish` and `MARGINLAB_SITE_DATA_PUBLISH=1`. After validating one immutable
+snapshot, the publisher stages only `site-data/**` in a temporary detached
+worktree, creates one descendant commit, and pushes that exact commit directly
+to `origin/main`. Immediately before the normal non-force push, it refetches
+and requires remote `main` to still equal the captured base; concurrent
+movement or a non-fast-forward update fails closed.
+
+The dedicated automation clone must be clean, on `main`, have canonical
+`Margin-Lab/marginlab` as its origin, and be explicitly marked:
+
+```sh
+git -C /home/jbouza/Projects/marginlab-site-data-automation \
+  config --local marginlab.siteDataAutomation true
+```
+
+A retry with an already-published payload is a deterministic no-op. The
+temporary worktree is removed even after failure, and the dedicated clone is
+returned clean on an ff-only synchronized `main`; no retry branch or local
+publication commit needs reconciliation. If that final ff-only restoration
+cannot reconcile, publication fails for operator review. Publication does not
+run Firebase itself; the push starts the website's normal `main` checks and
+staging workflow, while production deployment remains separately approved.
+
 Optional overrides are:
 
 | Variable | Default |
@@ -104,7 +137,7 @@ git -C /home/jbouza/Projects/marginlab-eval/evals merge \
 ```
 
 Then create a candidate crontab from the installed one. The replacement keeps
-the existing schedule and adds no `--deploy` flag, so the first scheduled run
+the existing schedule and adds no `--publish` flag, so the first scheduled run
 still performs a publication dry run:
 
 ```sh
@@ -131,10 +164,44 @@ crontab "${cron_backup}"
 ```
 
 After the first scheduled run, verify its dated log under
-`/home/jbouza/Projects/marginlab-eval/daily-runs/logs`, confirm the automation
-clone stayed clean on `main`, and confirm no GitHub PR was created. Only then,
-and only after production deployment checks are required on `main`, should a
-separate reviewed change add `--deploy` to the cron command.
+`/home/jbouza/Projects/marginlab-eval/daily-runs/logs`. Confirm that it reports
+a successful dry run, and that the automation clone stayed clean on `main`
+without creating or pushing a commit:
+
+```sh
+git -C /home/jbouza/Projects/marginlab-site-data-automation status --short
+git -C /home/jbouza/Projects/marginlab-site-data-automation branch --show-current
+git -C /home/jbouza/Projects/marginlab-site-data-automation \
+  config --local --get marginlab.siteDataAutomation
+git -C /home/jbouza/Projects/marginlab-site-data-automation \
+  remote get-url origin
+```
+
+Only after that dry run and a review confirming the site-data validation and
+website `main` checks are ready should a second atomic crontab edit enable
+direct Git publication:
+
+```sh
+publish_backup="$(mktemp /tmp/marginlab-crontab.pre-publish.XXXXXX)"
+publish_candidate="$(mktemp /tmp/marginlab-crontab.publish.XXXXXX)"
+dry_runner="env MARGINLAB_EVAL_WORKSPACE_ROOT=/home/jbouza/Projects/marginlab-eval /home/jbouza/Projects/marginlab-eval/evals/ops/daily-runs/run-from-cron.sh"
+publish_runner="${dry_runner} --publish"
+
+crontab -l >"${publish_backup}"
+test "$(grep -Fc "${dry_runner}" "${publish_backup}")" -eq 1
+sed "s|${dry_runner}$|${publish_runner}|" \
+  "${publish_backup}" >"${publish_candidate}"
+grep -F "${publish_runner}" "${publish_candidate}"
+diff -u "${publish_backup}" "${publish_candidate}"
+crontab "${publish_candidate}"
+```
+
+Keep `publish_backup` through the first publication. Roll back to validation
+only with `crontab "${publish_backup}"`. After the first publish-mode run,
+confirm the log reports either the exact publication commit or a deterministic
+no-op, the automation clone is clean on `main`, and `origin/main` contains that
+commit. Also confirm the website's normal `main` checks started; this runner
+does not approve or perform a production Firebase deployment.
 
 The old external scripts can remain as a rollback copy until the new runner
 has completed multiple scheduled dry runs. They are no longer the source of
