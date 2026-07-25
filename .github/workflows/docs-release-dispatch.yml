@@ -1,0 +1,79 @@
+name: Request website documentation release
+
+# A production-eligible documentation build is emitted only by a trusted push
+# to the canonical default branch. Pull requests use the separate
+# docs-preview event and can never enter this path.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - docs/cli/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-release-dispatch
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    name: Request a production-eligible documentation build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out the trusted documentation revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Validate the release revision
+        id: docs
+        shell: bash
+        env:
+          REQUESTED_SHA: ${{ github.sha }}
+          REQUESTED_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          docs_sha="${REQUESTED_SHA,,}"
+          if [[ "$REQUESTED_REPOSITORY" != "Margin-Lab/evals" ]]; then
+            echo "::error::Documentation releases require Margin-Lab/evals"
+            exit 1
+          fi
+          if [[ ! "$docs_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::docs_sha must be an exact 40-character commit SHA"
+            exit 1
+          fi
+
+          echo "sha=$docs_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Create short-lived site dispatch token
+        id: site-token
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
+        with:
+          app-id: ${{ vars.MARGINLAB_PREVIEW_APP_ID }}
+          private-key: ${{ secrets.MARGINLAB_PREVIEW_APP_PRIVATE_KEY }}
+          owner: Margin-Lab
+          repositories: marginlab
+
+      - name: Request the trusted release build
+        env:
+          MARGINLAB_PREVIEW_TOKEN: ${{ steps.site-token.outputs.token }}
+          DOCS_REPOSITORY: Margin-Lab/evals
+          DOCS_SHA: ${{ steps.docs.outputs.sha }}
+          PREVIEW_ID: docs-main
+          DISPATCH_EVENT: docs-release
+          SOURCE_REF: refs/heads/main
+          SOURCE_SHA: ${{ steps.docs.outputs.sha }}
+          SOURCE_REPOSITORY: Margin-Lab/evals
+          TARGET_REPOSITORY: Margin-Lab/marginlab
+        run: node .github/scripts/dispatch-docs-site.mjs

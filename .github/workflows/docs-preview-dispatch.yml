@@ -1,0 +1,92 @@
+name: Request website documentation preview
+
+# pull_request_target loads this workflow and its scripts from the trusted base
+# branch. It never checks out or executes pull-request-controlled content.
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    paths:
+      - docs/cli/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-preview-dispatch-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    name: Request a secret-isolated preview build
+    if: >-
+      !github.event.pull_request.draft
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out trusted dispatch code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Verify frozen dispatch policy checkout
+        shell: bash
+        env:
+          EXPECTED_POLICY_SHA: ${{ github.event.pull_request.base.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_POLICY_SHA"
+
+      - name: Resolve requested documentation revision
+        id: docs
+        shell: bash
+        env:
+          REQUESTED_SHA: >-
+            ${{ github.event.pull_request.head.sha }}
+          REQUESTED_REPOSITORY: >-
+            ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -euo pipefail
+
+          docs_sha="${REQUESTED_SHA,,}"
+          if [[ ! "$docs_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::docs_sha must be an exact 40-character commit SHA"
+            exit 1
+          fi
+          if [[ ! "$REQUESTED_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+            echo "::error::Invalid documentation repository"
+            exit 1
+          fi
+
+          echo "sha=$docs_sha" >> "$GITHUB_OUTPUT"
+          echo "repository=$REQUESTED_REPOSITORY" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Create short-lived preview dispatch token
+        id: preview-token
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
+        with:
+          app-id: ${{ vars.MARGINLAB_PREVIEW_APP_ID }}
+          private-key: ${{ secrets.MARGINLAB_PREVIEW_APP_PRIVATE_KEY }}
+          owner: Margin-Lab
+          repositories: marginlab
+
+      - name: Request secret-free build from website repository
+        env:
+          MARGINLAB_PREVIEW_TOKEN: ${{ steps.preview-token.outputs.token }}
+          DOCS_REPOSITORY: ${{ steps.docs.outputs.repository }}
+          DOCS_SHA: ${{ steps.docs.outputs.sha }}
+          DOCS_PR: ${{ github.event.pull_request.number }}
+          PREVIEW_ID: docs-pr-${{ github.event.pull_request.number }}
+          DISPATCH_EVENT: docs-preview
+          SOURCE_REPOSITORY: Margin-Lab/evals
+          TARGET_REPOSITORY: Margin-Lab/marginlab
+        run: node .github/scripts/dispatch-docs-site.mjs
