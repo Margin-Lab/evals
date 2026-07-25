@@ -1,0 +1,10 @@
+/agent-configs/
+/eval-config*.toml
+/logs/
+/runs/
+/warmup-claude.sh
+/statistics/__pycache__/
+*.py[cod]
+.env*
+*.key
+*.pem
