@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/paths.sh"
-DEPLOY=0
+PUBLISH=0
 EVAL_WORKSPACE_ROOT="$(marginlab_eval_workspace_root "${SCRIPT_DIR}")"
 DAILY_STATE_DIR="${MARGINLAB_DAILY_STATE_DIR:-${EVAL_WORKSPACE_ROOT}/daily-runs}"
 PROJECTS_ROOT="${MARGINLAB_PROJECTS_ROOT:-$(cd "${EVAL_WORKSPACE_ROOT}/.." && pwd)}"
@@ -16,13 +16,13 @@ MINIMUM_VALID_INSTANCES="${MARGINLAB_MINIMUM_VALID_INSTANCES:-${EXPECTED_INSTANC
 NON_TEST_FAILURE_POLICY="${MARGINLAB_NON_TEST_FAILURE_POLICY:-exclude}"
 
 usage() {
-  echo "Usage: $0 [--deploy]" >&2
+  echo "Usage: $0 [--publish]" >&2
 }
 
 while (($# > 0)); do
   case "$1" in
-    --deploy)
-      DEPLOY=1
+    --publish)
+      PUBLISH=1
       ;;
     -h|--help)
       usage
@@ -89,11 +89,12 @@ PUBLISH_ARGUMENTS=(
   --non-test-failure-policy "${NON_TEST_FAILURE_POLICY}"
 )
 
-if ((DEPLOY)); then
+if ((PUBLISH)); then
   MARGINLAB_SITE_DATA_PUBLISH=1 \
     npm --prefix "${AUTOMATION_ROOT}/hosting" run publish:site-data -- \
     --publish "${PUBLISH_ARGUMENTS[@]}"
 else
-  npm --prefix "${AUTOMATION_ROOT}/hosting" run publish:site-data -- \
+  env -u MARGINLAB_SITE_DATA_PUBLISH \
+    npm --prefix "${AUTOMATION_ROOT}/hosting" run publish:site-data -- \
     "${PUBLISH_ARGUMENTS[@]}"
 fi
