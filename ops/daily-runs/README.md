@@ -43,16 +43,51 @@ completed run for the date fails closed for operator reconciliation.
 
 “Completed” is validated from content, not file presence: `results.state` must
 be `completed`, the suite size must match, and the statistics target date and
-failure policy must match the current invocation. Failed, stale, or legacy
-pairs are not reused. The versioned `sync-run.sh` copies the selected pair
-directly from `MARGINLAB_DAILY_STATE_DIR` to `MARGINLAB_RAW_REPOSITORY`, so
-location overrides apply through the entire retry path.
+failure policy must match the current invocation. Failed, stale, or
+unnormalized legacy pairs are not reused. The versioned `sync-run.sh` copies
+the selected pair directly from `MARGINLAB_DAILY_STATE_DIR` to
+`MARGINLAB_RAW_REPOSITORY`, so location overrides apply through the entire
+retry path.
 
 Statistics generation applies the same sample contract before aggregation.
 Failed runs and prior completed runs with the wrong suite size, inconsistent
 status totals, or too few policy-valid instances are excluded. The current
 run's `results.json` is explicitly required and must pass those checks, so a
 bad new run cannot be hidden by valid history or publish stale statistics.
+
+### Hash-pinned legacy normalization
+
+Statistics created before the versioned runner did not record
+`non_test_failure_policy`. The old calculator always used
+`succeeded + test_failed` as its denominator, which is the current `exclude`
+policy. A legacy file may be upgraded without rerunning its paid evaluation,
+but only through `statistics/normalize_legacy_policy.py`.
+
+The normalizer does not make a general “missing means exclude” assumption. Its
+checked-in allowlist contains the exact SHA-256 hashes of the two reviewed
+July 25 results, legacy statistics, and normalized outputs. It validates the
+completed run, suite size, status totals, target date, daily history, and daily
+timescale; creates an exact backup; validates the normalized candidate with the
+normal strict validator; and atomically replaces the statistics file. A second
+invocation is an idempotent no-op only when both the normalized file and its
+legacy backup match their expected hashes.
+
+```sh
+python3 statistics/normalize_legacy_policy.py \
+  --migration codex-20260725-040001 \
+  --results <run>/results.json \
+  --statistics <run>/statistics.json \
+  --backup <backup-dir>/codex-statistics.json
+
+python3 statistics/normalize_legacy_policy.py \
+  --migration claude-code-20260725-045635 \
+  --results <run>/results.json \
+  --statistics <run>/statistics.json \
+  --backup <backup-dir>/claude-code-statistics.json
+```
+
+After normalization, the unchanged strict retry path can reuse and sync the
+run. The publisher remains strict and will never export an implicit policy.
 
 ## Site-data publication
 
