@@ -5,7 +5,7 @@
 <p align="center">
   Open-source eval runtime for coding agents.
   <br /><br />
-  <a href="https://marginlab.ai">marginlab.ai</a> · <a href="https://docs.marginlab.ai">Documentation</a>
+  <a href="https://marginlab.ai">marginlab.ai</a> · <a href="https://marginlab.ai/docs/">Documentation</a>
   <br />
   <a href="https://x.com/themarginguy"><img src="https://img.shields.io/twitter/follow/themarginguy?style=social" alt="Follow on X"></a>
 </p>
@@ -151,7 +151,7 @@ Official SWE eval suites are hosted at `https://github.com/Margin-Lab/swe-suites
 
 Many more built-in evals coming soon.
 
-See Creating [Your Own Eval](https://docs.marginlab.ai/creating-your-own-eval/01-quickstart) for a guide on how to create your own eval suite.
+See Creating [Your Own Eval](https://marginlab.ai/docs/creating-your-own-eval/01-quickstart/) for a guide on how to create your own eval suite.
 
 ## Supported agents
 
@@ -165,7 +165,7 @@ See Creating [Your Own Eval](https://docs.marginlab.ai/creating-your-own-eval/01
 
 Agent configs support two modes: **direct** (full agent-specific control) and **unified** (one config format that works across all supported agents).
 
-Many more built-in agents coming soon. See [Adding a New Agent](https://docs.marginlab.ai/add-support-for-a-new-agent/01-overview) for a guide on how to add a new agent, and [Configuring Your Agent](https://docs.marginlab.ai/configuration/01-configuring-your-agent) for a guide on how to configure an existing agent.
+Many more built-in agents coming soon. See [Adding a New Agent](https://marginlab.ai/docs/add-support-for-a-new-agent/01-overview/) for a guide on how to add a new agent, and [Configuring Your Agent](https://marginlab.ai/docs/configuration/01-configuring-your-agent/) for a guide on how to configure an existing agent.
 
 ## Project structure
 
@@ -181,13 +181,13 @@ docs/                   Documentation
 
 ## Documentation
 
-- [What is Margin?](https://docs.marginlab.ai/welcome/01-what-is-margin)
-- [Installation](https://docs.marginlab.ai/quickstart/01-install)
-- [Running Your First Eval](https://docs.marginlab.ai/quickstart/02-running-your-first-eval)
-- [Configuring Your Agent](https://docs.marginlab.ai/configuration/01-configuring-your-agent)
-- [Configuring Your Eval](https://docs.marginlab.ai/configuration/02-configuring-your-eval)
-- [Creating Your Own Eval](https://docs.marginlab.ai/creating-your-own-eval/01-quickstart)
-- [Adding a New Agent](https://docs.marginlab.ai/add-support-for-a-new-agent/01-overview)
+- [What is Margin?](https://marginlab.ai/docs/welcome/01-what-is-margin/)
+- [Installation](https://marginlab.ai/docs/quickstart/01-install/)
+- [Running Your First Eval](https://marginlab.ai/docs/quickstart/02-running-your-first-eval/)
+- [Configuring Your Agent](https://marginlab.ai/docs/configuration/01-configuring-your-agent/)
+- [Configuring Your Eval](https://marginlab.ai/docs/configuration/02-configuring-your-eval/)
+- [Creating Your Own Eval](https://marginlab.ai/docs/creating-your-own-eval/01-quickstart/)
+- [Adding a New Agent](https://marginlab.ai/docs/add-support-for-a-new-agent/01-overview/)
 
 ## License
 
