@@ -32,6 +32,18 @@ def sha256(contents: bytes) -> str:
 class NormalizeLegacyPolicyTests(unittest.TestCase):
     TEST_MIGRATION_ID = "test-fixture-20260725-080000"
 
+    def test_reviewed_migrations_use_tracker_run_directory_names(self) -> None:
+        self.assertEqual(
+            NORMALIZER.MIGRATIONS["codex-20260725-040001"].run_directory,
+            "20260725_040001",
+        )
+        self.assertEqual(
+            NORMALIZER.MIGRATIONS[
+                "claude-code-20260725-045635"
+            ].run_directory,
+            "20260725_045635",
+        )
+
     def results(self) -> dict[str, Any]:
         return {
             "state": "completed",

@@ -35,7 +35,7 @@ class Migration:
 
 MIGRATIONS = {
     "codex-20260725-040001": Migration(
-        run_directory="20260725-040001",
+        run_directory="20260725_040001",
         target_date="2026-07-25",
         expected_instances=50,
         minimum_valid_instances=50,
@@ -50,7 +50,7 @@ MIGRATIONS = {
         ),
     ),
     "claude-code-20260725-045635": Migration(
-        run_directory="20260725-045635",
+        run_directory="20260725_045635",
         target_date="2026-07-25",
         expected_instances=50,
         minimum_valid_instances=50,
