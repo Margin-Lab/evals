@@ -148,8 +148,13 @@ def load_benchmark_run(
     state = results.get("state")
     if not isinstance(state, str):
         raise ValueError("missing required string field state")
-    if state != "completed":
+    if state not in ("completed", "failed"):
         raise NonCompletedRunError(f"run state is {state!r}, not 'completed'")
+    if state == "failed" and non_test_failure_policy != "exclude":
+        raise NonCompletedRunError(
+            "run state is 'failed'; only the exclude policy can reuse an "
+            "infrastructure-failed run"
+        )
 
     if "total_instances" not in results:
         raise ValueError("missing required field total_instances")
@@ -199,6 +204,13 @@ def load_benchmark_run(
         canceled.get("count"),
         "status.canceled.count",
     )
+
+    if state == "failed" and (failed_infra == 0 or canceled_count > 0):
+        raise NonCompletedRunError(
+            "run state is 'failed' without an eligible infrastructure-only "
+            "failure "
+            f"(infra_failed={failed_infra}, canceled={canceled_count})"
+        )
 
     total = passed + failed_tests
     if non_test_failure_policy == "count-as-failure":
@@ -311,8 +323,9 @@ def load_all_runs(
                 ) from exc
             # Margin may persist a partial result before returning nonzero. It
             # is useful for diagnosis but must never enter accuracy statistics.
-            # Likewise, a prior completed run that fails today's sample
-            # contract cannot be allowed to poison a retry.
+            # A failed run is eligible only for the explicitly bounded
+            # infrastructure-failure exception above. Likewise, a prior run
+            # that fails today's sample contract cannot poison a retry.
             continue
         except ValueError as exc:
             raise ValueError(f"{results_json}: {exc}") from exc

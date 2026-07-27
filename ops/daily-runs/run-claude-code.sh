@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/paths.sh"
+source "${SCRIPT_DIR}/lib/policy.sh"
 ROOT_DIR="$(marginlab_eval_workspace_root "${SCRIPT_DIR}")"
 DAILY_STATE_DIR="${MARGINLAB_DAILY_STATE_DIR:-${ROOT_DIR}/daily-runs}"
 SWE_SUITES_ROOT="${MARGINLAB_SWE_SUITES_ROOT:-${ROOT_DIR}/swe-suites}"
@@ -13,9 +14,7 @@ TARGET_DIR="${DAILY_STATE_DIR}/runs/claude-code/${RUN_TIMESTAMP}"
 RUNS_DIR="$(dirname "${TARGET_DIR}")"
 RUN_DATE="${TARGET_DIR##*/}"
 RUN_DATE_FORMATTED="${RUN_DATE:0:4}-${RUN_DATE:4:2}-${RUN_DATE:6:2}"
-NON_TEST_FAILURE_POLICY="${MARGINLAB_NON_TEST_FAILURE_POLICY:-exclude}"
-EXPECTED_INSTANCES="${MARGINLAB_EXPECTED_INSTANCES:-50}"
-MINIMUM_VALID_INSTANCES="${MARGINLAB_MINIMUM_VALID_INSTANCES:-${EXPECTED_INSTANCES}}"
+marginlab_load_daily_run_policy
 SYNC_DESTINATION="${RAW_REPOSITORY}/data/benchmarks/degradation_trackers/claude_code/swe-bench-pro/data"
 
 validate_reusable_run() {

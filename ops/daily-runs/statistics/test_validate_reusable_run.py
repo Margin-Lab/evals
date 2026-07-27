@@ -53,13 +53,19 @@ class ReusableRunTests(unittest.TestCase):
         statistics_path.write_text(json.dumps(statistics))
         return results_path, statistics_path
 
-    def validate(self, results: Path, statistics: Path) -> None:
+    def validate(
+        self,
+        results: Path,
+        statistics: Path,
+        *,
+        minimum_valid_instances: int = 50,
+    ) -> None:
         VALIDATOR.validate_reusable_run(
             results,
             statistics,
             target_date="2026-07-25",
             expected_instances=50,
-            minimum_valid_instances=50,
+            minimum_valid_instances=minimum_valid_instances,
             policy="exclude",
         )
 
@@ -73,6 +79,42 @@ class ReusableRunTests(unittest.TestCase):
             pair = self.make_pair(Path(temp_dir), state="failed")
             with self.assertRaisesRegex(ValueError, "state must be completed"):
                 self.validate(*pair)
+
+    def test_failed_run_with_one_infrastructure_failure_is_reusable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pair = self.make_pair(
+                Path(temp_dir),
+                state="failed",
+                succeeded=42,
+                test_failed=7,
+                infra_failed=1,
+            )
+            self.validate(*pair, minimum_valid_instances=49)
+
+    def test_failed_run_must_remain_within_the_valid_instance_bound(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pair = self.make_pair(
+                Path(temp_dir),
+                state="failed",
+                succeeded=42,
+                test_failed=6,
+                infra_failed=2,
+            )
+            with self.assertRaisesRegex(ValueError, "at least 49 valid instances"):
+                self.validate(*pair, minimum_valid_instances=49)
+
+    def test_canceled_run_is_not_covered_by_infrastructure_tolerance(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pair = self.make_pair(
+                Path(temp_dir),
+                state="failed",
+                succeeded=42,
+                test_failed=6,
+                infra_failed=1,
+                canceled=1,
+            )
+            with self.assertRaisesRegex(ValueError, "state must be completed"):
+                self.validate(*pair, minimum_valid_instances=48)
 
     def test_suite_size_date_and_policy_must_match(self) -> None:
         cases = (

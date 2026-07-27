@@ -26,11 +26,13 @@ mkdir -p \
   "${EVALUATION_ROOT}" \
   "${BIN_ROOT}"
 
+printf '{"state":"completed","total_instances":50,"status":{"succeeded":{"count":40},"test_failed":{"count":10},"infra_failed":{"count":0},"canceled":{"count":0}}}\n' \
+  >"${STATE_ROOT}/runs/codex/gpt-5-6-sol-high/20260725-040001/results.json"
+printf '{"state":"failed","total_instances":50,"status":{"succeeded":{"count":42},"test_failed":{"count":7},"infra_failed":{"count":1},"canceled":{"count":0}}}\n' \
+  >"${STATE_ROOT}/runs/claude-code/20260725-045635/results.json"
 for run_root in \
   "${STATE_ROOT}/runs/codex/gpt-5-6-sol-high/20260725-040001" \
   "${STATE_ROOT}/runs/claude-code/20260725-045635"; do
-  printf '{"state":"completed","total_instances":50,"status":{"succeeded":{"count":40},"test_failed":{"count":10},"infra_failed":{"count":0},"canceled":{"count":0}}}\n' \
-    >"${run_root}/results.json"
   printf '{"target_date":"2026-07-25","non_test_failure_policy":"exclude"}\n' \
     >"${run_root}/statistics.json"
 done
@@ -117,6 +119,7 @@ grep -Fx 'confirmation=1' "${PUBLISH_LOG}"
 grep -Fx 'arg=--publish' "${PUBLISH_LOG}"
 grep -Fx 'arg=--expected-instances' "${PUBLISH_LOG}"
 grep -Fx 'arg=--minimum-valid-instances' "${PUBLISH_LOG}"
+grep -Fx 'arg=49' "${PUBLISH_LOG}"
 grep -Fx 'arg=--non-test-failure-policy' "${PUBLISH_LOG}"
 
 test ! -e "${MARGIN_LOG}"

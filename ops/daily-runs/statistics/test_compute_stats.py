@@ -252,6 +252,63 @@ class CombinedRunsTests(unittest.TestCase):
                     required_results_json=current_results,
                 )
 
+    def test_single_infrastructure_failure_is_reusable_when_explicitly_bounded(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            series = Path(temp_dir) / "series"
+            write_run(
+                series,
+                "20260726-080001",
+                "bounded-infra-failure",
+                succeeded=42,
+                test_failed=7,
+                infra_failed=1,
+                state="failed",
+            )
+            current_results = series / "20260726-080001" / "results.json"
+
+            runs = load_runs(
+                [series],
+                minimum_valid_instances=49,
+                required_results_json=current_results,
+            )
+            output = STATS.compute_dashboard_stats(
+                runs,
+                date(2026, 7, 26),
+                baseline_p0=0.73,
+            )
+
+            self.assertEqual([run.run_id for run in runs], ["bounded-infra-failure"])
+            self.assertEqual(output["timescales"]["daily"]["successes"], 42)
+            self.assertEqual(output["timescales"]["daily"]["trials"], 49)
+
+    def test_infrastructure_failures_beyond_minimum_bound_are_rejected(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            series = Path(temp_dir) / "series"
+            write_run(
+                series,
+                "20260726-080001",
+                "excessive-infra-failures",
+                succeeded=42,
+                test_failed=6,
+                infra_failed=2,
+                state="failed",
+            )
+            current_results = series / "20260726-080001" / "results.json"
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "required current run is not reusable: policy denominator is 48",
+            ):
+                load_runs(
+                    [series],
+                    minimum_valid_instances=49,
+                    required_results_json=current_results,
+                )
+
     def test_non_test_failure_policy_is_explicit_and_deterministic(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             series = Path(temp_dir) / "series"

@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/paths.sh"
+source "${SCRIPT_DIR}/lib/policy.sh"
 PUBLISH=0
 EVAL_WORKSPACE_ROOT="$(marginlab_eval_workspace_root "${SCRIPT_DIR}")"
 DAILY_STATE_DIR="${MARGINLAB_DAILY_STATE_DIR:-${EVAL_WORKSPACE_ROOT}/daily-runs}"
@@ -11,9 +12,7 @@ LOCK_FILE="${MARGINLAB_DAILY_LOCK_FILE:-/tmp/marginlab-daily-runs.lock}"
 AUTOMATION_ROOT="${MARGINLAB_AUTOMATION_ROOT:-${PROJECTS_ROOT}/marginlab-site-data-automation}"
 RAW_REPOSITORY="${MARGINLAB_RAW_REPOSITORY:-${PROJECTS_ROOT}/marginlab}"
 EVALUATION_ROOT="${MARGINLAB_EVALUATION_ROOT:-${EVAL_WORKSPACE_ROOT}/evals}"
-EXPECTED_INSTANCES="${MARGINLAB_EXPECTED_INSTANCES:-50}"
-MINIMUM_VALID_INSTANCES="${MARGINLAB_MINIMUM_VALID_INSTANCES:-${EXPECTED_INSTANCES}}"
-NON_TEST_FAILURE_POLICY="${MARGINLAB_NON_TEST_FAILURE_POLICY:-exclude}"
+marginlab_load_daily_run_policy
 
 usage() {
   echo "Usage: $0 [--publish]" >&2
@@ -35,24 +34,6 @@ while (($# > 0)); do
   esac
   shift
 done
-
-if ! [[ "${EXPECTED_INSTANCES}" =~ ^[1-9][0-9]*$ ]]; then
-  echo "MARGINLAB_EXPECTED_INSTANCES must be a positive integer" >&2
-  exit 2
-fi
-if ! [[ "${MINIMUM_VALID_INSTANCES}" =~ ^[1-9][0-9]*$ ]] \
-  || ((MINIMUM_VALID_INSTANCES > EXPECTED_INSTANCES)); then
-  echo "MARGINLAB_MINIMUM_VALID_INSTANCES must be positive and no greater than MARGINLAB_EXPECTED_INSTANCES" >&2
-  exit 2
-fi
-case "${NON_TEST_FAILURE_POLICY}" in
-  reject|count-as-failure|exclude)
-    ;;
-  *)
-    echo "MARGINLAB_NON_TEST_FAILURE_POLICY must be reject, count-as-failure, or exclude" >&2
-    exit 2
-    ;;
-esac
 
 exec 9>"${LOCK_FILE}"
 if ! flock -n 9; then

@@ -34,10 +34,6 @@ def validate_reusable_run(
     results = _load_object(results_path)
     statistics = _load_object(statistics_path)
 
-    if results.get("state") != "completed":
-        raise ValueError(
-            f"{results_path}: state must be completed; found {results.get('state')!r}"
-        )
     if results.get("total_instances") != expected_instances:
         raise ValueError(
             f"{results_path}: total_instances must be {expected_instances}; "
@@ -58,6 +54,19 @@ def validate_reusable_run(
     if sum(counts.values()) != expected_instances:
         raise ValueError(
             f"{results_path}: status counts must total {expected_instances}"
+        )
+    state = results.get("state")
+    if state != "completed" and not (
+        state == "failed"
+        and policy == "exclude"
+        and counts["infra_failed"] > 0
+        and counts["canceled"] == 0
+    ):
+        raise ValueError(
+            f"{results_path}: state must be completed, or failed solely because "
+            "of an infrastructure failure under the exclude policy; "
+            f"found state={state!r}, infra_failed={counts['infra_failed']}, "
+            f"canceled={counts['canceled']}"
         )
     if policy == "reject" and (counts["infra_failed"] or counts["canceled"]):
         raise ValueError(
