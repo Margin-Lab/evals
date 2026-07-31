@@ -3,10 +3,12 @@
 # Load and validate the daily publication policy into the caller's shell.
 #
 # Infrastructure failures are excluded from the accuracy denominator. By
-# default, one missing test outcome is tolerated for the 50-instance suite;
+# default, up to five missing test outcomes are tolerated for the 50-instance
+# suite;
 # MARGINLAB_MINIMUM_VALID_INSTANCES remains the explicit safety bound.
 marginlab_load_daily_run_policy() {
   local expected_instances="${MARGINLAB_EXPECTED_INSTANCES:-50}"
+  local default_max_excluded_instances=5
   local minimum_valid_instances
   local non_test_failure_policy="${MARGINLAB_NON_TEST_FAILURE_POLICY:-exclude}"
 
@@ -17,10 +19,10 @@ marginlab_load_daily_run_policy() {
 
   if [[ -n "${MARGINLAB_MINIMUM_VALID_INSTANCES:-}" ]]; then
     minimum_valid_instances="${MARGINLAB_MINIMUM_VALID_INSTANCES}"
-  elif ((expected_instances > 1)); then
-    minimum_valid_instances="$((expected_instances - 1))"
+  elif ((expected_instances > default_max_excluded_instances)); then
+    minimum_valid_instances="$((expected_instances - default_max_excluded_instances))"
   else
-    minimum_valid_instances="${expected_instances}"
+    minimum_valid_instances=1
   fi
 
   if ! [[ "${minimum_valid_instances}" =~ ^[1-9][0-9]*$ ]] \

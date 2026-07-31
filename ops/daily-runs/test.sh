@@ -32,7 +32,7 @@ policy_defaults="$(
     "${MINIMUM_VALID_INSTANCES}" \
     "${NON_TEST_FAILURE_POLICY}"
 )"
-test "${policy_defaults}" = "50 49 exclude"
+test "${policy_defaults}" = "50 45 exclude"
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
   -s "${SCRIPT_DIR}/statistics" \
   -p 'test_*.py'

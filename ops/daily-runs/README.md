@@ -137,15 +137,15 @@ Optional overrides are:
 | `MARGINLAB_DAILY_TIMEOUT_SECONDS` | `28800` |
 | `MARGINLAB_DAILY_ALERT_HOOK` | Empty; no hook |
 | `MARGINLAB_EXPECTED_INSTANCES` | `50` |
-| `MARGINLAB_MINIMUM_VALID_INSTANCES` | Expected instance count minus one (`49` for the default suite) |
+| `MARGINLAB_MINIMUM_VALID_INSTANCES` | Expected instance count minus five (`45` for the default suite) |
 | `MARGINLAB_NON_TEST_FAILURE_POLICY` | `exclude` |
 
-The default publication policy therefore tolerates at most one infrastructure
-failure in a 50-instance run. Margin still records that execution as `failed`
+The default publication policy therefore tolerates at most five infrastructure
+failures in a 50-instance run. Margin still records that execution as `failed`
 for operational visibility. Statistics and publication may reuse it only when
 the policy is `exclude`, there are no cancellations, all 50 status buckets are
-accounted for, and at least 49 instances produced test outcomes. The excluded
-instance is not counted as a model failure. Set
+accounted for, and at least 45 instances produced test outcomes. The excluded
+instances are not counted as model failures. Set
 `MARGINLAB_MINIMUM_VALID_INSTANCES=50` to restore strict zero-tolerance
 behavior.
 

@@ -80,28 +80,28 @@ class ReusableRunTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "state must be completed"):
                 self.validate(*pair)
 
-    def test_failed_run_with_one_infrastructure_failure_is_reusable(self) -> None:
+    def test_failed_run_with_five_infrastructure_failures_is_reusable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             pair = self.make_pair(
                 Path(temp_dir),
                 state="failed",
-                succeeded=42,
-                test_failed=7,
-                infra_failed=1,
+                succeeded=39,
+                test_failed=6,
+                infra_failed=5,
             )
-            self.validate(*pair, minimum_valid_instances=49)
+            self.validate(*pair, minimum_valid_instances=45)
 
     def test_failed_run_must_remain_within_the_valid_instance_bound(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             pair = self.make_pair(
                 Path(temp_dir),
                 state="failed",
-                succeeded=42,
-                test_failed=6,
-                infra_failed=2,
+                succeeded=39,
+                test_failed=5,
+                infra_failed=6,
             )
-            with self.assertRaisesRegex(ValueError, "at least 49 valid instances"):
-                self.validate(*pair, minimum_valid_instances=49)
+            with self.assertRaisesRegex(ValueError, "at least 45 valid instances"):
+                self.validate(*pair, minimum_valid_instances=45)
 
     def test_canceled_run_is_not_covered_by_infrastructure_tolerance(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

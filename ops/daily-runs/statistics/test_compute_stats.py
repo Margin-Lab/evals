@@ -252,7 +252,7 @@ class CombinedRunsTests(unittest.TestCase):
                     required_results_json=current_results,
                 )
 
-    def test_single_infrastructure_failure_is_reusable_when_explicitly_bounded(
+    def test_five_infrastructure_failures_are_reusable_when_explicitly_bounded(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -261,16 +261,16 @@ class CombinedRunsTests(unittest.TestCase):
                 series,
                 "20260726-080001",
                 "bounded-infra-failure",
-                succeeded=42,
-                test_failed=7,
-                infra_failed=1,
+                succeeded=39,
+                test_failed=6,
+                infra_failed=5,
                 state="failed",
             )
             current_results = series / "20260726-080001" / "results.json"
 
             runs = load_runs(
                 [series],
-                minimum_valid_instances=49,
+                minimum_valid_instances=45,
                 required_results_json=current_results,
             )
             output = STATS.compute_dashboard_stats(
@@ -280,8 +280,8 @@ class CombinedRunsTests(unittest.TestCase):
             )
 
             self.assertEqual([run.run_id for run in runs], ["bounded-infra-failure"])
-            self.assertEqual(output["timescales"]["daily"]["successes"], 42)
-            self.assertEqual(output["timescales"]["daily"]["trials"], 49)
+            self.assertEqual(output["timescales"]["daily"]["successes"], 39)
+            self.assertEqual(output["timescales"]["daily"]["trials"], 45)
 
     def test_infrastructure_failures_beyond_minimum_bound_are_rejected(
         self,
@@ -292,20 +292,20 @@ class CombinedRunsTests(unittest.TestCase):
                 series,
                 "20260726-080001",
                 "excessive-infra-failures",
-                succeeded=42,
-                test_failed=6,
-                infra_failed=2,
+                succeeded=39,
+                test_failed=5,
+                infra_failed=6,
                 state="failed",
             )
             current_results = series / "20260726-080001" / "results.json"
 
             with self.assertRaisesRegex(
                 ValueError,
-                "required current run is not reusable: policy denominator is 48",
+                "required current run is not reusable: policy denominator is 44",
             ):
                 load_runs(
                     [series],
-                    minimum_valid_instances=49,
+                    minimum_valid_instances=45,
                     required_results_json=current_results,
                 )
 

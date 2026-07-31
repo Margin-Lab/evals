@@ -119,7 +119,7 @@ grep -Fx 'confirmation=1' "${PUBLISH_LOG}"
 grep -Fx 'arg=--publish' "${PUBLISH_LOG}"
 grep -Fx 'arg=--expected-instances' "${PUBLISH_LOG}"
 grep -Fx 'arg=--minimum-valid-instances' "${PUBLISH_LOG}"
-grep -Fx 'arg=49' "${PUBLISH_LOG}"
+grep -Fx 'arg=45' "${PUBLISH_LOG}"
 grep -Fx 'arg=--non-test-failure-policy' "${PUBLISH_LOG}"
 
 test ! -e "${MARGIN_LOG}"
