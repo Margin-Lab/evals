@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[3]
 class DailyDefaultsTests(unittest.TestCase):
     def test_daily_model_defaults(self):
         for tracker, name, model in (
-            ("codex", "codex-gpt-6.1-sol-xhigh", "gpt-6.1-sol"),
-            ("claude-code", "claude-code-opus-5.5-xhigh", "claude-opus-5-5"),
+            ("codex", "codex-gpt-6.1-sol-high", "gpt-6.1-sol"),
+            ("claude-code", "claude-code-opus-5.5-high", "claude-opus-5-5"),
         ):
             with self.subTest(tracker=tracker), tempfile.TemporaryDirectory() as tmp:
                 workspace = Path(tmp)
@@ -59,15 +59,15 @@ class DailyDefaultsTests(unittest.TestCase):
                 if tracker == "codex":
                     settings = tomllib.loads(config["input"]["config_toml"])
                     self.assertEqual(settings["model"], model)
-                    self.assertEqual(settings["model_reasoning_effort"], "xhigh")
-                    self.assertIn("/gpt-6-1-sol-xhigh/", args[args.index("--output") + 1])
+                    self.assertEqual(settings["model_reasoning_effort"], "high")
+                    self.assertIn("/gpt-6-1-sol-high/", args[args.index("--output") + 1])
                 else:
                     startup = config["input"]["startup_args"]
                     self.assertEqual(startup[startup.index("--model") + 1], model)
-                    self.assertEqual(startup[startup.index("--effort") + 1], "xhigh")
+                    self.assertEqual(startup[startup.index("--effort") + 1], "high")
                     settings = json.loads(config["input"]["settings_json"])
                     self.assertEqual(settings["model"], model)
-                    self.assertEqual(settings["effortLevel"], "xhigh")
+                    self.assertEqual(settings["effortLevel"], "high")
 
 
 if __name__ == "__main__":

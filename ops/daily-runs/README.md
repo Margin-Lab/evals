@@ -39,15 +39,15 @@ Daily agent defaults are versioned under `configs/example-agent-configs/`:
 
 | Tracker | Configuration | Model | Reasoning effort |
 | --- | --- | --- | --- |
-| Codex | `codex-gpt-6.1-sol-xhigh` | `gpt-6.1-sol` | `xhigh` |
-| Claude Code | `claude-code-opus-5.5-xhigh` | `claude-opus-5-5` | `xhigh` |
+| Codex | `codex-gpt-6.1-sol-high` | `gpt-6.1-sol` | `high` |
+| Claude Code | `claude-code-opus-5.5-high` | `claude-opus-5-5` | `high` |
 
 Both use direct configuration so exact model IDs and effort levels reach the
 agent CLI without the unified configuration model allowlist. The daily scripts
 resolve these defaults relative to this checkout; older local agent configs
 are no longer used. Credentials, eval settings, and the Claude warm-up script
 remain local. Fast-forward the production checkout to activate these defaults.
-Codex writes new runs under `runs/codex/gpt-6-1-sol-xhigh`; statistics retain
+Codex writes new runs under `runs/codex/gpt-6-1-sol-high`; statistics retain
 the historical Sol 5.6 high/xhigh series and the existing baseline. Claude
 retains its existing run directory and baseline.
 

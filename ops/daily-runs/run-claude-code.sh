@@ -60,7 +60,7 @@ fi
 
 bash "${DAILY_STATE_DIR}/warmup-claude.sh"
 
-if ! margin run --output "${TARGET_DIR}" --suite "${SWE_SUITES_ROOT}/swe-bench-pro-curated-50" --agent-config "${SCRIPT_DIR}/../../configs/example-agent-configs/claude-code-opus-5.5-xhigh" --eval "${DAILY_STATE_DIR}/eval-config.toml" --non-interactive; then
+if ! margin run --output "${TARGET_DIR}" --suite "${SWE_SUITES_ROOT}/swe-bench-pro-curated-50" --agent-config "${SCRIPT_DIR}/../../configs/example-agent-configs/claude-code-opus-5.5-high" --eval "${DAILY_STATE_DIR}/eval-config.toml" --non-interactive; then
   echo "margin run returned non-zero for Claude Code; continuing to stats + sync" >&2
 fi
 

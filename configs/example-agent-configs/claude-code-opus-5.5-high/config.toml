@@ -1,0 +1,16 @@
+kind = "agent_config"
+name = "claude-code-opus-5.5-high"
+definition = "../../agent-definitions/claude-code"
+mode = "direct"
+
+[input]
+claude_version = "latest"
+startup_args = ["--model", "claude-opus-5-5", "--effort", "high"]
+run_args = []
+settings_json = """
+{
+  "model": "claude-opus-5-5",
+  "effortLevel": "high",
+  "permissionMode": "acceptEdits"
+}
+"""
