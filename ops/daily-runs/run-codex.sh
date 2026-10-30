@@ -9,7 +9,7 @@ DAILY_STATE_DIR="${MARGINLAB_DAILY_STATE_DIR:-${ROOT_DIR}/daily-runs}"
 SWE_SUITES_ROOT="${MARGINLAB_SWE_SUITES_ROOT:-${ROOT_DIR}/swe-suites}"
 PROJECTS_ROOT="${MARGINLAB_PROJECTS_ROOT:-$(cd "${ROOT_DIR}/.." && pwd)}"
 RAW_REPOSITORY="${MARGINLAB_RAW_REPOSITORY:-${PROJECTS_ROOT}/marginlab}"
-MODEL_SERIES="gpt-5-6-sol-high"
+MODEL_SERIES="gpt-6-1-sol-xhigh"
 RUN_TIMESTAMP="${RUN_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
 CODEX_RUNS_DIR="${DAILY_STATE_DIR}/runs/codex"
 TARGET_DIR="${CODEX_RUNS_DIR}/${MODEL_SERIES}/${RUN_TIMESTAMP}"
@@ -20,6 +20,7 @@ BASELINE_P0="${CODEX_BASELINE_P0:-0.8340}"
 marginlab_load_daily_run_policy
 SYNC_DESTINATION="${RAW_REPOSITORY}/data/benchmarks/degradation_trackers/codex/swe-bench-pro/data"
 BASELINE_SERIES=(
+  "${MODEL_SERIES}"
   "gpt-5-6-sol-high"
   "gpt-5-6-sol-xhigh"
 )
@@ -68,7 +69,7 @@ fi
 if ! env -u OPENAI_API_KEY margin run \
   --output "${TARGET_DIR}" \
   --suite "${SWE_SUITES_ROOT}/swe-bench-pro-curated-50" \
-  --agent-config "${DAILY_STATE_DIR}/agent-configs/codex-gpt-5.6-sol-high" \
+  --agent-config "${SCRIPT_DIR}/../../configs/example-agent-configs/codex-gpt-6.1-sol-xhigh" \
   --eval "${DAILY_STATE_DIR}/eval-config-codex.toml" \
   --non-interactive; then
   echo "margin run returned non-zero for Codex; continuing to stats + sync" >&2

@@ -37,6 +37,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
   -s "${SCRIPT_DIR}/statistics" \
   -p 'test_*.py'
 "${SCRIPT_DIR}/tests/retry-safe.sh"
+PYTHONDONTWRITEBYTECODE=1 python3 "${SCRIPT_DIR}/tests/test_daily_defaults.py"
 "${SCRIPT_DIR}/tests/publication-mode.sh"
 "${SCRIPT_DIR}/run.sh" --help
 "${SCRIPT_DIR}/run-from-cron.sh" --help

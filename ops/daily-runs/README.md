@@ -2,7 +2,7 @@
 
 This directory is the version-controlled source for MarginLab's daily Codex and
 Claude Code tracker runner. It contains orchestration and statistics code only.
-Run outputs, logs, credentials, agent configurations, eval configurations,
+Run outputs, logs, credentials, custom agent configurations, eval configurations,
 warm-up scripts, and caches remain local operational state and must not be
 committed.
 
@@ -33,7 +33,23 @@ three parent directories above the scripts. Other checkout layouts must set
 
 That makes the scripts use the existing untracked state under
 `$MARGINLAB_EVAL_WORKSPACE_ROOT/daily-runs`, including `runs/`,
-`agent-configs/`, `eval-config*.toml`, and `warmup-claude.sh`.
+`eval-config*.toml`, and `warmup-claude.sh`.
+
+Daily agent defaults are versioned under `configs/example-agent-configs/`:
+
+| Tracker | Configuration | Model | Reasoning effort |
+| --- | --- | --- | --- |
+| Codex | `codex-gpt-6.1-sol-xhigh` | `gpt-6.1-sol` | `xhigh` |
+| Claude Code | `claude-code-opus-5.5-xhigh` | `claude-opus-5-5` | `xhigh` |
+
+Both use direct configuration so exact model IDs and effort levels reach the
+agent CLI without the unified configuration model allowlist. The daily scripts
+resolve these defaults relative to this checkout; older local agent configs
+are no longer used. Credentials, eval settings, and the Claude warm-up script
+remain local. Fast-forward the production checkout to activate these defaults.
+Codex writes new runs under `runs/codex/gpt-6-1-sol-xhigh`; statistics retain
+the historical Sol 5.6 high/xhigh series and the existing baseline. Claude
+retains its existing run directory and baseline.
 
 Retries are resumable at the sync boundary. If exactly one completed
 `results.json` and `statistics.json` pair already exists for a tracker and

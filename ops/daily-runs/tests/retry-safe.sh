@@ -15,18 +15,18 @@ TARGET_TIMESTAMP="20260725-080000"
 
 mkdir -p \
   "${WORKSPACE_ROOT}/swe-suites" \
-  "${STATE_ROOT}/runs/codex/gpt-5-6-sol-high/20260725-040001" \
+  "${STATE_ROOT}/runs/codex/gpt-6-1-sol-xhigh/20260725-040001" \
   "${STATE_ROOT}/runs/claude-code/20260725-045635" \
   "${RAW_ROOT}/data/benchmarks/degradation_trackers/codex/swe-bench-pro/data/20260725_040001" \
   "${RAW_ROOT}/data/benchmarks/degradation_trackers/claude_code/swe-bench-pro/data/20260725_045635" \
   "${BIN_ROOT}"
 
 printf '{"state":"completed","total_instances":50,"status":{"succeeded":{"count":40},"test_failed":{"count":10},"infra_failed":{"count":0},"canceled":{"count":0}}}\n' \
-  >"${STATE_ROOT}/runs/codex/gpt-5-6-sol-high/20260725-040001/results.json"
+  >"${STATE_ROOT}/runs/codex/gpt-6-1-sol-xhigh/20260725-040001/results.json"
 printf '{"state":"failed","total_instances":50,"status":{"succeeded":{"count":42},"test_failed":{"count":7},"infra_failed":{"count":1},"canceled":{"count":0}}}\n' \
   >"${STATE_ROOT}/runs/claude-code/20260725-045635/results.json"
 for run_root in \
-  "${STATE_ROOT}/runs/codex/gpt-5-6-sol-high/20260725-040001" \
+  "${STATE_ROOT}/runs/codex/gpt-6-1-sol-xhigh/20260725-040001" \
   "${STATE_ROOT}/runs/claude-code/20260725-045635"; do
   printf '{"target_date":"2026-07-25","non_test_failure_policy":"exclude"}\n' \
     >"${run_root}/statistics.json"
@@ -72,10 +72,10 @@ COMMON_ENV=(
 "${COMMON_ENV[@]}" "${SCRIPT_DIR}/run-claude-code.sh"
 
 cmp -s \
-  "${STATE_ROOT}/runs/codex/gpt-5-6-sol-high/20260725-040001/results.json" \
+  "${STATE_ROOT}/runs/codex/gpt-6-1-sol-xhigh/20260725-040001/results.json" \
   "${RAW_ROOT}/data/benchmarks/degradation_trackers/codex/swe-bench-pro/data/20260725_040001/results.json"
 cmp -s \
-  "${STATE_ROOT}/runs/codex/gpt-5-6-sol-high/20260725-040001/statistics.json" \
+  "${STATE_ROOT}/runs/codex/gpt-6-1-sol-xhigh/20260725-040001/statistics.json" \
   "${RAW_ROOT}/data/benchmarks/degradation_trackers/codex/swe-bench-pro/data/20260725_040001/statistics.json"
 cmp -s \
   "${STATE_ROOT}/runs/claude-code/20260725-045635/results.json" \
@@ -88,7 +88,7 @@ test ! -e "${WARMUP_LOG}"
 
 # More than one completed run for the target day is ambiguous and must not
 # sync or start a new evaluation.
-second_codex="${STATE_ROOT}/runs/codex/gpt-5-6-sol-high/20260725-050001"
+second_codex="${STATE_ROOT}/runs/codex/gpt-6-1-sol-xhigh/20260725-050001"
 mkdir -p "${second_codex}"
 printf '{"state":"completed","total_instances":50,"status":{"succeeded":{"count":40},"test_failed":{"count":10},"infra_failed":{"count":0},"canceled":{"count":0}}}\n' \
   >"${second_codex}/results.json"
