@@ -52,8 +52,31 @@ export MARGINLAB_EVAL_WORKSPACE_ROOT="${EVAL_WORKSPACE_ROOT}"
 export MARGINLAB_DAILY_STATE_DIR="${DAILY_STATE_DIR}"
 export MARGINLAB_RAW_REPOSITORY="${RAW_REPOSITORY}"
 
-bash "${SCRIPT_DIR}/run-codex.sh"
-bash "${SCRIPT_DIR}/run-claude-code.sh"
+# The trackers are independent: when one fails, the other still runs and its
+# results are still published, and the run still exits non-zero so the alert
+# hook reports the failure.
+codex_status=0
+bash "${SCRIPT_DIR}/run-codex.sh" || codex_status=$?
+if ((codex_status != 0)); then
+  echo "FAIL: Codex did not finish for ${TARGET_DATE} (status ${codex_status}); running Claude Code anyway" >&2
+fi
+claude_status=0
+bash "${SCRIPT_DIR}/run-claude-code.sh" || claude_status=$?
+if ((claude_status != 0)); then
+  echo "FAIL: Claude Code did not finish for ${TARGET_DATE} (status ${claude_status})" >&2
+fi
+
+CURRENT_TRACKERS=()
+if ((codex_status == 0)); then
+  CURRENT_TRACKERS+=(codex-current)
+fi
+if ((claude_status == 0)); then
+  CURRENT_TRACKERS+=(claude-code-current)
+fi
+if ((${#CURRENT_TRACKERS[@]} == 0)); then
+  echo "FAIL: neither tracker finished for ${TARGET_DATE}; nothing was published" >&2
+  exit "${codex_status}"
+fi
 
 SOURCE_COMMIT="$(git -C "${RAW_REPOSITORY}" rev-parse HEAD)"
 EVALUATION_COMMIT="$(git -C "${EVALUATION_ROOT}" rev-parse HEAD)"
@@ -69,13 +92,31 @@ PUBLISH_ARGUMENTS=(
   --minimum-valid-instances "${MINIMUM_VALID_INSTANCES}"
   --non-test-failure-policy "${NON_TEST_FAILURE_POLICY}"
 )
+if ((${#CURRENT_TRACKERS[@]} == 1)); then
+  # Only the finished tracker must be current; the other keeps its published days.
+  PUBLISH_ARGUMENTS+=(--current-tracker "${CURRENT_TRACKERS[0]}")
+fi
 
+publish_status=0
 if ((PUBLISH)); then
   MARGINLAB_SITE_DATA_PUBLISH=1 \
     npm --prefix "${AUTOMATION_ROOT}/hosting" run publish:site-data -- \
-    --publish "${PUBLISH_ARGUMENTS[@]}"
+    --publish "${PUBLISH_ARGUMENTS[@]}" || publish_status=$?
 else
   env -u MARGINLAB_SITE_DATA_PUBLISH \
     npm --prefix "${AUTOMATION_ROOT}/hosting" run publish:site-data -- \
-    "${PUBLISH_ARGUMENTS[@]}"
+    "${PUBLISH_ARGUMENTS[@]}" || publish_status=$?
+fi
+if ((publish_status != 0)); then
+  echo "FAIL: the site-data publisher failed for ${TARGET_DATE} (status ${publish_status})" >&2
+  exit "${publish_status}"
+fi
+
+if ((codex_status != 0)); then
+  echo "FAIL: only Claude Code went to the site-data publisher for ${TARGET_DATE}; Codex did not finish" >&2
+  exit "${codex_status}"
+fi
+if ((claude_status != 0)); then
+  echo "FAIL: only Codex went to the site-data publisher for ${TARGET_DATE}; Claude Code did not finish" >&2
+  exit "${claude_status}"
 fi

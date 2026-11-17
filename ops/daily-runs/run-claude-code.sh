@@ -58,9 +58,23 @@ if [ "${FORCE_RUN:-0}" != "1" ]; then
   fi
 fi
 
+# Every task installs Claude Code in its own container. Pin one version for the
+# whole run, checked to install here first, so a release during the run can
+# neither split the run across versions nor fail tasks while it is uploading.
+PINNED_CONFIG_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/marginlab-claude-code-config.XXXXXX")"
+trap 'rm -rf -- "${PINNED_CONFIG_ROOT}"' EXIT
+AGENT_CONFIG="${PINNED_CONFIG_ROOT}/claude-code-opus-5.5-high"
+CLAUDE_VERSION="$(python3 "${SCRIPT_DIR}/lib/pin_agent_config.py" \
+  --config "${SCRIPT_DIR}/../../configs/example-agent-configs/claude-code-opus-5.5-high" \
+  --version-input claude_version \
+  --package @anthropic-ai/claude-code \
+  --binary claude \
+  --output "${AGENT_CONFIG}")"
+echo "Every Claude Code task in this run uses @anthropic-ai/claude-code ${CLAUDE_VERSION}"
+
 bash "${DAILY_STATE_DIR}/warmup-claude.sh"
 
-if ! margin run --output "${TARGET_DIR}" --suite "${SWE_SUITES_ROOT}/swe-bench-pro-curated-50" --agent-config "${SCRIPT_DIR}/../../configs/example-agent-configs/claude-code-opus-5.5-high" --eval "${DAILY_STATE_DIR}/eval-config.toml" --non-interactive; then
+if ! margin run --output "${TARGET_DIR}" --suite "${SWE_SUITES_ROOT}/swe-bench-pro-curated-50" --agent-config "${AGENT_CONFIG}" --eval "${DAILY_STATE_DIR}/eval-config.toml" --non-interactive; then
   echo "margin run returned non-zero for Claude Code; continuing to stats + sync" >&2
 fi
 

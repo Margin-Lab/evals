@@ -66,10 +66,24 @@ if [ "${FORCE_RUN:-0}" != "1" ]; then
   fi
 fi
 
+# Every task installs Codex in its own container. Pin one version for the whole
+# run, checked to install here first, so a release during the run can neither
+# split the run across versions nor fail tasks while its builds are uploading.
+PINNED_CONFIG_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/marginlab-codex-config.XXXXXX")"
+trap 'rm -rf -- "${PINNED_CONFIG_ROOT}"' EXIT
+AGENT_CONFIG="${PINNED_CONFIG_ROOT}/codex-gpt-6.1-sol-high"
+CODEX_VERSION="$(python3 "${SCRIPT_DIR}/lib/pin_agent_config.py" \
+  --config "${SCRIPT_DIR}/../../configs/example-agent-configs/codex-gpt-6.1-sol-high" \
+  --version-input codex_version \
+  --package @openai/codex \
+  --binary codex \
+  --output "${AGENT_CONFIG}")"
+echo "Every Codex task in this run uses @openai/codex ${CODEX_VERSION}"
+
 if ! env -u OPENAI_API_KEY margin run \
   --output "${TARGET_DIR}" \
   --suite "${SWE_SUITES_ROOT}/swe-bench-pro-curated-50" \
-  --agent-config "${SCRIPT_DIR}/../../configs/example-agent-configs/codex-gpt-6.1-sol-high" \
+  --agent-config "${AGENT_CONFIG}" \
   --eval "${DAILY_STATE_DIR}/eval-config-codex.toml" \
   --non-interactive; then
   echo "margin run returned non-zero for Codex; continuing to stats + sync" >&2

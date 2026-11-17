@@ -51,6 +51,26 @@ Codex writes new runs under `runs/codex/gpt-6-1-sol-high`; statistics retain
 the historical Sol 5.6 high/xhigh series and the existing baseline. Claude
 retains its existing run directory and baseline.
 
+### One agent CLI version per run
+
+The versioned configs ask for the `latest` CLI, and every task installs it in
+its own container. A release during a run would split the run across two CLI
+versions, and while a release is still uploading its platform builds, installs
+fail outright: on 2026-11-17, `@openai/codex` 0.169.1 became `latest` at 22:26
+UTC, its Linux build reached npm at 22:28, and seven Codex tasks failed to
+install, leaving 43 valid instances.
+
+So before a paid evaluation, each tracker runs `lib/pin_agent_config.py`. It
+resolves `latest` once, installs that version into a temporary directory the
+way a task does, runs its `--version` with a throwaway home, and writes a
+temporary copy of the config that names exactly that version. Until the check
+passes it tries again every `MARGINLAB_AGENT_INSTALL_RETRY_SECONDS` (default
+60), resolving `latest` afresh each time, for up to
+`MARGINLAB_AGENT_INSTALL_WAIT_SECONDS` (default 900); then the tracker fails.
+The log names the version, for example `Every Codex task in this run uses
+@openai/codex 0.169.1`. A config that already names a version is checked and
+kept. Reusing a completed run skips the check.
+
 Retries are resumable at the sync boundary. If exactly one completed
 `results.json` and `statistics.json` pair already exists for a tracker and
 target date, the runner skips the paid evaluation, reruns that tracker's raw
@@ -107,8 +127,16 @@ run. The publisher remains strict and will never export an implicit policy.
 
 ## Site-data publication
 
-The parent runner always invokes the website's site-data publisher after both
-trackers pass. With no flag, this is a read-only export and validation in a
+The parent runner runs Codex, then Claude Code, and the trackers are
+independent: when one fails, the other still runs. It then invokes the
+website's site-data publisher once with the trackers that passed. When only one
+passed, it adds `--current-tracker` for that one, so only it must be current
+for the target date and the other keeps its published days. When neither
+passed, nothing is published. Any failure still makes the run exit non-zero,
+with a `FAIL:` line in the log, so the alert hook reports it; a retry later the
+same day reuses the tracker that passed and reruns only the other.
+
+With no flag, the publisher step is a read-only export and validation in a
 temporary directory. It does not fetch, commit, push, open a pull request, or
 deploy Firebase. The runner removes any inherited
 `MARGINLAB_SITE_DATA_PUBLISH` value in this mode.
