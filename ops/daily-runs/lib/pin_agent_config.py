@@ -30,6 +30,15 @@ from pathlib import Path
 VERSION = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?$")
 NPM_TIMEOUT_SECONDS = 900
 PROBE_TIMEOUT_SECONDS = 120
+# Each task's container asks npm's public registry with an empty cache and no
+# npm settings of this machine. Ask the same way, with a new empty cache on
+# every try: with prefer-offline set, npm answers from any copy it has saved,
+# and one machine pinned a Claude Code release eleven days old that way.
+REGISTRY = "https://registry.npmjs.org/"
+
+
+def npm_options(cache: Path) -> list[str]:
+    return [f"--registry={REGISTRY}", "--cache", str(cache), "--prefer-online"]
 
 
 class InstallError(Exception):
@@ -41,9 +50,9 @@ def last_line(text: str) -> str:
     return lines[-1] if lines else "no output"
 
 
-def resolve_latest(package: str) -> str:
+def resolve_latest(package: str, cache: Path) -> str:
     result = subprocess.run(
-        ["npm", "view", f"{package}@latest", "version"],
+        ["npm", "view", f"{package}@latest", "version", *npm_options(cache)],
         capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=NPM_TIMEOUT_SECONDS,
     )
     version = result.stdout.strip()
@@ -60,8 +69,8 @@ def check_install(package: str, version: str, binary: str, cache: Path) -> None:
         home.mkdir()
         try:
             install = subprocess.run(
-                ["npm", "install", "--global", "--prefix", str(prefix), "--cache", str(cache),
-                 "--prefer-online", "--no-audit", "--no-fund", f"{package}@{version}"],
+                ["npm", "install", "--global", "--prefix", str(prefix), *npm_options(cache),
+                 "--no-audit", "--no-fund", f"{package}@{version}"],
                 capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=NPM_TIMEOUT_SECONDS,
             )
         except subprocess.TimeoutExpired as error:
@@ -160,26 +169,26 @@ def main(argv: list[str] | None = None) -> int:
 
     deadline = time.monotonic() + max(args.wait_seconds, 0)
     attempt = 0
-    with tempfile.TemporaryDirectory(prefix="marginlab-agent-npm-cache-") as cache:
-        while True:
-            attempt += 1
-            try:
-                # Resolve again on every try, so a broken release that is replaced is picked up.
-                version = resolve_latest(args.package) if requested == "latest" else requested
+    while True:
+        attempt += 1
+        try:
+            # Resolve again on every try, so a broken release that is replaced is picked up.
+            with tempfile.TemporaryDirectory(prefix="marginlab-agent-npm-cache-") as cache:
+                version = resolve_latest(args.package, Path(cache)) if requested == "latest" else requested
                 check_install(args.package, version, args.binary, Path(cache))
-                break
-            except InstallError as error:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    print(
-                        f"Error: {args.package} could not be installed after {attempt} tries "
-                        f"over {args.wait_seconds // 60} minutes: {error}",
-                        file=sys.stderr,
-                    )
-                    return 1
-                pause = min(max(args.retry_seconds, 0), remaining)
-                print(f"WARN: {error}; trying again in {pause:.0f}s", file=sys.stderr)
-                time.sleep(pause)
+            break
+        except InstallError as error:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                print(
+                    f"Error: {args.package} could not be installed after {attempt} tries "
+                    f"over {args.wait_seconds // 60} minutes: {error}",
+                    file=sys.stderr,
+                )
+                return 1
+            pause = min(max(args.retry_seconds, 0), remaining)
+            print(f"WARN: {error}; trying again in {pause:.0f}s", file=sys.stderr)
+            time.sleep(pause)
 
     write_pinned_config(config_dir, args.output, args.version_input, version)
     print(version)
