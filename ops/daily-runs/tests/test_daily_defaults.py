@@ -24,14 +24,36 @@ class DailyDefaultsTests(unittest.TestCase):
                 binary = workspace / "bin"
                 binary.mkdir()
                 margin = binary / "margin"
+                # The pinned config is deleted when the runner exits, so keep a copy.
                 margin.write_text(
                     "#!/usr/bin/env python3\n"
                     "import json, os, sys\n"
                     "from pathlib import Path\n"
-                    "Path(os.environ['CAPTURE']).write_text(json.dumps(sys.argv[1:]))\n"
+                    "args = sys.argv[1:]\n"
+                    "config = Path(args[args.index('--agent-config') + 1]) / 'config.toml'\n"
+                    "Path(os.environ['CAPTURE']).write_text(json.dumps({'args': args, 'config': config.read_text()}))\n"
                     "sys.exit(99)\n"
                 )
                 margin.chmod(0o755)
+                # npm resolves "latest" to 9.9.9 and installs a CLI that reports it.
+                npm = binary / "npm"
+                npm.write_text(
+                    "#!/usr/bin/env python3\n"
+                    "import sys\n"
+                    "from pathlib import Path\n"
+                    "args = sys.argv[1:]\n"
+                    "if args[0] == 'view':\n"
+                    "    print('9.9.9')\n"
+                    "elif args[0] == 'install':\n"
+                    "    bin_dir = Path(args[args.index('--prefix') + 1]) / 'bin'\n"
+                    "    bin_dir.mkdir(parents=True)\n"
+                    "    for name in ('codex', 'claude'):\n"
+                    "        (bin_dir / name).write_text('#!/bin/sh\\necho cli 9.9.9\\n')\n"
+                    "        (bin_dir / name).chmod(0o755)\n"
+                    "else:\n"
+                    "    sys.exit(99)\n"
+                )
+                npm.chmod(0o755)
                 capture = workspace / "args.json"
                 env = dict(os.environ, PATH=f"{binary}:{os.environ['PATH']}",
                            MARGINLAB_EVAL_WORKSPACE_ROOT=str(workspace),
@@ -46,12 +68,29 @@ class DailyDefaultsTests(unittest.TestCase):
                 # The stub deliberately produces no results: statistics must fail closed.
                 self.assertNotEqual(result.returncode, 0)
                 self.assertTrue(capture.exists(), result.stderr)
-                args = json.loads(capture.read_text())
-                config_dir = Path(args[args.index("--agent-config") + 1]).resolve()
-                self.assertEqual(config_dir, ROOT / "configs/example-agent-configs" / name)
-                config = tomllib.loads((config_dir / "config.toml").read_text())
+                captured = json.loads(capture.read_text())
+                args = captured["args"]
+                # The run gets the versioned config with one CLI version pinned
+                # for every task, and the definition as an absolute path.
+                config_path = Path(args[args.index("--agent-config") + 1])
+                self.assertEqual(config_path.name, name)
+                self.assertFalse(config_path.exists(), "the pinned config should be removed after the run")
+                versioned_dir = ROOT / "configs/example-agent-configs" / name
+                versioned = tomllib.loads((versioned_dir / "config.toml").read_text())
+                config = tomllib.loads(captured["config"])
+                version_input = "codex_version" if tracker == "codex" else "claude_version"
+                self.assertEqual(versioned["input"][version_input], "latest")
+                self.assertEqual(config["input"][version_input], "9.9.9")
+                definition = (versioned_dir / versioned["definition"]).resolve()
+                self.assertEqual(config["definition"], str(definition))
+                self.assertEqual(
+                    config,
+                    {**versioned, "definition": str(definition),
+                     "input": {**versioned["input"], version_input: "9.9.9"}},
+                )
+                self.assertIn(f"uses {'@openai/codex' if tracker == 'codex' else '@anthropic-ai/claude-code'} 9.9.9",
+                              result.stdout)
                 self.assertEqual(config["mode"], "direct")
-                definition = (config_dir / config["definition"]).resolve()
                 self.assertTrue((definition / "definition.toml").is_file())
                 schema = json.loads((definition / "schema.json").read_text())
                 self.assertTrue(set(schema["required"]) <= config["input"].keys())

@@ -47,6 +47,15 @@ exit 99
 MARGIN
 chmod +x "${BIN_ROOT}/margin"
 
+# Reusing a completed run must not resolve or install an agent CLI either.
+cat >"${BIN_ROOT}/npm" <<'NPM'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'unexpected npm invocation\n' >>"${MARGIN_LOG}"
+exit 99
+NPM
+chmod +x "${BIN_ROOT}/npm"
+
 cat >"${STATE_ROOT}/warmup-claude.sh" <<'WARMUP'
 #!/usr/bin/env bash
 set -euo pipefail
