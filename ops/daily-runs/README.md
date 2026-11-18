@@ -63,7 +63,10 @@ install, leaving 43 valid instances.
 So before a paid evaluation, each tracker runs `lib/pin_agent_config.py`. It
 resolves `latest` once, installs that version into a temporary directory the
 way a task does, runs its `--version` with a throwaway home, and writes a
-temporary copy of the config that names exactly that version. Until the check
+temporary copy of the config that names exactly that version. Like a task's
+container, it asks npm's public registry with an empty cache, a new one on
+every try, so neither this machine's npm settings (such as `prefer-offline`)
+nor a copy npm saved earlier can stand in for the current release. Until the check
 passes it tries again every `MARGINLAB_AGENT_INSTALL_RETRY_SECONDS` (default
 60), resolving `latest` afresh each time, for up to
 `MARGINLAB_AGENT_INSTALL_WAIT_SECONDS` (default 900); then the tracker fails.

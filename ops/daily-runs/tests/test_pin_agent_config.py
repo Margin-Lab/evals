@@ -12,19 +12,28 @@ ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / "ops/daily-runs/lib/pin_agent_config.py"
 
 # Stands in for npm. "view" answers from FAKE_NPM_LATEST (one comma-separated
-# entry per call, the last repeating). "install" writes a CLI whose --version
-# fails for the first FAKE_NPM_BROKEN installs, the way Codex does while its
-# platform build is still missing from npm.
+# entry per call, the last repeating), unless FAKE_NPM_STALE is set and it is
+# asked the way a machine with prefer-offline and a saved copy would answer:
+# without the public registry, or with a cache that is not empty. "install"
+# writes a CLI whose --version fails for the first FAKE_NPM_BROKEN installs,
+# the way Codex does while its platform build is still missing from npm.
 FAKE_NPM = r'''#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
 state_path = Path(os.environ["FAKE_NPM_STATE"])
 state = json.loads(state_path.read_text()) if state_path.exists() else {"view": 0, "install": 0}
+args = sys.argv[1:]
+cache = Path(args[args.index("--cache") + 1]) if "--cache" in args else None
+fresh = (cache is not None and cache.is_dir() and not any(cache.iterdir())
+         and "--registry=https://registry.npmjs.org/" in args)
 with open(os.environ["FAKE_NPM_LOG"], "a") as log:
-    log.write(json.dumps(sys.argv[1:]) + "\n")
-if sys.argv[1] == "view":
+    log.write(json.dumps(args) + "\n")
+if cache is not None and cache.is_dir():
+    (cache / f"saved-{state['view'] + state['install']}").write_text("saved")
+if args[0] == "view":
     versions = os.environ["FAKE_NPM_LATEST"].split(",")
-    print(versions[min(state["view"], len(versions) - 1)])
+    stale = os.environ.get("FAKE_NPM_STALE")
+    print(stale if stale and not fresh else versions[min(state["view"], len(versions) - 1)])
     state["view"] += 1
 elif sys.argv[1] == "install":
     args = sys.argv[1:]
@@ -116,10 +125,14 @@ class PinAgentConfigTests(unittest.TestCase):
         original["definition"] = pinned["definition"]
         self.assertEqual(pinned, original)
         calls = self.npm_calls()
-        self.assertEqual(calls[0], ["view", "@example/cli@latest", "version"])
+        self.assertEqual(calls[0][:3], ["view", "@example/cli@latest", "version"])
         self.assertEqual(calls[1][:2], ["install", "--global"])
         self.assertEqual(calls[1][-1], "@example/cli@1.2.3")
-        self.assertIn("--cache", calls[1])
+        for call in calls:
+            self.assertIn("--registry=https://registry.npmjs.org/", call)
+            self.assertIn("--prefer-online", call)
+        # One try asks and installs through the same new cache.
+        self.assertEqual(calls[0][calls[0].index("--cache") + 1], calls[1][calls[1].index("--cache") + 1])
         # The version probe never sees this machine's real home or Codex login.
         probe = json.loads(self.probe_env.read_text())
         self.assertNotEqual(probe["home"], self.env["HOME"])
@@ -133,6 +146,20 @@ class PinAgentConfigTests(unittest.TestCase):
         self.assertIn("Missing optional dependency", result.stderr)
         self.assertEqual([call[0] for call in self.npm_calls()], ["view", "install"] * 3)
         self.assertTrue((output / "config.toml").is_file())
+
+    def test_never_takes_a_saved_answer_for_the_latest_release(self):
+        # On one PC, npm with prefer-offline answered "latest" from a copy saved
+        # eleven days earlier. Every try must ask fresh, as a task's container does.
+        result, output = self.pin(self.config(), "--wait-seconds", "60", FAKE_NPM_BROKEN="1",
+                                  FAKE_NPM_STALE="2.1.319", FAKE_NPM_LATEST="2.1.327")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "2.1.327\n")
+        self.assertEqual(tomllib.loads((output / "config.toml").read_text())["input"]["example_version"], "2.1.327")
+        views = [call for call in self.npm_calls() if call[0] == "view"]
+        self.assertEqual(len(views), 2)
+        caches = [call[call.index("--cache") + 1] for call in views]
+        self.assertNotEqual(caches[0], caches[1], "each try needs its own empty cache")
+        self.assertFalse(any(Path(cache).exists() for cache in caches), "caches are removed")
 
     def test_picks_up_a_release_that_replaces_a_broken_one(self):
         result, output = self.pin(self.config(), "--wait-seconds", "60", FAKE_NPM_BROKEN="1",
