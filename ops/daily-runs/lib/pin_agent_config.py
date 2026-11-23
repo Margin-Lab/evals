@@ -11,6 +11,10 @@ those minutes and the day could not be published.
 Before the run, this resolves "latest" once, checks that the version installs and
 runs on this machine (waiting out a release that is still uploading), and writes a
 copy of the agent config that asks for exactly that version. It prints the version.
+
+Each npm command in a try has its own time limit, well inside the whole wait, so a
+download that stalls is dropped and tried again. On 2026-11-22, the first install
+of each CLI stalled for the full 15-minute wait, so neither tracker ran that day.
 """
 from __future__ import annotations
 
@@ -28,7 +32,6 @@ import tomllib
 from pathlib import Path
 
 VERSION = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?$")
-NPM_TIMEOUT_SECONDS = 900
 PROBE_TIMEOUT_SECONDS = 120
 # Each task's container asks npm's public registry with an empty cache and no
 # npm settings of this machine. Ask the same way, with a new empty cache on
@@ -50,18 +53,21 @@ def last_line(text: str) -> str:
     return lines[-1] if lines else "no output"
 
 
-def resolve_latest(package: str, cache: Path) -> str:
-    result = subprocess.run(
-        ["npm", "view", f"{package}@latest", "version", *npm_options(cache)],
-        capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=NPM_TIMEOUT_SECONDS,
-    )
+def resolve_latest(package: str, cache: Path, timeout: int) -> str:
+    try:
+        result = subprocess.run(
+            ["npm", "view", f"{package}@latest", "version", *npm_options(cache)],
+            capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise InstallError(f"npm view {package}@latest timed out") from error
     version = result.stdout.strip()
     if result.returncode != 0 or not VERSION.match(version):
         raise InstallError(f"npm view {package}@latest failed: {last_line(result.stderr or result.stdout)}")
     return version
 
 
-def check_install(package: str, version: str, binary: str, cache: Path) -> None:
+def check_install(package: str, version: str, binary: str, cache: Path, timeout: int) -> None:
     """Install the version the way each task does, then run its --version."""
     with tempfile.TemporaryDirectory(prefix="marginlab-agent-check-") as tmp:
         prefix = Path(tmp) / "prefix"
@@ -71,7 +77,7 @@ def check_install(package: str, version: str, binary: str, cache: Path) -> None:
             install = subprocess.run(
                 ["npm", "install", "--global", "--prefix", str(prefix), *npm_options(cache),
                  "--no-audit", "--no-fund", f"{package}@{version}"],
-                capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=NPM_TIMEOUT_SECONDS,
+                capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=timeout,
             )
         except subprocess.TimeoutExpired as error:
             raise InstallError(f"npm install {package}@{version} timed out") from error
@@ -144,8 +150,13 @@ def parse_arguments(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--output", required=True, type=Path, help="New directory for the pinned config")
     parser.add_argument(
         "--wait-seconds", type=int,
-        default=int(os.environ.get("MARGINLAB_AGENT_INSTALL_WAIT_SECONDS", "900")),
-        help="How long to keep trying before giving up (default 900)",
+        default=int(os.environ.get("MARGINLAB_AGENT_INSTALL_WAIT_SECONDS", "3600")),
+        help="How long to keep trying before giving up (default 3600)",
+    )
+    parser.add_argument(
+        "--try-seconds", type=int,
+        default=int(os.environ.get("MARGINLAB_AGENT_INSTALL_TRY_SECONDS", "600")),
+        help="Time limit for each npm command in a try (default 600)",
     )
     parser.add_argument(
         "--retry-seconds", type=int,
@@ -174,8 +185,9 @@ def main(argv: list[str] | None = None) -> int:
         try:
             # Resolve again on every try, so a broken release that is replaced is picked up.
             with tempfile.TemporaryDirectory(prefix="marginlab-agent-npm-cache-") as cache:
-                version = resolve_latest(args.package, Path(cache)) if requested == "latest" else requested
-                check_install(args.package, version, args.binary, Path(cache))
+                version = (resolve_latest(args.package, Path(cache), args.try_seconds)
+                           if requested == "latest" else requested)
+                check_install(args.package, version, args.binary, Path(cache), args.try_seconds)
             break
         except InstallError as error:
             remaining = deadline - time.monotonic()

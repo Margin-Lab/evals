@@ -1,4 +1,5 @@
 """Pinning resolves one CLI version per run and waits out a release in progress."""
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -7,6 +8,7 @@ import sys
 import tempfile
 import tomllib
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / "ops/daily-runs/lib/pin_agent_config.py"
@@ -16,9 +18,11 @@ SCRIPT = ROOT / "ops/daily-runs/lib/pin_agent_config.py"
 # asked the way a machine with prefer-offline and a saved copy would answer:
 # without the public registry, or with a cache that is not empty. "install"
 # writes a CLI whose --version fails for the first FAKE_NPM_BROKEN installs,
-# the way Codex does while its platform build is still missing from npm.
+# the way Codex does while its platform build is still missing from npm. The
+# first FAKE_NPM_HANG_VIEWS lookups and FAKE_NPM_HANG_INSTALLS installs stall,
+# the way npm does when a download stops arriving.
 FAKE_NPM = r'''#!/usr/bin/env python3
-import json, os, sys
+import json, os, sys, time
 from pathlib import Path
 state_path = Path(os.environ["FAKE_NPM_STATE"])
 state = json.loads(state_path.read_text()) if state_path.exists() else {"view": 0, "install": 0}
@@ -30,6 +34,12 @@ with open(os.environ["FAKE_NPM_LOG"], "a") as log:
     log.write(json.dumps(args) + "\n")
 if cache is not None and cache.is_dir():
     (cache / f"saved-{state['view'] + state['install']}").write_text("saved")
+hangs = int(os.environ.get(f"FAKE_NPM_HANG_{args[0].upper()}S", "0"))
+if state.get(f"{args[0]}_hangs", 0) < hangs:
+    state[f"{args[0]}_hangs"] = state.get(f"{args[0]}_hangs", 0) + 1
+    state_path.write_text(json.dumps(state))
+    time.sleep(30)
+    sys.exit(98)
 if args[0] == "view":
     versions = os.environ["FAKE_NPM_LATEST"].split(",")
     stale = os.environ.get("FAKE_NPM_STALE")
@@ -167,6 +177,37 @@ class PinAgentConfigTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "2.0.1\n")
         self.assertEqual(tomllib.loads((output / "config.toml").read_text())["input"]["example_version"], "2.0.1")
+
+    def test_tries_again_when_an_install_stalls(self):
+        # On 2026-11-22 the first install of each CLI stalled for the whole wait.
+        result, output = self.pin(self.config(), "--wait-seconds", "60", "--try-seconds", "1",
+                                  FAKE_NPM_HANG_INSTALLS="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "1.2.3\n")
+        self.assertIn("WARN: npm install @example/cli@1.2.3 timed out", result.stderr)
+        self.assertEqual([call[0] for call in self.npm_calls()], ["view", "install"] * 2)
+        self.assertTrue((output / "config.toml").is_file())
+
+    def test_tries_again_when_the_registry_lookup_stalls(self):
+        result, output = self.pin(self.config(), "--wait-seconds", "60", "--try-seconds", "1",
+                                  FAKE_NPM_HANG_VIEWS="1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "1.2.3\n")
+        self.assertIn("WARN: npm view @example/cli@latest timed out", result.stderr)
+        self.assertEqual([call[0] for call in self.npm_calls()], ["view", "view", "install"])
+        self.assertTrue((output / "config.toml").is_file())
+
+    def test_waits_an_hour_by_default_with_ten_minutes_per_npm_command(self):
+        spec = importlib.util.spec_from_file_location("pin_agent_config", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        required = ["--config", "c", "--version-input", "v", "--package", "p", "--binary", "b", "--output", "o"]
+        with mock.patch.dict(os.environ):
+            os.environ.pop("MARGINLAB_AGENT_INSTALL_WAIT_SECONDS", None)
+            os.environ.pop("MARGINLAB_AGENT_INSTALL_TRY_SECONDS", None)
+            args = module.parse_arguments(required)
+        self.assertEqual(args.wait_seconds, 3600)
+        self.assertEqual(args.try_seconds, 600)
 
     def test_gives_up_with_a_clear_error(self):
         result, output = self.pin(self.config(), "--wait-seconds", "0", FAKE_NPM_BROKEN="99")

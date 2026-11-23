@@ -69,7 +69,12 @@ every try, so neither this machine's npm settings (such as `prefer-offline`)
 nor a copy npm saved earlier can stand in for the current release. Until the check
 passes it tries again every `MARGINLAB_AGENT_INSTALL_RETRY_SECONDS` (default
 60), resolving `latest` afresh each time, for up to
-`MARGINLAB_AGENT_INSTALL_WAIT_SECONDS` (default 900); then the tracker fails.
+`MARGINLAB_AGENT_INSTALL_WAIT_SECONDS` (default 3600); then the tracker fails.
+Each npm command in a try stops after `MARGINLAB_AGENT_INSTALL_TRY_SECONDS`
+(default 600), so a download that stalls is tried again instead of using up the
+whole wait. On 2026-11-22 the wait was 15 minutes and a try could take all of
+it: the first install of each CLI stalled until the wait ran out, so neither
+tracker ran that day.
 The log names the version, for example `Every Codex task in this run uses
 @openai/codex 0.169.1`. A config that already names a version is checked and
 kept. Reusing a completed run skips the check.
