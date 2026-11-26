@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Tries the Antigravity CLI tracker's agent (agy with Gemini 4 Neon, high) on tasks
 # from the daily suite, outside the daily schedule, and prints what setting up its
-# tracker needs: each task's result and time, the agent's events, and the quota used.
-# Touches no daily run: results go under ~/antigravity-trials/.
+# tracker needs: each task's result and time, the agent's events, the tokens it
+# used and the quota used. Touches no daily run: results go under ~/antigravity-trials/.
 #
 # Usage:
-#   bash try-antigravity.sh               one quick task (about 5 minutes)
+#   bash try-antigravity.sh               one quick task (about 10 minutes)
 #   bash try-antigravity.sh --tasks 5     the suite's first 5 tasks
 #   bash try-antigravity.sh --all         all 50 tasks, like a daily run (hours)
+#   bash try-antigravity.sh --report      the latest trial's report again
 #
 # Sign in first and run check-antigravity-sign-in.sh.
 set -uo pipefail
@@ -25,6 +26,97 @@ TRIALS_DIR="${MARGINLAB_ANTIGRAVITY_TRIALS_DIR:-$HOME/antigravity-trials}"
 # Passed by Codex and Claude Code on every recent day, in about 3.5 minutes.
 QUICK_TASK="instance_ansible__ansible-395e5e20fab9cad517243372fa3c3c5d9e09ab2a-v7eee2454f617569fd6889f2211f75bc02a35f9f8"
 
+usage() {
+  echo "Usage: $0 [--tasks N | --all | --report]" >&2
+  exit 2
+}
+
+# report <trial dir> <margin run status> <seconds>
+report() {
+  python3 - "$1" "$2" "$3" "${EVAL_CONFIG}" <<'PY'
+import collections, json, re, sys
+from pathlib import Path
+
+trial, status, seconds, eval_config = Path(sys.argv[1]), sys.argv[2], sys.argv[3], Path(sys.argv[4])
+run = trial / "run"
+print()
+took = f" after {int(seconds) // 60} min {int(seconds) % 60} s" if seconds.isdigit() else ""
+print(f"=== Antigravity trial {trial.name}: margin run exited {status}{took}")
+if eval_config.is_file():
+    settings = [line.strip() for line in eval_config.read_text(encoding="utf-8").splitlines()
+                if re.search(r"concurren|parallel|timeout|retr", line)]
+    print("Eval settings: " + ("; ".join(settings) or "(none matched)"))
+
+results_path = run / "results.json"
+if results_path.is_file():
+    instances = json.loads(results_path.read_text(encoding="utf-8")).get("instances", [])
+    states = collections.Counter(instance.get("final_state") for instance in instances)
+    print("Results: " + ", ".join(f"{state} {n}" for state, n in states.most_common()))
+    for instance in instances:
+        usage = instance.get("usage") or {}
+        reason = instance.get("infra_failure_reason")
+        print(f"  {instance.get('final_state', '?'):<13} {(instance.get('runtime_ms') or 0) / 60000:5.1f} min"
+              f"  in {usage.get('input_tokens', '-')} out {usage.get('output_tokens', '-')}"
+              f" tools {usage.get('tool_calls', '-')}  {instance.get('case_id', '?')[:70]}"
+              + (f"  [{reason}]" if reason else ""))
+else:
+    print(f"No results.json in {run}")
+
+# Whole-run token totals per task come from each trajectory's final metrics.
+totals = collections.Counter()
+step_types = collections.Counter()
+outcomes = collections.Counter()
+tool_calls = 0
+trajectories = sorted(run.rglob("trajectory.json")) if run.is_dir() else []
+for path in trajectories:
+    trajectory = json.loads(path.read_text(encoding="utf-8"))
+    extra = ((trajectory or {}).get("final_metrics") or {}).get("extra") or {}
+    for key, value in (extra.get("usage_totals") or {}).items():
+        if isinstance(value, (int, float)):
+            totals[key] += value
+    step_types.update(extra.get("step_types") or {})
+    tool_calls += extra.get("tool_calls") or 0
+    outcomes[f"{extra.get('status', '?')}/{extra.get('finished_reason', '-')}"] += 1
+print(f"Trajectories: {len(trajectories)}; agy outcomes: " + (", ".join(f"{k} {v}" for k, v in outcomes.most_common()) or "none"))
+print("Tokens, all tasks: " + (", ".join(f"{key} {value:,}" for key, value in totals.most_common()) or "none reported"))
+print(f"Tool calls: {tool_calls}; steps: " + ", ".join(f"{key} {value}" for key, value in step_types.most_common(10)))
+
+# The agent's stdout, including the stream-json events, is in its terminal log.
+logs = sorted(run.rglob("agent_server_pty.log")) if run.is_dir() else []
+events = []
+for log in logs[:1]:
+    for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+        start = line.find('{"event"')
+        if start >= 0:
+            events.append(line[start:])
+if events:
+    kinds = collections.Counter()
+    for line in events:
+        try:
+            event = json.loads(line)
+        except ValueError:
+            kinds["unparsed"] += 1
+            continue
+        payload = event.get(event.get("event")) if isinstance(event.get(event.get("event")), dict) else event
+        kinds[f"{event.get('event')}:{payload.get('step_type', '')}:{payload.get('state', '')}"] += 1
+    print(f"Events in the first task's log: {len(events)}; " + ", ".join(f"{k} {v}" for k, v in kinds.most_common(10)))
+    tool_events = [line for line in events if '"tool_info"' in line]
+    for sample in events[:3] + tool_events[:2] + events[-1:]:
+        print("  " + sample[:600])
+elif logs:
+    print("The first task's terminal log has no stream-json events")
+for name in ("quota-before.json", "quota-after.json"):
+    path = trial / name
+    text = path.read_text(encoding="utf-8").strip() if path.is_file() else ""
+    try:
+        lines = json.loads(text).get("response", "").strip().splitlines()
+        text = " | ".join(line.replace("\t", " ") for line in lines if line.startswith("Gemini"))
+    except ValueError:
+        pass
+    print(f"{name}: {text[:600] or '(empty)'}")
+PY
+}
+
 selection="quick"
 count=1
 case "${1:-}" in
@@ -32,20 +124,23 @@ case "${1:-}" in
   --tasks)
     selection="first"
     count="${2:-}"
-    if ! [[ "${count}" =~ ^[1-9][0-9]*$ ]]; then
-      echo "Usage: $0 [--tasks N | --all]" >&2
-      exit 2
-    fi
+    [[ "${count}" =~ ^[1-9][0-9]*$ ]] || usage
     ;;
   --all) selection="all" ;;
+  --report)
+    latest="$(ls -1d "${TRIALS_DIR}"/*/ 2> /dev/null | tail -n 1)"
+    if [ -z "${latest}" ]; then
+      echo "Error: no trials in ${TRIALS_DIR}" >&2
+      exit 1
+    fi
+    report "${latest%/}" "(not rerun)" ""
+    exit 0
+    ;;
   -h|--help)
     sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
     exit 0
     ;;
-  *)
-    echo "Usage: $0 [--tasks N | --all]" >&2
-    exit 2
-    ;;
+  *) usage ;;
 esac
 
 for needed in "${SUITE_SOURCE}/suite.toml" "${EVAL_CONFIG}" "${AGY}"; do
@@ -97,8 +192,9 @@ fi
 
 # /usage answers from the account without starting a turn, so it spends no quota.
 # Like check-antigravity-sign-in.sh, it runs in a new home holding only the
-# sign-in and with a clean environment: this machine's own agy state and session
-# bus can hold up a run started from its home (it hung on 2026-11-26).
+# sign-in and with a clean environment. From this machine's own home and
+# terminal settings, agy tried to use the terminal from the background and was
+# stopped there (2026-11-26).
 quota() {
   local home
   home="$(mktemp -d "${TMPDIR:-/tmp}/agy-quota.XXXXXX")" || return 0
@@ -123,82 +219,5 @@ status="${PIPESTATUS[0]}"
 finished="$(date +%s)"
 quota > "${TRIAL_DIR}/quota-after.json"
 
-python3 - "${TRIAL_DIR}" "${status}" "$((finished - started))" "${EVAL_CONFIG}" <<'PY'
-import collections, json, re, sys
-from pathlib import Path
-
-trial, status, seconds, eval_config = Path(sys.argv[1]), sys.argv[2], int(sys.argv[3]), Path(sys.argv[4])
-run = trial / "run"
-print()
-print(f"=== Antigravity trial: margin run exited {status} after {seconds // 60} min {seconds % 60} s")
-settings = [line.strip() for line in eval_config.read_text(encoding="utf-8").splitlines()
-            if re.search(r"concurren|parallel|timeout|retr", line)]
-print("Eval settings: " + ("; ".join(settings) or "(none matched)"))
-
-results_path = run / "results.json"
-if results_path.is_file():
-    results = json.loads(results_path.read_text(encoding="utf-8"))
-    instances = results.get("instances", [])
-    states = collections.Counter(instance.get("final_state") for instance in instances)
-    print("Results: " + ", ".join(f"{state} {n}" for state, n in states.most_common()))
-    for instance in instances:
-        usage = instance.get("usage") or {}
-        reason = instance.get("infra_failure_reason")
-        print(f"  {instance.get('final_state', '?'):<13} {(instance.get('runtime_ms') or 0) / 60000:5.1f} min"
-              f"  in {usage.get('input_tokens', '-')} out {usage.get('output_tokens', '-')}"
-              f" tools {usage.get('tool_calls', '-')}  {instance.get('case_id', '?')[:70]}"
-              + (f"  [{reason}]" if reason else ""))
-else:
-    print(f"No results.json in {run}")
-
-streams = sorted(run.rglob("agy-stream.jsonl")) if run.is_dir() else []
-totals = collections.Counter()
-step_types = collections.Counter()
-tools = collections.Counter()
-outcomes = collections.Counter()
-errors = []
-samples = []
-for stream in streams:
-    for line in stream.read_text(encoding="utf-8", errors="replace").splitlines():
-        try:
-            event = json.loads(line)
-        except ValueError:
-            continue
-        kind = event.get("event")
-        payload = event.get(kind) if isinstance(event.get(kind), dict) else event
-        if kind == "step_update":
-            step_types[f"{payload.get('step_type')}/{payload.get('state')}"] += 1
-            info = payload.get("tool_info") or {}
-            if payload.get("state") == "DONE" and (info.get("name") or payload.get("tool_name")):
-                tools[info.get("name") or payload.get("tool_name")] += 1
-        elif kind == "result":
-            outcomes[f"{payload.get('status')}/{payload.get('finished_reason', '-')}"] += 1
-            for key, value in (payload.get("usage") or {}).items():
-                if isinstance(value, (int, float)):
-                    totals[key] += value
-            if payload.get("error"):
-                errors.append(str(payload.get("error"))[:200])
-        if len(streams) <= 2 and len(samples) < 12 and (kind != "step_update" or len(samples) < 10):
-            samples.append(line[:500])
-print(f"Event streams: {len(streams)}; run outcomes: " + (", ".join(f"{k} {v}" for k, v in outcomes.most_common()) or "none"))
-print("Usage, all tasks: " + (", ".join(f"{key} {value:,}" for key, value in totals.most_common()) or "none reported"))
-print("Steps: " + ", ".join(f"{key} {value}" for key, value in step_types.most_common(12)))
-print("Tools: " + ", ".join(f"{key} {value}" for key, value in tools.most_common(12)))
-for error in errors[:5]:
-    print(f"Error: {error}")
-for stderr_log in sorted(run.rglob("agy.stderr.log"))[:3]:
-    tail = stderr_log.read_text(encoding="utf-8", errors="replace").strip().splitlines()[-3:]
-    if tail:
-        print(f"agy stderr ({stderr_log.parent.parent.parent.name[-14:]}): " + " | ".join(line[:160] for line in tail))
-transcripts = list(run.rglob("agy-transcripts/*.jsonl"))
-trajectories = list(run.rglob("trajectory.json"))
-print(f"Transcripts saved: {len(transcripts)}; trajectories: {len(trajectories)}")
-if samples:
-    print("First events:")
-    for sample in samples:
-        print("  " + sample)
-for name in ("quota-before.json", "quota-after.json"):
-    text = (trial / name).read_text(encoding="utf-8").strip() if (trial / name).is_file() else ""
-    print(f"{name}: {text[:1200] or '(empty)'}")
-PY
+report "${TRIAL_DIR}" "${status}" "$((finished - started))"
 exit "${status}"
