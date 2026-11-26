@@ -66,8 +66,23 @@ if ((claude_status != 0)); then
   echo "FAIL: Claude Code did not finish for ${TARGET_DATE} (status ${claude_status})" >&2
 fi
 
+# Runs the site-data publisher with PUBLISH_ARGUMENTS.
+run_publisher() {
+  if ((PUBLISH)); then
+    MARGINLAB_SITE_DATA_PUBLISH=1 \
+      npm --prefix "${AUTOMATION_ROOT}/hosting" run publish:site-data -- \
+      --publish "${PUBLISH_ARGUMENTS[@]}"
+  else
+    env -u MARGINLAB_SITE_DATA_PUBLISH \
+      npm --prefix "${AUTOMATION_ROOT}/hosting" run publish:site-data -- \
+      "${PUBLISH_ARGUMENTS[@]}"
+  fi
+}
+
 # Publishes the Codex and Claude Code trackers that finished, and returns the
-# status the run exits with on their account.
+# status the run exits with on their account. PUBLISHED is 1 once the publisher
+# has succeeded.
+PUBLISHED=0
 publish_finished_trackers() {
   CURRENT_TRACKERS=()
   if ((codex_status == 0)); then
@@ -102,19 +117,12 @@ publish_finished_trackers() {
   fi
 
   local publish_status=0
-  if ((PUBLISH)); then
-    MARGINLAB_SITE_DATA_PUBLISH=1 \
-      npm --prefix "${AUTOMATION_ROOT}/hosting" run publish:site-data -- \
-      --publish "${PUBLISH_ARGUMENTS[@]}" || publish_status=$?
-  else
-    env -u MARGINLAB_SITE_DATA_PUBLISH \
-      npm --prefix "${AUTOMATION_ROOT}/hosting" run publish:site-data -- \
-      "${PUBLISH_ARGUMENTS[@]}" || publish_status=$?
-  fi
+  run_publisher || publish_status=$?
   if ((publish_status != 0)); then
     echo "FAIL: the site-data publisher failed for ${TARGET_DATE} (status ${publish_status})" >&2
     return "${publish_status}"
   fi
+  PUBLISHED=1
 
   if ((codex_status != 0)); then
     echo "FAIL: only Claude Code went to the site-data publisher for ${TARGET_DATE}; Codex did not finish" >&2
@@ -131,8 +139,10 @@ publish_finished_trackers || run_status=$?
 
 # The Antigravity CLI tracker (trial) runs after the others have published, so it
 # never delays them, when "${DAILY_STATE_DIR}/antigravity-tracker.enabled" exists.
-# Its runs are synced to the raw data but not published yet. A night it skips
-# because the account's limits are low is not a failure.
+# A night it skips because the account's limits are low is not a failure. Once
+# it finishes, the publisher runs again with the same trackers, so its run goes
+# out tonight; with nothing new, the publisher makes no commit. A run that can't
+# be published tonight goes out with the next publication.
 if [ -e "${DAILY_STATE_DIR}/antigravity-tracker.enabled" ]; then
   antigravity_status=0
   bash "${SCRIPT_DIR}/run-antigravity.sh" || antigravity_status=$?
@@ -142,6 +152,15 @@ if [ -e "${DAILY_STATE_DIR}/antigravity-tracker.enabled" ]; then
     echo "FAIL: Antigravity did not finish for ${TARGET_DATE} (status ${antigravity_status})" >&2
     if ((run_status == 0)); then
       run_status="${antigravity_status}"
+    fi
+  elif ((PUBLISHED)); then
+    republish_status=0
+    run_publisher || republish_status=$?
+    if ((republish_status != 0)); then
+      echo "FAIL: the site-data publisher failed to add Antigravity for ${TARGET_DATE} (status ${republish_status})" >&2
+      if ((run_status == 0)); then
+        run_status="${republish_status}"
+      fi
     fi
   fi
 fi

@@ -178,10 +178,13 @@ every 8 days, and the statistics' 7-day window holds 42 different tasks.
 
 `run.sh` runs it after Codex and Claude Code have been published, so it never
 delays them, and only while `antigravity-tracker.enabled` exists in the daily
-state directory. Its runs are synced to the raw data but not published yet. A
-skipped night doesn't change the run's exit status; a failure does, after the
-others were published. The baseline (0.70) is provisional until enough nights
-are collected.
+state directory. When it finishes, `run.sh` runs the same publication again so
+the night's run goes out with the others; the publisher only exports it once
+the website lists the tracker, and otherwise makes no commit. With nothing
+published that night, the run goes out with the next publication. A skipped
+night doesn't change the run's exit status; a failure does, after the others
+were published. The baseline (0.70) is provisional until enough nights are
+collected.
 
 ### Signing in and trying it
 
@@ -205,7 +208,8 @@ and don't touch daily runs. Run `--all` when the daily run isn't running.
 
 The parent runner runs Codex, then Claude Code, and the trackers are
 independent: when one fails, the other still runs. It then invokes the
-website's site-data publisher once with the trackers that passed. When only one
+website's site-data publisher once with the trackers that passed (and again
+after the Antigravity tracker, when that's on and finishes). When only one
 passed, it adds `--current-tracker` for that one, so only it must be current
 for the target date and the other keeps its published days. When neither
 passed, nothing is published. Any failure still makes the run exit non-zero,
