@@ -149,6 +149,31 @@ python3 statistics/normalize_legacy_policy.py \
 After normalization, the unchanged strict retry path can reuse and sync the
 run. The publisher remains strict and will never export an implicit policy.
 
+## Antigravity CLI tracker (trial)
+
+Not part of the daily run yet. The `antigravity-cli` agent definition runs
+Google's Antigravity CLI (`agy`) headless with `--dangerously-skip-permissions`;
+`configs/example-agent-configs/antigravity-cli-gemini-4-neon-high` pins
+Gemini 4 Neon at high effort. Each task installs `agy` from Google's release
+archives, checked against the release manifest's SHA-512, and uses either
+`GEMINI_API_KEY` or the Google sign-in saved on this machine.
+
+Without a D-Bus session bus, `agy` saves its sign-in to
+`~/.gemini/antigravity-cli/antigravity-oauth-token` instead of a system keyring,
+and the runner copies that file into each task's home. So sign in with the bus
+unset:
+
+```sh
+curl -fsSL https://antigravity.google/cli/install.sh | bash   # installs ~/.local/bin/agy
+env -u DBUS_SESSION_BUS_ADDRESS ~/.local/bin/agy              # open the link, sign in, paste the code
+bash check-antigravity-sign-in.sh   # the sign-in in a new home and a container; models; quota
+bash try-antigravity.sh             # one quick task; --tasks N or --all for more
+```
+
+`check-antigravity-sign-in.sh` and the quota lines of `try-antigravity.sh` use
+`agy -p /usage`, which spends no quota. Trials write under `~/antigravity-trials/`
+and don't touch daily runs. Run `--all` when the daily run isn't running.
+
 ## Site-data publication
 
 The parent runner runs Codex, then Claude Code, and the trackers are

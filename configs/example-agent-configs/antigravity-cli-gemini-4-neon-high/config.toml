@@ -1,0 +1,11 @@
+kind = "agent_config"
+name = "antigravity-cli-gemini-4-neon-high"
+definition = "../../agent-definitions/antigravity-cli"
+mode = "direct"
+
+[input]
+agy_version = "latest"
+startup_args = []
+run_args = []
+model = "gemini-4-neon-high"
+settings_json = "{}"

@@ -9,6 +9,8 @@ bash -n \
   "${SCRIPT_DIR}/run-codex.sh" \
   "${SCRIPT_DIR}/run-claude-code.sh" \
   "${SCRIPT_DIR}/sync-run.sh" \
+  "${SCRIPT_DIR}/check-antigravity-sign-in.sh" \
+  "${SCRIPT_DIR}/try-antigravity.sh" \
   "${SCRIPT_DIR}/tests/independent-trackers.sh" \
   "${SCRIPT_DIR}/tests/publication-mode.sh" \
   "${SCRIPT_DIR}/tests/retry-safe.sh" \
@@ -45,3 +47,5 @@ PYTHONDONTWRITEBYTECODE=1 python3 "${SCRIPT_DIR}/tests/test_pin_agent_config.py"
 "${SCRIPT_DIR}/run.sh" --help
 "${SCRIPT_DIR}/run-from-cron.sh" --help
 "${SCRIPT_DIR}/sync-run.sh" --help
+"${SCRIPT_DIR}/try-antigravity.sh" --help > /dev/null
+node --test "${SCRIPT_DIR}/../../configs/agent-definitions/antigravity-cli/hooks/test/hooks.test.js"

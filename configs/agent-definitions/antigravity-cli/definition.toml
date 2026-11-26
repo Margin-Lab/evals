@@ -1,0 +1,43 @@
+kind = "agent_definition"
+name = "antigravity-cli"
+description = "Repo-owned Antigravity CLI (agy) agent definition"
+
+[auth]
+required_env = ["GEMINI_API_KEY"]
+
+# Without GEMINI_API_KEY, each task uses the Google sign-in saved on this machine.
+# On a machine with no D-Bus session bus (a server reached over SSH with
+# DBUS_SESSION_BUS_ADDRESS unset, cron, or a container), agy keeps that sign-in in
+# this file instead of the system keyring. Sign in with:
+#   env -u DBUS_SESSION_BUS_ADDRESS ~/.local/bin/agy
+[[auth.local_credentials]]
+required_env = "GEMINI_API_KEY"
+run_home_rel_path = ".gemini/antigravity-cli/antigravity-oauth-token"
+
+  [[auth.local_credentials.sources]]
+  kind = "home_file"
+  home_rel_path = ".gemini/antigravity-cli/antigravity-oauth-token"
+
+# The hooks are JavaScript. agy itself is a native binary that needs no runtime.
+[toolchains.node]
+minimum = "20"
+preferred = "24"
+
+[config]
+schema = "schema.json"
+
+[skills]
+home_rel_dir = ".agents/skills"
+
+[agents_md]
+filename = "AGENTS.md"
+
+[install]
+check = "hooks/install-check.js"
+run = "hooks/install-run.js"
+
+[run]
+prepare = "hooks/run-prepare.js"
+
+[trajectory]
+collect = "hooks/trajectory-collect.js"
