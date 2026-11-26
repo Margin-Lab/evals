@@ -41,6 +41,7 @@ Daily agent defaults are versioned under `configs/example-agent-configs/`:
 | --- | --- | --- | --- |
 | Codex | `codex-gpt-6.1-sol-high` | `gpt-6.1-sol` | `high` |
 | Claude Code | `claude-code-opus-5.5-high` | `claude-opus-5-5` | `high` |
+| Antigravity CLI (trial, 6 tasks a night) | `antigravity-cli-gemini-4-neon-high` | `gemini-4-neon-high` | `high` |
 
 Both use direct configuration so exact model IDs and effort levels reach the
 agent CLI without the unified configuration model allowlist. The daily scripts
@@ -151,12 +152,38 @@ run. The publisher remains strict and will never export an implicit policy.
 
 ## Antigravity CLI tracker (trial)
 
-Not part of the daily run yet. The `antigravity-cli` agent definition runs
-Google's Antigravity CLI (`agy`) headless with `--dangerously-skip-permissions`;
+The `antigravity-cli` agent definition runs Google's Antigravity CLI (`agy`)
+headless with `--dangerously-skip-permissions`;
 `configs/example-agent-configs/antigravity-cli-gemini-4-neon-high` pins
 Gemini 4 Neon at high effort. Each task installs `agy` from Google's release
 archives, checked against the release manifest's SHA-512, and uses either
 `GEMINI_API_KEY` or the Google sign-in saved on this machine.
+
+### Nightly sample
+
+The tracker runs on a Google AI Pro sign-in. Its weekly Antigravity limit covers
+about 47 daily-suite tasks with Neon (measured 2026-11-26: 2.1 points of the
+weekly limit and 8 of the 5-hour limit per task), so a full 50 a night doesn't
+fit. `run-antigravity.sh` runs 6 tasks a night instead, the next 6 in suite order
+by date from 2026-11-27 (`lib/antigravity_suite.py`): each task runs about once
+every 8 days, and the statistics' 7-day window holds 42 different tasks.
+
+| Step | What it does |
+| --- | --- |
+| Limits | `lib/antigravity_limits.py` reads the weekly and 5-hour limits with `agy -p /usage` (no quota spent). Below 20% weekly or 70% 5-hour, the night is skipped: exit 75, nothing runs or syncs. |
+| Release | `lib/pin_agy_config.py` pins one `agy` release, with its SHA-512s, for every task of the night. |
+| Run | `margin run` on the night's 6 tasks, with `eval-config-codex.toml`. |
+| Check | `lib/antigravity_run_check.py` rejects the night if any task stopped on the account's limits, since that task would count as a model failure. |
+| Statistics and sync | As for the other trackers, with 6 expected instances and 5 valid ones required, to `data/benchmarks/degradation_trackers/antigravity/swe-bench-pro/data`. |
+
+`run.sh` runs it after Codex and Claude Code have been published, so it never
+delays them, and only while `antigravity-tracker.enabled` exists in the daily
+state directory. Its runs are synced to the raw data but not published yet. A
+skipped night doesn't change the run's exit status; a failure does, after the
+others were published. The baseline (0.70) is provisional until enough nights
+are collected.
+
+### Signing in and trying it
 
 Without a D-Bus session bus, `agy` saves its sign-in to
 `~/.gemini/antigravity-cli/antigravity-oauth-token` instead of a system keyring,

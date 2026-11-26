@@ -105,3 +105,63 @@ run_case 0 0 4 4
 grep -Fq 'FAIL: the site-data publisher failed for 2026-11-17 (status 4)' "${OUTPUT}"
 run_case 1 0 4 4
 grep -q -- '--current-tracker claude-code-current$' "${CALLS}"
+
+# The Antigravity tracker runs only when its flag file exists, after the others
+# have been published, and its own failure never stops their publication.
+cat >"${RUNNER_ROOT}/run-antigravity.sh" <<'TRACKER'
+printf 'tracker antigravity\n' >>"${CALLS}"
+exit "${ANTIGRAVITY_EXIT}"
+TRACKER
+
+# antigravity_case <codex exit> <claude exit> <antigravity exit> <expected run exit>
+antigravity_case() {
+  : >"${CALLS}"
+  local status=0
+  env \
+    "PATH=${BIN_ROOT}:${PATH}" \
+    "CALLS=${CALLS}" \
+    "CODEX_EXIT=$1" \
+    "CLAUDE_EXIT=$2" \
+    "ANTIGRAVITY_EXIT=$3" \
+    "PUBLISH_EXIT=0" \
+    "MARGINLAB_DAILY_RUN_TIMESTAMP=20261117-060000" \
+    "MARGINLAB_EVAL_WORKSPACE_ROOT=${FIXTURE_ROOT}/workspace" \
+    "MARGINLAB_DAILY_STATE_DIR=${FIXTURE_ROOT}/state" \
+    "MARGINLAB_RAW_REPOSITORY=${FIXTURE_ROOT}/raw" \
+    "MARGINLAB_AUTOMATION_ROOT=${FIXTURE_ROOT}/automation" \
+    "MARGINLAB_EVALUATION_ROOT=${FIXTURE_ROOT}/evals" \
+    "MARGINLAB_DAILY_LOCK_FILE=${FIXTURE_ROOT}/daily.lock" \
+    bash "${RUNNER_ROOT}/run.sh" --publish >"${OUTPUT}" 2>&1 || status=$?
+  if [ "${status}" != "$4" ]; then
+    echo "codex=$1 claude=$2 antigravity=$3: expected exit $4, got ${status}" >&2
+    cat "${OUTPUT}" >&2
+    exit 1
+  fi
+}
+
+# Without the flag file, it doesn't run.
+run_case 0 0 0 0
+if grep -q '^tracker antigravity' "${CALLS}"; then
+  echo "Antigravity ran without ${FIXTURE_ROOT}/state/antigravity-tracker.enabled" >&2
+  exit 1
+fi
+
+touch "${FIXTURE_ROOT}/state/antigravity-tracker.enabled"
+# Everything finishes: Antigravity runs last, after the full publication.
+antigravity_case 0 0 0 0
+test "$(cut -d' ' -f1-2 "${CALLS}" | tr '\n' ' ')" = "tracker codex tracker claude-code publish --prefix tracker antigravity "
+# A night skipped for low limits leaves the run's status alone.
+antigravity_case 0 0 75 0
+grep -Fq 'Antigravity skipped 2026-11-17; the run' "${OUTPUT}"
+# Its failure fails the run, after the others were published.
+antigravity_case 0 0 5 5
+test "$(grep -c '^publish ' "${CALLS}")" -eq 1
+grep -Fq 'FAIL: Antigravity did not finish for 2026-11-17 (status 5)' "${OUTPUT}"
+# Another tracker's failure keeps its own status, and Antigravity still runs.
+antigravity_case 1 0 5 1
+grep -q '^tracker antigravity' "${CALLS}"
+grep -q -- '--current-tracker claude-code-current$' "${CALLS}"
+# It runs even when nothing else could be published.
+antigravity_case 1 2 0 1
+grep -q '^tracker antigravity' "${CALLS}"
+test "$(grep -c '^publish ' "${CALLS}" || true)" -eq 0

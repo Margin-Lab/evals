@@ -11,6 +11,8 @@ bash -n \
   "${SCRIPT_DIR}/sync-run.sh" \
   "${SCRIPT_DIR}/check-antigravity-sign-in.sh" \
   "${SCRIPT_DIR}/try-antigravity.sh" \
+  "${SCRIPT_DIR}/run-antigravity.sh" \
+  "${SCRIPT_DIR}/tests/antigravity-run.sh" \
   "${SCRIPT_DIR}/tests/independent-trackers.sh" \
   "${SCRIPT_DIR}/tests/publication-mode.sh" \
   "${SCRIPT_DIR}/tests/retry-safe.sh" \
@@ -42,6 +44,8 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
 "${SCRIPT_DIR}/tests/retry-safe.sh"
 PYTHONDONTWRITEBYTECODE=1 python3 "${SCRIPT_DIR}/tests/test_daily_defaults.py"
 PYTHONDONTWRITEBYTECODE=1 python3 "${SCRIPT_DIR}/tests/test_pin_agent_config.py"
+PYTHONDONTWRITEBYTECODE=1 python3 "${SCRIPT_DIR}/tests/test_antigravity.py"
+"${SCRIPT_DIR}/tests/antigravity-run.sh"
 "${SCRIPT_DIR}/tests/publication-mode.sh"
 "${SCRIPT_DIR}/tests/independent-trackers.sh"
 "${SCRIPT_DIR}/run.sh" --help

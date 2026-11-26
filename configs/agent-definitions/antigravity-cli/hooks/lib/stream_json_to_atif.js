@@ -295,6 +295,7 @@ function toTrajectory(events, options = {}) {
       extra: compact({
         status: result ? result.status : undefined,
         finished_reason: result ? result.finished_reason : undefined,
+        error: result && result.error ? textOf(result.error) : undefined,
         num_turns: result ? finiteOrUndefined(result.num_turns) : undefined,
         duration_seconds: result ? finiteOrUndefined(result.duration_seconds) : undefined,
         usage_totals: usage || undefined,

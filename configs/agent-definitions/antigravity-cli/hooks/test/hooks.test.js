@@ -127,6 +127,7 @@ test("a run that fails before any step keeps its error; an empty stream has no t
   assert.equal(trajectory.steps.length, 1);
   assert.match(trajectory.steps[0].message, /exhausted your quota/);
   assert.equal(trajectory.final_metrics.extra.status, "ERROR");
+  assert.match(trajectory.final_metrics.extra.error, /exhausted your quota/);
   assert.equal(toTrajectory([], {}), null);
 });
 
