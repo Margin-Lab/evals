@@ -81,11 +81,43 @@ test("converts a stream-json run into ATIF steps, tool calls and metrics", () =>
     [toolStep.tool_calls[0].tool_call_id, "code"],
     [toolStep.tool_calls[1].tool_call_id, "Error: exit 1"],
   ]);
-  assert.equal(trajectory.final_metrics.total_prompt_tokens, 1200);
-  assert.equal(trajectory.final_metrics.total_completion_tokens, 18);
+  // The largest prompt counts its cached part; output already includes thinking.
+  assert.equal(trajectory.final_metrics.total_prompt_tokens, 2000);
+  assert.equal(trajectory.final_metrics.total_completion_tokens, 13);
   assert.equal(trajectory.final_metrics.total_cached_tokens, 800);
   assert.equal(trajectory.final_metrics.total_steps, 3);
   assert.equal(trajectory.final_metrics.extra.tool_calls, 2);
+});
+
+test("handles agy 1.5.18's real event shapes", () => {
+  // Shapes from a trial run on 2026-11-26: the prompt isn't repeated, tool_info
+  // arrives on the ACTIVE event and gains its output at DONE, and some steps are
+  // system messages.
+  const conversation = "5bc020a3-1519-4681-931a-9a71a825e5f3";
+  const trajectory = toTrajectory([
+    { event: "init", conversation_id: conversation, init: { model: "gemini-4-neon-high", cwd: "/app" } },
+    { event: "step_update", step_update: { conversation_id: conversation, step_index: 0, state: "DONE", step_type: "user_input" } },
+    { event: "step_update", step_update: { conversation_id: conversation, step_index: 1, state: "ACTIVE", step_type: "agent_response", text_delta: "Reading the iterator." } },
+    { event: "step_update", step_update: { conversation_id: conversation, step_index: 1, state: "DONE", step_type: "agent_response", duration_seconds: 5.5, usage: { input_tokens: 11078, output_tokens: 272, thinking_tokens: 86, cache_read_tokens: 0, total_tokens: 11350 } } },
+    { event: "step_update", step_update: { conversation_id: conversation, step_index: 2, state: "ACTIVE", step_type: "tool", tool_name: "read_file", tool_info: { name: "read_file", parameters: { Path: "/app/lib/ansible/executor/play_iterator.py" } } } },
+    { event: "step_update", step_update: { conversation_id: conversation, step_index: 2, state: "DONE", step_type: "tool", tool_name: "read_file", duration_seconds: 1.1, tool_info: { name: "read_file", parameters: { Path: "/app/lib/ansible/executor/play_iterator.py" }, output: "560 lines, 26440 bytes" } } },
+    { event: "step_update", step_update: { conversation_id: conversation, step_index: 3, state: "DONE", step_type: "system_message" } },
+    { event: "step_update", step_update: { conversation_id: conversation, step_index: 4, state: "DONE", step_type: "system_message", text_delta: "Context checkpoint saved." } },
+    { event: "result", result: { conversation_id: conversation, status: "SUCCESS", response: "Standardized PlayIterator states.", usage: { input_tokens: 236763, output_tokens: 63649, thinking_tokens: 39499, cache_read_tokens: 2150858, total_tokens: 300412 } } },
+  ], { version: "1.5.18", initialPrompt: "Fix the play iterator." });
+
+  assert.equal(trajectory.session_id, conversation);
+  assert.deepEqual(trajectory.steps.map((s) => [s.source, s.message]), [
+    ["user", "Fix the play iterator."],
+    ["agent", "Reading the iterator."],
+    ["system", "Context checkpoint saved."],
+  ]);
+  assert.deepEqual(trajectory.steps[1].tool_calls[0].arguments, { Path: "/app/lib/ansible/executor/play_iterator.py" });
+  assert.equal(trajectory.steps[1].observation.results[0].content, "560 lines, 26440 bytes");
+  assert.deepEqual(trajectory.steps[1].metrics, { prompt_tokens: 11078, completion_tokens: 272, cached_tokens: 0 });
+  assert.equal(trajectory.final_metrics.total_completion_tokens, 63649);
+  assert.equal(trajectory.final_metrics.extra.usage_totals.cache_read_tokens, 2150858);
+  assert.equal(trajectory.final_metrics.extra.step_types.system_message, 2);
 });
 
 test("a run that fails before any step keeps its error; an empty stream has no trajectory", () => {

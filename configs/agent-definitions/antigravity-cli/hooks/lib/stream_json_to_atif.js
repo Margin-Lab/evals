@@ -89,16 +89,19 @@ function argumentsOf(parameters) {
   return {};
 }
 
+// agy's usage splits a request's prompt into input_tokens (not cached) and
+// cache_read_tokens, and its total_tokens is input_tokens + output_tokens, so
+// output_tokens already counts the thinking_tokens it also reports on their own.
 function usageMetrics(usage) {
   if (!isPlainObject(usage)) {
     return undefined;
   }
-  const output = finiteOrUndefined(usage.output_tokens);
-  const thinking = finiteOrUndefined(usage.thinking_tokens);
+  const input = finiteOrUndefined(usage.input_tokens);
+  const cached = finiteOrUndefined(usage.cache_read_tokens);
   const metrics = compact({
-    prompt_tokens: finiteOrUndefined(usage.input_tokens),
-    completion_tokens: output === undefined && thinking === undefined ? undefined : (output || 0) + (thinking || 0),
-    cached_tokens: finiteOrUndefined(usage.cache_read_tokens),
+    prompt_tokens: input === undefined && cached === undefined ? undefined : (input || 0) + (cached || 0),
+    completion_tokens: finiteOrUndefined(usage.output_tokens),
+    cached_tokens: cached,
   });
   return Object.keys(metrics).length > 0 ? metrics : undefined;
 }
@@ -217,8 +220,16 @@ function toTrajectory(events, options = {}) {
     }
     if (raw.type === "user_input") {
       flush();
+      // agy doesn't repeat the prompt in the stream; the first one is the task's.
       const message = raw.text || (steps.length === 0 ? String(options.initialPrompt || "") : "");
       steps.push({ step_id: steps.length + 1, source: "user", message: message || "(user input)" });
+      continue;
+    }
+    if (raw.type === "system_message") {
+      if (raw.text) {
+        flush();
+        steps.push({ step_id: steps.length + 1, source: "system", message: raw.text });
+      }
       continue;
     }
     if (raw.type === "agent_response" || (!raw.toolInfo && raw.text && raw.type !== "checkpoint")) {

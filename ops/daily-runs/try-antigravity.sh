@@ -34,7 +34,7 @@ usage() {
 # report <trial dir> <margin run status> <seconds>
 report() {
   python3 - "$1" "$2" "$3" "${EVAL_CONFIG}" <<'PY'
-import collections, json, re, sys
+import collections, json, os, re, sys
 from pathlib import Path
 
 trial, status, seconds, eval_config = Path(sys.argv[1]), sys.argv[2], sys.argv[3], Path(sys.argv[4])
@@ -79,6 +79,15 @@ for path in trajectories:
     outcomes[f"{extra.get('status', '?')}/{extra.get('finished_reason', '-')}"] += 1
 print(f"Trajectories: {len(trajectories)}; agy outcomes: " + (", ".join(f"{k} {v}" for k, v in outcomes.most_common()) or "none"))
 print("Tokens, all tasks: " + (", ".join(f"{key} {value:,}" for key, value in totals.most_common()) or "none reported"))
+# What the same tokens would cost through the Gemini API. input_tokens is the
+# uncached part of each prompt, and output_tokens already counts thinking.
+prices = [float(p) for p in os.environ.get("MARGINLAB_AGY_PRICES", "3,0.15,15").split(",")]
+if trajectories and totals:
+    cost = (totals["input_tokens"] * prices[0] + totals["cache_read_tokens"] * prices[1]
+            + totals["output_tokens"] * prices[2]) / 1e6
+    per_task = cost / len(trajectories)
+    print(f"At API prices (${prices[0]:g} input, ${prices[1]:g} cached, ${prices[2]:g} output per 1M tokens): "
+          f"${cost:.2f} in all, ${per_task:.2f} per task, ${per_task * 50:.0f} for 50 tasks")
 print(f"Tool calls: {tool_calls}; steps: " + ", ".join(f"{key} {value}" for key, value in step_types.most_common(10)))
 
 # The agent's stdout, including the stream-json events, is in its terminal log.
