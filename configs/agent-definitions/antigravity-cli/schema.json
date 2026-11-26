@@ -1,0 +1,57 @@
+{
+  "type": "object",
+  "required": [
+    "agy_version",
+    "startup_args",
+    "run_args",
+    "model",
+    "settings_json"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "agy_version": {
+      "description": "\"latest\", or a release ID such as \"1.5.18-6386224290725888\" (the folder name in the release's download URL)",
+      "type": "string",
+      "pattern": "^(latest|[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+)$"
+    },
+    "agy_sha512": {
+      "description": "SHA-512 of the release archive for each platform, checked when agy_version names a release",
+      "type": "object",
+      "propertyNames": {
+        "enum": ["linux_amd64", "linux_amd64_musl", "linux_arm64", "linux_arm64_musl"]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{128}$"
+      }
+    },
+    "startup_args": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "run_args": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "model": {
+      "description": "A model slug from `agy models`, such as gemini-4-neon-high",
+      "type": "string",
+      "minLength": 1
+    },
+    "effort": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "xhigh", "max"]
+    },
+    "settings_json": {
+      "description": "Extra settings.json keys for agy, as a JSON object",
+      "type": "string",
+      "minLength": 2
+    }
+  }
+}

@@ -4,12 +4,16 @@ on:
   pull_request:
     paths:
       - ops/daily-runs/**
+      - configs/agent-definitions/antigravity-cli/**
+      - configs/example-agent-configs/antigravity-cli-*/**
       - .github/workflows/daily-run-validate.yml
   push:
     branches:
       - main
     paths:
       - ops/daily-runs/**
+      - configs/agent-definitions/antigravity-cli/**
+      - configs/example-agent-configs/antigravity-cli-*/**
       - .github/workflows/daily-run-validate.yml
   workflow_dispatch:
 
