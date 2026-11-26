@@ -42,7 +42,6 @@ const command = [
   "--thinking",
   shellQuote(cfg.thinking),
   ...(cfg.run_args || []).map(shellQuote),
-  "--",
   shellQuote(run.initial_prompt),
 ].join(" ");
 
