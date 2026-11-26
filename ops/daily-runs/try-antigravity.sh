@@ -90,39 +90,53 @@ if trajectories and totals:
           f"${cost:.2f} in all, ${per_task:.2f} per task, ${per_task * 50:.0f} for 50 tasks")
 print(f"Tool calls: {tool_calls}; steps: " + ", ".join(f"{key} {value}" for key, value in step_types.most_common(10)))
 
-# The agent's stdout, including the stream-json events, is in its terminal log.
+# The Gemini limits before and after, from /usage: "Gemini Models<TAB><limit><TAB>98%<TAB><reset>".
+def gemini_limits(name):
+    try:
+        response = json.loads((trial / name).read_text(encoding="utf-8")).get("response", "")
+    except (OSError, ValueError, AttributeError):
+        return {}
+    found = {}
+    for line in response.splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 3 and parts[0] == "Gemini Models" and parts[2].endswith("%"):
+            found[parts[1]] = (float(parts[2][:-1]), parts[3] if len(parts) > 3 else "")
+    return found
+
+before, after = gemini_limits("quota-before.json"), gemini_limits("quota-after.json")
+for limit, label in (("Weekly Limit Remaining", "Weekly"), ("Five Hour Limit Remaining", "5-hour")):
+    if limit not in after:
+        print(f"{label} limit: not read")
+        continue
+    left, resets = after[limit]
+    line = f"{label} limit: {left:g}% left"
+    if limit in before:
+        used = before[limit][0] - left
+        line = f"{label} limit: {before[limit][0]:g}% -> {left:g}% left, {used:g} points for {len(trajectories)} task(s)"
+        if used > 0 and trajectories:
+            line += f", so a full limit covers about {100 * len(trajectories) / used:.0f} tasks like these"
+    print(line + (f" (resets {resets})" if resets else ""))
+
+# The agent's stdout, including the stream-json events, is in its terminal log. Only
+# event counts are printed: the log also holds terminal control characters.
 logs = sorted(run.rglob("agent_server_pty.log")) if run.is_dir() else []
-events = []
+kinds = collections.Counter()
 for log in logs[:1]:
     for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
         start = line.find('{"event"')
-        if start >= 0:
-            events.append(line[start:])
-if events:
-    kinds = collections.Counter()
-    for line in events:
+        if start < 0:
+            continue
         try:
-            event = json.loads(line)
+            event = json.loads(line[start:])
         except ValueError:
             kinds["unparsed"] += 1
             continue
         payload = event.get(event.get("event")) if isinstance(event.get(event.get("event")), dict) else event
         kinds[f"{event.get('event')}:{payload.get('step_type', '')}:{payload.get('state', '')}"] += 1
-    print(f"Events in the first task's log: {len(events)}; " + ", ".join(f"{k} {v}" for k, v in kinds.most_common(10)))
-    tool_events = [line for line in events if '"tool_info"' in line]
-    for sample in events[:3] + tool_events[:2] + events[-1:]:
-        print("  " + sample[:600])
+if kinds:
+    print(f"Events in the first task's log: {sum(kinds.values())}; " + ", ".join(f"{k} {v}" for k, v in kinds.most_common(10)))
 elif logs:
     print("The first task's terminal log has no stream-json events")
-for name in ("quota-before.json", "quota-after.json"):
-    path = trial / name
-    text = path.read_text(encoding="utf-8").strip() if path.is_file() else ""
-    try:
-        lines = json.loads(text).get("response", "").strip().splitlines()
-        text = " | ".join(line.replace("\t", " ") for line in lines if line.startswith("Gemini"))
-    except ValueError:
-        pass
-    print(f"{name}: {text[:600] or '(empty)'}")
 PY
 }
 
