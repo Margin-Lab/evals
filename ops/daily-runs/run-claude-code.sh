@@ -14,6 +14,11 @@ TARGET_DIR="${DAILY_STATE_DIR}/runs/claude-code/${RUN_TIMESTAMP}"
 RUNS_DIR="$(dirname "${TARGET_DIR}")"
 RUN_DATE="${TARGET_DIR##*/}"
 RUN_DATE_FORMATTED="${RUN_DATE:0:4}-${RUN_DATE:4:2}-${RUN_DATE:6:2}"
+# Opus 5.5/high's baseline: the pooled pass rate of its daily runs from
+# 2026-09-24 to 2026-11-26 (784 of 1006 graded tasks, 21 runs). It must match
+# CLAUDE_BASELINE_WINDOW in the site's hosting/src/lib/tracker-mode.ts; the site
+# build stops if they differ.
+BASELINE_P0="${CLAUDE_CODE_BASELINE_P0:-0.7793}"
 marginlab_load_daily_run_policy
 SYNC_DESTINATION="${RAW_REPOSITORY}/data/benchmarks/degradation_trackers/claude_code/swe-bench-pro/data"
 
@@ -82,7 +87,7 @@ python3 "${SCRIPT_DIR}/statistics/compute_stats.py" \
   --runs_dir "${RUNS_DIR}" \
   --output "${TARGET_DIR}/statistics.json" \
   --date "${RUN_DATE_FORMATTED}" \
-  --baseline 0.73 \
+  --baseline "${BASELINE_P0}" \
   --non-test-failure-policy "${NON_TEST_FAILURE_POLICY}" \
   --expected-instances "${EXPECTED_INSTANCES}" \
   --minimum-valid-instances "${MINIMUM_VALID_INSTANCES}" \

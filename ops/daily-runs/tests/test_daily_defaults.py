@@ -1,6 +1,7 @@
 """Verify daily runners select usable, versioned model defaults without an eval."""
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -107,6 +108,20 @@ class DailyDefaultsTests(unittest.TestCase):
                     settings = json.loads(config["input"]["settings_json"])
                     self.assertEqual(settings["model"], model)
                     self.assertEqual(settings["effortLevel"], "high")
+
+    def test_baselines_match_readme(self):
+        # Each window-test baseline is documented with the days it came from.
+        readme = (ROOT / "ops/daily-runs/README.md").read_text()
+        for script, variable, label in (
+            ("run-codex.sh", "CODEX_BASELINE_P0", "Codex (GPT-6.1 Sol/high)"),
+            ("run-claude-code.sh", "CLAUDE_CODE_BASELINE_P0", "Claude Code (Opus 5.5/high)"),
+        ):
+            with self.subTest(script=script):
+                text = (ROOT / "ops/daily-runs" / script).read_text()
+                match = re.search(rf'BASELINE_P0="\$\{{{variable}:-([0-9.]+)\}}"', text)
+                self.assertIsNotNone(match, f"{script} has no {variable} default")
+                self.assertIn('--baseline "${BASELINE_P0}"', text)
+                self.assertIn(f"| {label} | {match.group(1)} |", readme)
 
 
 if __name__ == "__main__":

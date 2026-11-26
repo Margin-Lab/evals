@@ -47,9 +47,25 @@ agent CLI without the unified configuration model allowlist. The daily scripts
 resolve these defaults relative to this checkout; older local agent configs
 are no longer used. Credentials, eval settings, and the Claude warm-up script
 remain local. Fast-forward the production checkout to activate these defaults.
-Codex writes new runs under `runs/codex/gpt-6-1-sol-high`; statistics retain
-the historical Sol 5.6 high/xhigh series and the existing baseline. Claude
-retains its existing run directory and baseline.
+Codex writes new runs under `runs/codex/gpt-6-1-sol-high`; statistics still read
+the historical Sol 5.6 high/xhigh series for their history. Claude retains its
+existing run directory.
+
+### Baselines
+
+Each tracker's window tests compare results with the baseline pass rate of its
+current model. The rate is the pooled pass rate of that model's runs over a
+fixed set of days, the same days the site's sustained-drop check uses
+(`CODEX_BASELINE_WINDOW` and `CLAUDE_BASELINE_WINDOW` in the site's
+`hosting/src/lib/tracker-mode.ts`). The site build stops if the two differ.
+
+| Tracker | Baseline | Days | Graded tasks |
+| --- | --- | --- | --- |
+| Codex (GPT-6.1 Sol/high) | 0.6074 | 2026-11-08 to 2026-11-26, 18 runs | 540 of 889 passed |
+| Claude Code (Opus 5.5/high) | 0.7793 | 2026-09-24 to 2026-11-26, 21 runs | 784 of 1006 passed |
+
+When a tracker's model changes, collect a new baseline, then change the rate here,
+in `run-codex.sh` or `run-claude-code.sh`, and the window on the site together.
 
 ### One agent CLI version per run
 

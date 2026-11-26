@@ -16,7 +16,11 @@ TARGET_DIR="${CODEX_RUNS_DIR}/${MODEL_SERIES}/${RUN_TIMESTAMP}"
 RUNS_DIR="$(dirname "${TARGET_DIR}")"
 RUN_DATE="${TARGET_DIR##*/}"
 RUN_DATE_FORMATTED="${RUN_DATE:0:4}-${RUN_DATE:4:2}-${RUN_DATE:6:2}"
-BASELINE_P0="${CODEX_BASELINE_P0:-0.8340}"
+# GPT-6.1 Sol/high's baseline: the pooled pass rate of its daily runs from
+# 2026-11-08 to 2026-11-26 (540 of 889 graded tasks, 18 runs). It must match
+# CODEX_BASELINE_WINDOW in the site's hosting/src/lib/tracker-mode.ts; the site
+# build stops if they differ.
+BASELINE_P0="${CODEX_BASELINE_P0:-0.6074}"
 marginlab_load_daily_run_policy
 SYNC_DESTINATION="${RAW_REPOSITORY}/data/benchmarks/degradation_trackers/codex/swe-bench-pro/data"
 BASELINE_SERIES=(
