@@ -96,9 +96,19 @@ else
 fi
 
 # /usage answers from the account without starting a turn, so it spends no quota.
+# Like check-antigravity-sign-in.sh, it runs in a new home holding only the
+# sign-in and with a clean environment: this machine's own agy state and session
+# bus can hold up a run started from its home (it hung on 2026-11-26).
 quota() {
-  env -u DBUS_SESSION_BUS_ADDRESS timeout 150 "${AGY}" -p "/usage" --output-format json < /dev/null 2> /dev/null
+  local home
+  home="$(mktemp -d "${TMPDIR:-/tmp}/agy-quota.XXXXXX")" || return 0
+  mkdir -p "${home}/.gemini/antigravity-cli"
+  cp "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" "${home}/.gemini/antigravity-cli/"
+  (cd "${home}" && env -i HOME="${home}" PATH=/usr/local/bin:/usr/bin:/bin TERM=dumb \
+    timeout -k 10 120 "${AGY}" -p "/usage" --output-format json < /dev/null 2> /dev/null)
+  rm -rf -- "${home}"
 }
+echo "Reading the quota before the run"
 quota > "${TRIAL_DIR}/quota-before.json"
 
 echo "Results will be in ${TRIAL_DIR}"

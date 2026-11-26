@@ -66,7 +66,7 @@ fresh="${work}/home"
 mkdir -p "${fresh}/$(dirname "${TOKEN_REL}")" "${work}/workspace"
 cp "${TOKEN}" "${fresh}/${TOKEN_REL}"
 if usage="$(cd "${work}/workspace" && env -i HOME="${fresh}" PATH=/usr/local/bin:/usr/bin:/bin TERM=dumb \
-    timeout 150 "${AGY}" -p "/usage" --output-format json < /dev/null 2> "${work}/usage.err")" &&
+    timeout -k 10 150 "${AGY}" -p "/usage" --output-format json < /dev/null 2> "${work}/usage.err")" &&
   printf '%s' "${usage}" | show_usage > "${work}/usage.txt"; then
   ok "the sign-in works copied alone into a new home. Quota now:"
   cat "${work}/usage.txt"
@@ -79,7 +79,7 @@ fi
 # 2. A container: another machine ID, hostname and user, as in a task.
 if ! command -v docker > /dev/null 2>&1; then
   warn "docker isn't available, so the container check was skipped"
-elif container_usage="$(timeout 300 docker run --rm \
+elif container_usage="$(timeout -k 10 300 docker run --rm \
     -v "${TOKEN}:/sign-in:ro" -v "${AGY}:/usr/local/bin/agy:ro" \
     -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro \
     -e HOME=/root -w /tmp "${IMAGE}" sh -c \
@@ -94,7 +94,7 @@ fi
 
 # 3. The models this account can pick with --model.
 if models="$(cd "${work}/workspace" && env -i HOME="${fresh}" PATH=/usr/local/bin:/usr/bin:/bin TERM=dumb \
-    timeout 150 "${AGY}" models < /dev/null 2> "${work}/models.err")"; then
+    timeout -k 10 150 "${AGY}" models < /dev/null 2> "${work}/models.err")"; then
   ok "models this account can use:"
   printf '%s\n' "${models}" | sed 's/^/      /'
   if printf '%s\n' "${models}" | grep -q 'gemini-4-neon-high'; then
